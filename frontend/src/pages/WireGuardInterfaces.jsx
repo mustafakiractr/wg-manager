@@ -493,6 +493,12 @@ function WireGuardInterfaces() {
       if (formData.endpoint_address.trim()) peerData.endpoint_address = formData.endpoint_address.trim()
       if (formData.endpoint_port) peerData.endpoint_port = parseInt(formData.endpoint_port)
 
+      // Template ID ekle (kullanım istatistikleri için)
+      if (selectedTemplate) {
+        peerData.template_id = selectedTemplate.id
+        console.log('📊 Template kullanıldı, ID backend\'e gönderiliyor:', selectedTemplate.id)
+      }
+
       await addPeer(peerData)
       setShowAddModal(false)
       resetForm()
@@ -593,7 +599,12 @@ function WireGuardInterfaces() {
         if (formData.endpoint_allowed_address.trim()) peerData.endpoint_allowed_address = formData.endpoint_allowed_address.trim()
         if (formData.preshared_key.trim()) peerData.preshared_key = formData.preshared_key.trim()
         if (formData.mtu) peerData.mtu = parseInt(formData.mtu)
-        
+
+        // Template ID ekle (kullanım istatistikleri için)
+        if (selectedTemplate) {
+          peerData.template_id = selectedTemplate.id
+        }
+
         await addPeer(peerData)
         
         // Sonraki IP'yi hesapla
