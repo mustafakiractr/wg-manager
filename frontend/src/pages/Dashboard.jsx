@@ -5,6 +5,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import { getInterfaces, getPeers, getPeerLogs } from '../services/wireguardService'
+import { getDashboardStats, getIPPoolUsage, getRecentActivities } from '../services/dashboardService'
 import {
   getPeerHourlyTraffic,
   getPeerDailyTraffic,
@@ -37,12 +38,12 @@ ChartJS.register(
   Legend,
   Filler
 )
-import { 
-  Network, 
-  Users, 
-  Activity, 
-  AlertCircle, 
-  Download, 
+import {
+  Network,
+  Users,
+  Activity,
+  AlertCircle,
+  Download,
   Upload,
   Search,
   RefreshCw,
@@ -57,6 +58,10 @@ import {
   TrendingUp,
   Calendar,
   RefreshCw as RefreshCwIcon,
+  Database,
+  FileCode,
+  Zap,
+  BarChart3,
 } from 'lucide-react'
 
 function Dashboard() {
@@ -90,6 +95,9 @@ function Dashboard() {
     totalRx: 0, // Toplam indirilen veri
     totalTx: 0, // Toplam yüklenen veri
   })
+  const [dashboardStats, setDashboardStats] = useState(null) // Backend'den gelen genel istatistikler
+  const [ipPoolUsage, setIPPoolUsage] = useState([]) // IP Pool kullanım detayları
+  const [recentActivities, setRecentActivities] = useState([]) // Son aktiviteler
   const [trafficHistory, setTrafficHistory] = useState({
     rx: [], // Son 20 RX değeri
     tx: [], // Son 20 TX değeri
@@ -202,10 +210,36 @@ function Dashboard() {
     }
   }, [])
 
+  // Dashboard istatistiklerini yükle
+  const loadDashboardData = useCallback(async () => {
+    try {
+      // Genel istatistikleri al
+      const statsRes = await getDashboardStats()
+      if (statsRes.success) {
+        setDashboardStats(statsRes.data)
+      }
+
+      // IP Pool kullanım verilerini al
+      const ipPoolRes = await getIPPoolUsage()
+      if (ipPoolRes.success) {
+        setIPPoolUsage(ipPoolRes.data)
+      }
+
+      // Son aktiviteleri al
+      const activitiesRes = await getRecentActivities(10)
+      if (activitiesRes.success) {
+        setRecentActivities(activitiesRes.data)
+      }
+    } catch (error) {
+      console.error('Dashboard verileri yüklenemedi:', error)
+    }
+  }, [])
+
   // İlk yükleme - sessizce yükle
   useEffect(() => {
     loadData(false) // İlk yüklemede de sessizce yükle
-  }, [loadData])
+    loadDashboardData() // Dashboard istatistiklerini yükle
+  }, [loadData, loadDashboardData])
 
   // Yenileme sıklığı değiştiğinde interval'i güncelle - performans için minimum 10 saniye
   useEffect(() => {
@@ -733,6 +767,101 @@ function Dashboard() {
         </p>
       </div>
 
+      {/* Genel Bakış Kartları */}
+      {dashboardStats && (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          {/* IP Pool Kartı */}
+          <div className="card bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20 border-blue-200 dark:border-blue-800">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-blue-700 dark:text-blue-300 font-medium">
+                  IP Pool Kullanımı
+                </p>
+                <p className="text-3xl font-bold text-blue-900 dark:text-blue-100 mt-2">
+                  {dashboardStats.ip_pool.usage_percent}%
+                </p>
+                <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
+                  {dashboardStats.ip_pool.allocated_ips} / {dashboardStats.ip_pool.total_ips} IP
+                </p>
+              </div>
+              <div className="p-3 rounded-lg bg-blue-200 dark:bg-blue-700/50">
+                <Database className="w-6 h-6 text-blue-700 dark:text-blue-300" />
+              </div>
+            </div>
+            <div className="mt-4">
+              <div className="w-full bg-blue-200 dark:bg-blue-800 rounded-full h-2">
+                <div
+                  className="bg-blue-600 dark:bg-blue-400 h-2 rounded-full transition-all duration-500"
+                  style={{ width: `${dashboardStats.ip_pool.usage_percent}%` }}
+                ></div>
+              </div>
+            </div>
+          </div>
+
+          {/* Peer Templates Kartı */}
+          <div className="card bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-900/20 dark:to-purple-800/20 border-purple-200 dark:border-purple-800">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-purple-700 dark:text-purple-300 font-medium">
+                  Peer Şablonları
+                </p>
+                <p className="text-3xl font-bold text-purple-900 dark:text-purple-100 mt-2">
+                  {dashboardStats.templates.total_templates}
+                </p>
+                {dashboardStats.templates.most_used_template && (
+                  <p className="text-xs text-purple-600 dark:text-purple-400 mt-1 truncate">
+                    En çok: {dashboardStats.templates.most_used_template.name}
+                  </p>
+                )}
+              </div>
+              <div className="p-3 rounded-lg bg-purple-200 dark:bg-purple-700/50">
+                <FileCode className="w-6 h-6 text-purple-700 dark:text-purple-300" />
+              </div>
+            </div>
+          </div>
+
+          {/* Kullanıcılar Kartı */}
+          <div className="card bg-gradient-to-br from-green-50 to-green-100 dark:from-green-900/20 dark:to-green-800/20 border-green-200 dark:border-green-800">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-green-700 dark:text-green-300 font-medium">
+                  Aktif Kullanıcılar
+                </p>
+                <p className="text-3xl font-bold text-green-900 dark:text-green-100 mt-2">
+                  {dashboardStats.users.active_users}
+                </p>
+                <p className="text-xs text-green-600 dark:text-green-400 mt-1">
+                  Toplam: {dashboardStats.users.total_users}
+                </p>
+              </div>
+              <div className="p-3 rounded-lg bg-green-200 dark:bg-green-700/50">
+                <Users className="w-6 h-6 text-green-700 dark:text-green-300" />
+              </div>
+            </div>
+          </div>
+
+          {/* Son 24 Saat Aktivite Kartı */}
+          <div className="card bg-gradient-to-br from-orange-50 to-orange-100 dark:from-orange-900/20 dark:to-orange-800/20 border-orange-200 dark:border-orange-800">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-orange-700 dark:text-orange-300 font-medium">
+                  Son 24 Saat
+                </p>
+                <p className="text-3xl font-bold text-orange-900 dark:text-orange-100 mt-2">
+                  {dashboardStats.activity.last_24h}
+                </p>
+                <p className="text-xs text-orange-600 dark:text-orange-400 mt-1">
+                  Toplam Aktivite
+                </p>
+              </div>
+              <div className="p-3 rounded-lg bg-orange-200 dark:bg-orange-700/50">
+                <Zap className="w-6 h-6 text-orange-700 dark:text-orange-300" />
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* İstatistik kartları */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         {statCards.map((stat, index) => {
@@ -901,6 +1030,118 @@ function Dashboard() {
             )}
           </div>
         </div>
+      </div>
+
+      {/* IP Pool Kullanım Detayları ve Son Aktiviteler */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* IP Pool Kullanım Detayları */}
+        {ipPoolUsage.length > 0 && (
+          <div className="card">
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+                  IP Pool Kullanım Detayları
+                </h2>
+                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                  Tüm havuzların kullanım durumu
+                </p>
+              </div>
+              <BarChart3 className="w-6 h-6 text-gray-400" />
+            </div>
+            <div className="space-y-4">
+              {ipPoolUsage.map((pool) => (
+                <div key={pool.pool_id} className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className="flex-1">
+                      <p className="text-sm font-medium text-gray-900 dark:text-white">
+                        {pool.pool_name}
+                      </p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">
+                        {pool.interface_name} - {pool.subnet}
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-sm font-semibold text-gray-900 dark:text-white">
+                        {pool.usage_percent}%
+                      </p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">
+                        {pool.allocated} / {pool.total_ips}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+                    <div
+                      className={`h-2 rounded-full transition-all duration-500 ${
+                        pool.usage_percent >= 90
+                          ? 'bg-red-500'
+                          : pool.usage_percent >= 70
+                          ? 'bg-yellow-500'
+                          : 'bg-green-500'
+                      }`}
+                      style={{ width: `${pool.usage_percent}%` }}
+                    ></div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Son Aktiviteler Timeline */}
+        {recentActivities.length > 0 && (
+          <div className="card">
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+                  Son Aktiviteler
+                </h2>
+                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                  Son 10 işlem
+                </p>
+              </div>
+              <Clock className="w-6 h-6 text-gray-400" />
+            </div>
+            <div className="space-y-3 max-h-96 overflow-y-auto">
+              {recentActivities.map((activity) => (
+                <div
+                  key={activity.id}
+                  className="flex items-start gap-3 p-3 rounded-lg bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                >
+                  <div className="flex-shrink-0">
+                    <div className={`w-2 h-2 rounded-full mt-2 ${
+                      activity.action === 'create' ? 'bg-green-500' :
+                      activity.action === 'delete' ? 'bg-red-500' :
+                      activity.action === 'update' ? 'bg-blue-500' :
+                      'bg-gray-500'
+                    }`}></div>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
+                      {activity.username}
+                    </p>
+                    <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">
+                      <span className="font-medium">{activity.action}</span> - {activity.resource_type}
+                      {activity.resource_name && (
+                        <span className="text-gray-500 dark:text-gray-500"> : {activity.resource_name}</span>
+                      )}
+                    </p>
+                    {activity.timestamp && (
+                      <p className="text-xs text-gray-500 dark:text-gray-500 mt-1">
+                        {new Date(activity.timestamp).toLocaleString('tr-TR', {
+                          day: '2-digit',
+                          month: '2-digit',
+                          year: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit'
+                        })}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Aktif Peer Listesi */}
