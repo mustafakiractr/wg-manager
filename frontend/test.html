@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test</title>
+</head>
+<body>
+    <h1>Frontend Test</h1>
+    <p>Eğer bu sayfayı görüyorsanız, frontend çalışıyor.</p>
+    <script>
+        fetch('http://192.168.250.19:8000/health')
+            .then(r => r.json())
+            .then(data => {
+                document.body.innerHTML += '<p>Backend bağlantısı: OK</p><pre>' + JSON.stringify(data, null, 2) + '</pre>'
+            })
+            .catch(e => {
+                document.body.innerHTML += '<p>Backend bağlantı hatası: ' + e.message + '</p>'
+            })
+    </script>
+</body>
+</html>

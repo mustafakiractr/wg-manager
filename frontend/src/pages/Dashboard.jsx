@@ -1,0 +1,1610 @@
+/**
+ * Dashboard sayfası
+ * Aktif peer'ları listeler ve gerçek zamanlı istatistikleri gösterir
+ */
+import { useState, useEffect, useCallback, useMemo } from 'react'
+import { Link } from 'react-router-dom'
+import { getInterfaces, getPeers, getPeerLogs } from '../services/wireguardService'
+import {
+  getPeerHourlyTraffic,
+  getPeerDailyTraffic,
+  getPeerMonthlyTraffic,
+  getPeerYearlyTraffic,
+} from '../services/trafficService'
+import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  BarElement,
+  Title,
+  Tooltip,
+  Legend,
+  Filler,
+} from 'chart.js'
+import { Line } from 'react-chartjs-2'
+
+// Chart.js bileşenlerini kaydet
+ChartJS.register(
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  BarElement,
+  Title,
+  Tooltip,
+  Legend,
+  Filler
+)
+import { 
+  Network, 
+  Users, 
+  Activity, 
+  AlertCircle, 
+  Download, 
+  Upload,
+  Search,
+  RefreshCw,
+  ArrowUpDown,
+  Filter,
+  MoreVertical,
+  ArrowRight,
+  Clock,
+  Wifi,
+  FileText,
+  X,
+  TrendingUp,
+  Calendar,
+  RefreshCw as RefreshCwIcon,
+} from 'lucide-react'
+
+function Dashboard() {
+  const [interfaces, setInterfaces] = useState([])
+  const [allPeers, setAllPeers] = useState([]) // Tüm aktif peer'lar
+  const [refreshRate, setRefreshRate] = useState(10) // Saniye cinsinden (performans için 10 saniye)
+  const [searchTerm, setSearchTerm] = useState('')
+  const [sortBy, setSortBy] = useState('lastActivity') // 'lastActivity', 'name', 'rx', 'tx'
+  const [isRefreshing, setIsRefreshing] = useState(false) // Arka plan yenileme durumu (yenileme butonu için)
+  const [showLogsModal, setShowLogsModal] = useState(false) // Log modal durumu
+  const [selectedPeer, setSelectedPeer] = useState(null) // Seçili peer
+  const [peerLogs, setPeerLogs] = useState([]) // Peer logları
+  const [loadingLogs, setLoadingLogs] = useState(false) // Log yükleme durumu
+  const [logSummary, setLogSummary] = useState(null) // Log özeti
+  const [startDate, setStartDate] = useState('') // Başlangıç tarihi
+  const [endDate, setEndDate] = useState('') // Bitiş tarihi
+  const [logLimit] = useState(100) // Peer log pagination limit
+  const [logOffset, setLogOffset] = useState(0) // Peer log pagination offset
+  const [showTrafficModal, setShowTrafficModal] = useState(false) // Trafik modal durumu
+  const [trafficPeriodType, setTrafficPeriodType] = useState('daily') // Trafik periyot tipi
+  const [trafficStartDate, setTrafficStartDate] = useState('') // Trafik başlangıç tarihi
+  const [trafficEndDate, setTrafficEndDate] = useState('') // Trafik bitiş tarihi
+  const [peerTrafficData, setPeerTrafficData] = useState([]) // Peer trafik verileri
+  const [peerTrafficSummary, setPeerTrafficSummary] = useState(null) // Peer trafik özeti
+  const [loadingTraffic, setLoadingTraffic] = useState(false) // Trafik yükleme durumu
+  const [stats, setStats] = useState({
+    totalInterfaces: 0,
+    totalPeers: 0,
+    activeInterfaces: 0,
+    activePeers: 0,
+    totalRx: 0, // Toplam indirilen veri
+    totalTx: 0, // Toplam yüklenen veri
+  })
+  const [trafficHistory, setTrafficHistory] = useState({
+    rx: [], // Son 20 RX değeri
+    tx: [], // Son 20 TX değeri
+    timestamps: [], // Zaman damgaları
+  })
+
+  // loadData fonksiyonunu useCallback ile tanımla (useEffect'lerden önce)
+  const loadData = useCallback(async (showLoading = false) => {
+    try {
+      // Sadece manuel yenileme butonuna basıldığında isRefreshing'i true yap
+      if (showLoading) {
+        setIsRefreshing(true) // Manuel yenileme için
+      }
+      
+      const interfacesRes = await getInterfaces()
+      const interfacesData = interfacesRes.data || []
+
+      // Tüm interface'lerden peer'ları paralel olarak topla (performans için)
+      const peerPromises = interfacesData.map(async (iface) => {
+        try {
+          const interfaceName = iface.name || iface['.id']
+          const peersRes = await getPeers(interfaceName)
+          const peers = peersRes.data || []
+          
+          // Peer'ları normalize et
+          const normalizedPeers = peers.map((p) => {
+            // MikroTik'ten gelen disabled değerini normalize et
+            let disabled = p.disabled
+            if (disabled === undefined || disabled === null) {
+              disabled = false  // Varsayılan olarak aktif
+            } else if (typeof disabled === 'string') {
+              disabled = disabled.toLowerCase() === 'true' || disabled.toLowerCase() === 'yes'
+            } else if (typeof disabled === 'boolean') {
+              disabled = disabled
+            } else {
+              disabled = Boolean(disabled)
+            }
+            
+            // Peer ID'yi normalize et
+            const peerId = p.id || p['.id'] || p['*id']
+            
+            return {
+              ...p,
+              id: peerId,
+              disabled: disabled,
+              interfaceName: iface.name || iface['.id'],
+              interfaceId: iface['.id'],
+            }
+          })
+          
+          return normalizedPeers
+        } catch (error) {
+          console.error(`Peer listesi alınamadı: ${iface.name}`, error)
+          return []
+        }
+      })
+
+      // Tüm peer'ları paralel olarak yükle
+      const allPeersArrays = await Promise.all(peerPromises)
+      const allPeersData = allPeersArrays.flat()
+
+      // İstatistikleri hesapla
+      const totalPeers = allPeersData.length
+      const activePeersData = allPeersData.filter((p) => !p.disabled)
+      const activePeers = activePeersData.length
+      
+      let totalRx = 0
+      let totalTx = 0
+      activePeersData.forEach((p) => {
+        const rxBytes = parseInt(p['rx-bytes'] || p.rx || 0)
+        const txBytes = parseInt(p['tx-bytes'] || p.tx || 0)
+        totalRx += rxBytes
+        totalTx += txBytes
+      })
+
+      setInterfaces(interfacesData)
+      setAllPeers(activePeersData) // Sadece aktif peer'ları set et
+      setStats({
+        totalInterfaces: interfacesData.length,
+        totalPeers,
+        activeInterfaces: interfacesData.filter((i) => i.running).length,
+        activePeers,
+        totalRx,
+        totalTx,
+      })
+
+      // Trafik geçmişini güncelle (son 20 veri noktası)
+      setTrafficHistory((prev) => {
+        const now = new Date()
+        const timeStr = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}:${now.getSeconds().toString().padStart(2, '0')}`
+
+        const newRx = [...prev.rx, totalRx / (1024 * 1024)] // MB cinsinden
+        const newTx = [...prev.tx, totalTx / (1024 * 1024)] // MB cinsinden
+        const newTimestamps = [...prev.timestamps, timeStr]
+
+        // Son 20 veriyi tut
+        const maxDataPoints = 20
+        return {
+          rx: newRx.slice(-maxDataPoints),
+          tx: newTx.slice(-maxDataPoints),
+          timestamps: newTimestamps.slice(-maxDataPoints),
+        }
+      })
+    } catch (error) {
+      console.error('Veri yükleme hatası:', error)
+    } finally {
+      if (showLoading) {
+        setIsRefreshing(false) // Manuel yenileme tamamlandı
+      }
+    }
+  }, [])
+
+  // İlk yükleme - sessizce yükle
+  useEffect(() => {
+    loadData(false) // İlk yüklemede de sessizce yükle
+  }, [loadData])
+
+  // Yenileme sıklığı değiştiğinde interval'i güncelle - performans için minimum 10 saniye
+  useEffect(() => {
+    // Belirlenen sıklıkta sessizce yenile (loading gösterme)
+    // Minimum 10 saniye (performans için)
+    const minRefreshRate = Math.max(refreshRate, 10)
+    const interval = setInterval(() => {
+      loadData(false) // Arka planda sessizce yükle
+    }, minRefreshRate * 1000)
+    return () => clearInterval(interval)
+  }, [refreshRate, loadData])
+
+  // Byte'ı okunabilir formata çevir - useCallback ile optimize edildi
+  const formatBytes = useCallback((bytes) => {
+    if (!bytes || bytes === 0) return '0 B'
+    const k = 1024
+    const sizes = ['B', 'KB', 'MB', 'GB', 'TB']
+    const i = Math.floor(Math.log(bytes) / Math.log(k))
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(4)) + ' ' + sizes[i]
+  }, [])
+
+  // MikroTik'ten gelen zaman formatını parse et (örn: "20s", "5m", "2h", "1d", "5m50s" veya timestamp) - useCallback ile optimize edildi
+  const parseMikroTikTime = useCallback((timeStr) => {
+    if (!timeStr || timeStr === '0' || timeStr === '' || timeStr === 'never' || timeStr === '0s') {
+      return null
+    }
+    
+    // String'e çevir
+    timeStr = String(timeStr).trim()
+    
+    // Göreceli zaman formatı kontrolü (örn: "20s", "5m", "2h", "1d", "5m50s", "2h30m")
+    // Önce karmaşık formatları kontrol et (örn: "5m50s", "2h30m")
+    let totalSeconds = 0
+    
+    // "5m50s" formatı
+    const minutesSecondsMatch = timeStr.match(/^(\d+)m\s*(\d+)s$/)
+    if (minutesSecondsMatch) {
+      const minutes = parseInt(minutesSecondsMatch[1])
+      const seconds = parseInt(minutesSecondsMatch[2])
+      totalSeconds = minutes * 60 + seconds
+      if (totalSeconds > 0) {
+        return totalSeconds
+      }
+    }
+    
+    // "2h30m" formatı
+    const hoursMinutesMatch = timeStr.match(/^(\d+)h\s*(\d+)m$/)
+    if (hoursMinutesMatch) {
+      const hours = parseInt(hoursMinutesMatch[1])
+      const minutes = parseInt(hoursMinutesMatch[2])
+      totalSeconds = hours * 3600 + minutes * 60
+      if (totalSeconds > 0) {
+        return totalSeconds
+      }
+    }
+    
+    // "1d2h" formatı
+    const daysHoursMatch = timeStr.match(/^(\d+)d\s*(\d+)h$/)
+    if (daysHoursMatch) {
+      const days = parseInt(daysHoursMatch[1])
+      const hours = parseInt(daysHoursMatch[2])
+      totalSeconds = days * 86400 + hours * 3600
+      if (totalSeconds > 0) {
+        return totalSeconds
+      }
+    }
+    
+    // "2h30m15s" formatı
+    const hoursMinutesSecondsMatch = timeStr.match(/^(\d+)h\s*(\d+)m\s*(\d+)s?$/)
+    if (hoursMinutesSecondsMatch) {
+      const hours = parseInt(hoursMinutesSecondsMatch[1])
+      const minutes = parseInt(hoursMinutesSecondsMatch[2])
+      const seconds = parseInt(hoursMinutesSecondsMatch[3]) || 0
+      totalSeconds = hours * 3600 + minutes * 60 + seconds
+      if (totalSeconds > 0) {
+        return totalSeconds
+      }
+    }
+    
+    // "1d2h30m" formatı
+    const daysHoursMinutesMatch = timeStr.match(/^(\d+)d\s*(\d+)h\s*(\d+)m$/)
+    if (daysHoursMinutesMatch) {
+      const days = parseInt(daysHoursMinutesMatch[1])
+      const hours = parseInt(daysHoursMinutesMatch[2])
+      const minutes = parseInt(daysHoursMinutesMatch[3])
+      totalSeconds = days * 86400 + hours * 3600 + minutes * 60
+      if (totalSeconds > 0) {
+        return totalSeconds
+      }
+    }
+    
+    
+    // Basit göreceli zaman formatı kontrolü (örn: "20s", "5m", "2h", "1d")
+    const relativeTimeMatch = timeStr.match(/^(\d+)([smhd])$/)
+    if (relativeTimeMatch) {
+      const value = parseInt(relativeTimeMatch[1])
+      const unit = relativeTimeMatch[2]
+      
+      let seconds = 0
+      switch (unit) {
+        case 's':
+          seconds = value
+          break
+        case 'm':
+          seconds = value * 60
+          break
+        case 'h':
+          seconds = value * 3600
+          break
+        case 'd':
+          seconds = value * 86400
+          break
+        default:
+          return null
+      }
+      
+      return seconds
+    }
+    
+    // Timestamp formatı kontrolü
+    try {
+      const timestamp = new Date(timeStr)
+      if (!isNaN(timestamp.getTime())) {
+        const now = new Date()
+        const diffMs = now - timestamp
+        const diffSec = Math.floor(diffMs / 1000)
+        // Negatif değerler geçersiz (gelecek zaman)
+        return diffSec >= 0 ? diffSec : null
+      }
+    } catch (e) {
+      // Timestamp parse edilemedi
+    }
+    
+    return null
+  }, [])
+
+  // Son aktivite zamanını hesapla ve online/offline durumunu belirle - useCallback ile optimize edildi
+  const getLastActivity = useCallback((peer) => {
+    // Önce peer'ın disabled durumunu kontrol et
+    let disabled = peer.disabled
+    if (disabled === undefined || disabled === null) {
+      disabled = false
+    } else if (typeof disabled === 'string') {
+      disabled = disabled.toLowerCase() === 'true' || disabled.toLowerCase() === 'yes'
+    } else if (typeof disabled === 'boolean') {
+      disabled = disabled
+    } else {
+      disabled = Boolean(disabled)
+    }
+    
+    // Eğer peer disabled ise, offline olarak göster
+    if (disabled) {
+      return { text: 'Pasif', isOnline: false, seconds: null }
+    }
+    
+    // MikroTik'ten gelen verilerde farklı alan adları olabilir
+    const lastHandshake = peer['last-handshake'] || peer['last-handshake-time'] || peer.lastHandshake
+    
+    if (!lastHandshake || lastHandshake === '0' || lastHandshake === '' || lastHandshake === 'never' || lastHandshake === '0s') {
+      return { text: 'Bağlı değil', isOnline: false, seconds: null }
+    }
+    
+    try {
+      // MikroTik'ten gelen zaman formatını parse et
+      const diffSec = parseMikroTikTime(lastHandshake)
+      
+      if (diffSec === null || diffSec < 0) {
+        return { text: 'Bilinmiyor', isOnline: false, seconds: null }
+      }
+      
+      // 90 saniyeden fazla süre geçtiyse offline kabul et (backend ile uyumlu)
+      const isOnline = diffSec < 90
+      
+      let text = ''
+      if (diffSec < 60) {
+        text = `${diffSec} saniye önce`
+      } else if (diffSec < 3600) {
+        const minutes = Math.floor(diffSec / 60)
+        const seconds = diffSec % 60
+        text = `${minutes}:${seconds.toString().padStart(2, '0')} önce`
+      } else if (diffSec < 86400) {
+        const hours = Math.floor(diffSec / 3600)
+        const minutes = Math.floor((diffSec % 3600) / 60)
+        text = `${hours}:${minutes.toString().padStart(2, '0')} önce`
+      } else {
+        const days = Math.floor(diffSec / 86400)
+        const hours = Math.floor((diffSec % 86400) / 3600)
+        text = `${days} gün ${hours} saat önce`
+      }
+      
+      return { text, isOnline, seconds: diffSec }
+    } catch (e) {
+      console.error('Zaman parse hatası:', e, 'lastHandshake:', lastHandshake, 'peer:', peer)
+      return { text: 'Bilinmiyor', isOnline: false, seconds: null }
+    }
+  }, [parseMikroTikTime])
+
+  // Bağlantı süresini hesapla (son handshake'ten itibaren - MikroTik'te ilk handshake bilgisi yok) - useCallback ile optimize edildi
+  const getConnectionDuration = useCallback((peer) => {
+    // MikroTik'ten gelen verilerde farklı alan adları olabilir
+    const lastHandshake = peer['last-handshake'] || peer['last-handshake-time'] || peer.lastHandshake
+    
+    if (!lastHandshake || lastHandshake === '0' || lastHandshake === '' || lastHandshake === 'never') {
+      return null
+    }
+    
+    try {
+      // MikroTik'ten gelen zaman formatını parse et
+      const diffSec = parseMikroTikTime(lastHandshake)
+      
+      if (diffSec === null || diffSec < 0) {
+        return null
+      }
+      
+      // Son handshake'ten itibaren geçen süreyi göster (bağlantı süresi olarak)
+      if (diffSec < 60) {
+        return `${diffSec} saniye`
+      } else if (diffSec < 3600) {
+        const minutes = Math.floor(diffSec / 60)
+        return `${minutes} dakika`
+      } else if (diffSec < 86400) {
+        const hours = Math.floor(diffSec / 3600)
+        const minutes = Math.floor((diffSec % 3600) / 60)
+        return `${hours} saat ${minutes} dakika`
+      } else {
+        const days = Math.floor(diffSec / 86400)
+        const hours = Math.floor((diffSec % 86400) / 3600)
+        return `${days} gün ${hours} saat`
+      }
+    } catch (e) {
+      console.error('Bağlantı süresi hesaplama hatası:', e, 'lastHandshake:', lastHandshake)
+      return null
+    }
+  }, [parseMikroTikTime])
+
+  // Peer'ları önceden işle ve cache'le - performans için
+  const processedPeers = useMemo(() => {
+    return allPeers.map((peer) => {
+      const lastActivity = getLastActivity(peer)
+      const connectionDuration = getConnectionDuration(peer)
+      const rxBytes = parseInt(peer['rx-bytes'] || peer.rx || 0)
+      const txBytes = parseInt(peer['tx-bytes'] || peer.tx || 0)
+      const endpoint = peer['endpoint-address'] || peer.endpoint || peer['current-endpoint-address'] || 'Bağlı değil'
+      const endpointPort = peer['endpoint-port'] || peer['current-endpoint-port'] || ''
+      const fullEndpoint = endpointPort ? `${endpoint}:${endpointPort}` : endpoint
+      const name = peer.comment || peer.name || `Peer ${peer.id || peer['.id'] || ''}`
+      const publicKey = peer['public-key'] || 'N/A'
+      const allowedAddress = peer['allowed-address'] || 'N/A'
+      
+      return {
+        ...peer,
+        _processed: {
+          lastActivity,
+          connectionDuration,
+          rxBytes,
+          txBytes,
+          fullEndpoint,
+          name,
+          publicKey,
+          allowedAddress,
+          // Arama için normalize edilmiş değerler
+          _searchText: `${name} ${fullEndpoint} ${publicKey} ${allowedAddress}`.toLowerCase()
+        }
+      }
+    })
+  }, [allPeers, getLastActivity, getConnectionDuration])
+
+  // Peer'ları filtrele ve sırala - useMemo ile optimize edildi
+  const filteredPeers = useMemo(() => {
+    let filtered = processedPeers
+
+    // Arama filtresi - önceden hazırlanmış search text kullan
+    if (searchTerm) {
+      const term = searchTerm.toLowerCase()
+      filtered = filtered.filter((p) => {
+        return p._processed._searchText.includes(term)
+      })
+    }
+
+    // Sıralama - önceden hesaplanmış değerleri kullan
+    const sorted = [...filtered].sort((a, b) => {
+      switch (sortBy) {
+        case 'name':
+          return a._processed.name.localeCompare(b._processed.name)
+        case 'rx':
+          return b._processed.rxBytes - a._processed.rxBytes
+        case 'tx':
+          return b._processed.txBytes - a._processed.txBytes
+        case 'lastActivity':
+        default:
+          return (b._processed.lastActivity.seconds || 0) - (a._processed.lastActivity.seconds || 0)
+      }
+    })
+
+    return sorted
+  }, [processedPeers, searchTerm, sortBy])
+
+  // Peer trafik geçmişini göster
+  const handleShowPeerTraffic = async (peerId, interfaceName, peerName) => {
+    setSelectedPeer({ peerId, interfaceName, peerName })
+    setShowTrafficModal(true)
+    setTrafficPeriodType('daily')
+    setTrafficStartDate('')
+    setTrafficEndDate('')
+    await loadPeerTrafficData(peerId, interfaceName, 'daily', '', '')
+  }
+
+  // Peer trafik verilerini yükle
+  const loadPeerTrafficData = async (peerId, interfaceName, periodType, startDate, endDate) => {
+    setLoadingTraffic(true)
+    try {
+      let response
+      switch (periodType) {
+        case 'hourly':
+          response = await getPeerHourlyTraffic(peerId, interfaceName, startDate || undefined, endDate || undefined)
+          break
+        case 'daily':
+          response = await getPeerDailyTraffic(peerId, interfaceName, startDate || undefined, endDate || undefined)
+          break
+        case 'monthly':
+          response = await getPeerMonthlyTraffic(peerId, interfaceName, startDate || undefined, endDate || undefined)
+          break
+        case 'yearly':
+          response = await getPeerYearlyTraffic(peerId, interfaceName, startDate || undefined, endDate || undefined)
+          break
+        default:
+          response = await getPeerDailyTraffic(peerId, interfaceName, startDate || undefined, endDate || undefined)
+      }
+
+      if (response.success) {
+        const sortedData = [...response.data].reverse()
+        setPeerTrafficData(sortedData)
+        setPeerTrafficSummary(response.summary)
+      }
+    } catch (error) {
+      console.error('Peer trafik verisi yüklenemedi:', error)
+      setPeerTrafficData([])
+      setPeerTrafficSummary(null)
+    } finally {
+      setLoadingTraffic(false)
+    }
+  }
+
+  // Peer trafik filtreleme
+  const handleFilterPeerTraffic = async () => {
+    if (selectedPeer) {
+      await loadPeerTrafficData(selectedPeer.peerId, selectedPeer.interfaceName, trafficPeriodType, trafficStartDate, trafficEndDate)
+    }
+  }
+
+  // Peer loglarını göster
+  const handleShowPeerLogs = async (peerId, interfaceName) => {
+    if (!peerId) {
+      alert('Peer ID bulunamadı.')
+      return
+    }
+    
+    setSelectedPeer({ peerId, interfaceName })
+    setShowLogsModal(true)
+    
+    // Default tarih filtreleri (son 7 gün)
+    const today = new Date()
+    const sevenDaysAgo = new Date(today)
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7)
+    const defaultStartDate = sevenDaysAgo.toISOString().split('T')[0]
+    const defaultEndDate = today.toISOString().split('T')[0]
+    
+    setStartDate(defaultStartDate)
+    setEndDate(defaultEndDate)
+    setLogOffset(0) // Pagination'ı sıfırla
+    
+    setLoadingLogs(true)
+    
+    try {
+      // Pagination ile logları çek (limit=100)
+      const result = await getPeerLogs(peerId, interfaceName, defaultStartDate, defaultEndDate, logLimit, 0)
+      if (result.success) {
+        setPeerLogs(result.data || [])
+        setLogSummary(result.summary || null)
+      } else {
+        alert('Loglar alınamadı: ' + (result.message || 'Bilinmeyen hata'))
+        setPeerLogs([])
+        setLogSummary(null)
+      }
+    } catch (error) {
+      console.error('Log yükleme hatası:', error)
+      alert('Loglar alınamadı: ' + (error.response?.data?.detail || error.message))
+      setPeerLogs([])
+      setLogSummary(null)
+    } finally {
+      setLoadingLogs(false)
+    }
+  }
+
+  // Tarih filtresi ile logları yeniden yükle
+  const handleFilterLogs = async () => {
+    if (!selectedPeer) return
+    
+    setLoadingLogs(true)
+    setLogOffset(0) // Filtreleme yapıldığında pagination'ı sıfırla
+    
+    try {
+      const result = await getPeerLogs(
+        selectedPeer.peerId, 
+        selectedPeer.interfaceName,
+        startDate || undefined,
+        endDate || undefined,
+        logLimit,
+        0
+      )
+      if (result.success) {
+        setPeerLogs(result.data || [])
+        setLogSummary(result.summary || null)
+      } else {
+        alert('Loglar alınamadı: ' + (result.message || 'Bilinmeyen hata'))
+      }
+    } catch (error) {
+      console.error('Log filtreleme hatası:', error)
+      alert('Loglar filtrelenemedi: ' + (error.response?.data?.detail || error.message))
+    } finally {
+      setLoadingLogs(false)
+    }
+  }
+  
+  // Daha fazla log yükle (pagination)
+  const loadMoreLogs = async () => {
+    if (!selectedPeer || loadingLogs) return
+    
+    setLoadingLogs(true)
+    try {
+      const newOffset = logOffset + logLimit
+      const result = await getPeerLogs(
+        selectedPeer.peerId,
+        selectedPeer.interfaceName,
+        startDate || undefined,
+        endDate || undefined,
+        logLimit,
+        newOffset
+      )
+      if (result.success && result.data && result.data.length > 0) {
+        setPeerLogs([...peerLogs, ...result.data])
+        setLogOffset(newOffset)
+      }
+    } catch (error) {
+      console.error('Daha fazla log yükleme hatası:', error)
+    } finally {
+      setLoadingLogs(false)
+    }
+  }
+
+  // Tarih formatla (Türkiye saat dilimi - UTC+3)
+  const formatDateTime = (dateTimeStr) => {
+    if (!dateTimeStr) return 'Bilinmiyor'
+    try {
+      let date
+      
+      // ISO formatında timezone bilgisi var mı kontrol et
+      if (dateTimeStr.includes('+') || dateTimeStr.includes('Z')) {
+        // ISO formatında timezone bilgisi var
+        date = new Date(dateTimeStr)
+      } else {
+        // Timezone bilgisi yok, Türkiye saat dilimi (UTC+3) olarak kabul et
+        // SQLite'dan gelen datetime'ı parse et ve UTC+3 olarak kabul et
+        date = new Date(dateTimeStr + '+03:00')
+      }
+      
+      // Türkiye saat dilimi (UTC+3) için offset uygula
+      const turkeyOffset = 3 * 60 // UTC+3 dakika cinsinden
+      const localTime = new Date(date.getTime() + (date.getTimezoneOffset() + turkeyOffset) * 60000)
+      
+      const day = String(localTime.getDate()).padStart(2, '0')
+      const month = String(localTime.getMonth() + 1).padStart(2, '0')
+      const year = localTime.getFullYear()
+      const hours = String(localTime.getHours()).padStart(2, '0')
+      const minutes = String(localTime.getMinutes()).padStart(2, '0')
+      const seconds = String(localTime.getSeconds()).padStart(2, '0')
+      return `${day}.${month}.${year} ${hours}:${minutes}:${seconds}`
+    } catch (e) {
+      console.error('Tarih formatlama hatası:', e, dateTimeStr)
+      return dateTimeStr
+    }
+  }
+
+  // İstatistik kartları - useMemo ile optimize edildi
+  const statCards = useMemo(() => [
+    {
+      title: 'Toplam Interface',
+      value: stats.totalInterfaces,
+      icon: Network,
+      color: 'text-blue-600 dark:text-blue-400',
+      bgColor: 'bg-blue-100 dark:bg-blue-900/30',
+    },
+    {
+      title: 'Aktif Interface',
+      value: stats.activeInterfaces,
+      icon: Activity,
+      color: 'text-green-600 dark:text-green-400',
+      bgColor: 'bg-green-100 dark:bg-green-900/30',
+    },
+    {
+      title: 'Toplam Peer',
+      value: stats.totalPeers,
+      icon: Users,
+      color: 'text-purple-600 dark:text-purple-400',
+      bgColor: 'bg-purple-100 dark:bg-purple-900/30',
+    },
+    {
+      title: 'Aktif Peer',
+      value: stats.activePeers,
+      icon: Activity,
+      color: 'text-green-600 dark:text-green-400',
+      bgColor: 'bg-green-100 dark:bg-green-900/30',
+    },
+  ], [stats])
+
+  return (
+    <div className="space-y-6">
+      {/* Sayfa başlığı */}
+      <div>
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+          Dashboard
+        </h1>
+        <p className="text-gray-600 dark:text-gray-400 mt-1">
+          WireGuard aktif peer'ları ve istatistikleri
+        </p>
+      </div>
+
+      {/* İstatistik kartları */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        {statCards.map((stat, index) => {
+          const Icon = stat.icon
+          return (
+            <div key={index} className="card">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">
+                    {stat.title}
+                  </p>
+                  <p className="text-3xl font-bold text-gray-900 dark:text-white mt-2">
+                    {stat.value}
+                  </p>
+                </div>
+                <div className={`p-3 rounded-lg ${stat.bgColor}`}>
+                  <Icon className={`w-6 h-6 ${stat.color}`} />
+                </div>
+              </div>
+            </div>
+          )
+        })}
+      </div>
+
+      {/* Gerçek Zamanlı Veri Kullanımı Grafikleri */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="card">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+              Gerçek Zamanlı Gelen Veri Kullanımı
+            </h3>
+            <span className="text-2xl font-bold text-blue-600 dark:text-blue-400">
+              {formatBytes(stats.totalRx)}
+            </span>
+          </div>
+          <div className="h-48">
+            {trafficHistory.rx.length > 0 ? (
+              <Line
+                data={{
+                  labels: trafficHistory.timestamps,
+                  datasets: [
+                    {
+                      label: 'İndirme (MB)',
+                      data: trafficHistory.rx,
+                      borderColor: 'rgb(59, 130, 246)',
+                      backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                      fill: true,
+                      tension: 0.4,
+                      pointRadius: 3,
+                      pointHoverRadius: 5,
+                    },
+                  ],
+                }}
+                options={{
+                  responsive: true,
+                  maintainAspectRatio: false,
+                  plugins: {
+                    legend: {
+                      display: false,
+                    },
+                    tooltip: {
+                      mode: 'index',
+                      intersect: false,
+                      callbacks: {
+                        label: function (context) {
+                          return `${context.parsed.y.toFixed(2)} MB`
+                        },
+                      },
+                    },
+                  },
+                  scales: {
+                    y: {
+                      beginAtZero: true,
+                      ticks: {
+                        callback: function (value) {
+                          return value.toFixed(1) + ' MB'
+                        },
+                      },
+                    },
+                    x: {
+                      ticks: {
+                        maxRotation: 45,
+                        minRotation: 45,
+                      },
+                    },
+                  },
+                }}
+              />
+            ) : (
+              <div className="h-full bg-gray-100 dark:bg-gray-800 rounded-lg flex items-center justify-center">
+                <p className="text-gray-500 dark:text-gray-400 text-sm">
+                  Veri toplanıyor...
+                </p>
+              </div>
+            )}
+          </div>
+        </div>
+        <div className="card">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+              Gerçek Zamanlı Gönderilen Veri Kullanımı
+            </h3>
+            <span className="text-2xl font-bold text-green-600 dark:text-green-400">
+              {formatBytes(stats.totalTx)}
+            </span>
+          </div>
+          <div className="h-48">
+            {trafficHistory.tx.length > 0 ? (
+              <Line
+                data={{
+                  labels: trafficHistory.timestamps,
+                  datasets: [
+                    {
+                      label: 'Yükleme (MB)',
+                      data: trafficHistory.tx,
+                      borderColor: 'rgb(34, 197, 94)',
+                      backgroundColor: 'rgba(34, 197, 94, 0.1)',
+                      fill: true,
+                      tension: 0.4,
+                      pointRadius: 3,
+                      pointHoverRadius: 5,
+                    },
+                  ],
+                }}
+                options={{
+                  responsive: true,
+                  maintainAspectRatio: false,
+                  plugins: {
+                    legend: {
+                      display: false,
+                    },
+                    tooltip: {
+                      mode: 'index',
+                      intersect: false,
+                      callbacks: {
+                        label: function (context) {
+                          return `${context.parsed.y.toFixed(2)} MB`
+                        },
+                      },
+                    },
+                  },
+                  scales: {
+                    y: {
+                      beginAtZero: true,
+                      ticks: {
+                        callback: function (value) {
+                          return value.toFixed(1) + ' MB'
+                        },
+                      },
+                    },
+                    x: {
+                      ticks: {
+                        maxRotation: 45,
+                        minRotation: 45,
+                      },
+                    },
+                  },
+                }}
+              />
+            ) : (
+              <div className="h-full bg-gray-100 dark:bg-gray-800 rounded-lg flex items-center justify-center">
+                <p className="text-gray-500 dark:text-gray-400 text-sm">
+                  Veri toplanıyor...
+                </p>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Aktif Peer Listesi */}
+      <div className="card">
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+            Aktif Peer'lar
+          </h2>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => {
+                const sortOptions = ['lastActivity', 'name', 'rx', 'tx']
+                const currentIndex = sortOptions.indexOf(sortBy)
+                const nextIndex = (currentIndex + 1) % sortOptions.length
+                setSortBy(sortOptions[nextIndex])
+              }}
+              className="p-2 rounded-lg text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700"
+              title={`Sırala: ${sortBy === 'lastActivity' ? 'Son Aktivite' : sortBy === 'name' ? 'İsim' : sortBy === 'rx' ? 'İndirme' : 'Yükleme'}`}
+            >
+              <ArrowUpDown className="w-5 h-5" />
+            </button>
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-gray-600 dark:text-gray-400">Yenileme:</span>
+              <select
+                value={refreshRate}
+                onChange={(e) => setRefreshRate(Number(e.target.value))}
+                className="px-3 py-1 rounded-lg bg-blue-600 text-white text-sm font-medium border-0 focus:ring-2 focus:ring-blue-300"
+              >
+                <option value={10}>10 Saniye</option>
+                <option value={30}>30 Saniye</option>
+                <option value={60}>1 Dakika</option>
+                <option value={120}>2 Dakika</option>
+                <option value={300}>5 Dakika</option>
+              </select>
+            </div>
+            <button
+              onClick={() => loadData(false)} // Sessizce yenile
+              className="p-2 rounded-lg text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700"
+              title="Yenile"
+            >
+              <RefreshCw className={`w-5 h-5 ${isRefreshing ? 'animate-spin' : ''}`} />
+            </button>
+            <div className="flex items-center gap-2 ml-4">
+              <div className="relative">
+                <Search className="w-5 h-5 text-gray-400 absolute left-3 top-1/2 transform -translate-y-1/2" />
+                <input
+                  type="text"
+                  placeholder="Ara..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                />
+              </div>
+              <button className="p-2 rounded-lg text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700">
+                <Download className="w-5 h-5" />
+              </button>
+              <button className="p-2 rounded-lg text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700">
+                <Filter className="w-5 h-5" />
+              </button>
+              <button className="px-3 py-1 rounded-lg bg-green-600 text-white text-sm font-medium flex items-center gap-2">
+                <Users className="w-4 h-4" />
+                Aktif Eşler ({filteredPeers.length})
+              </button>
+        </div>
+          </div>
+        </div>
+
+        {filteredPeers.length === 0 ? (
+          <div className="text-center py-8">
+            <AlertCircle className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+            <p className="text-gray-500 dark:text-gray-400">
+              {searchTerm ? 'Arama sonucu bulunamadı' : 'Henüz aktif peer bulunamadı'}
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {filteredPeers.map((peer, index) => {
+              // Önceden işlenmiş verileri kullan (performans için)
+              const { lastActivity, connectionDuration, rxBytes, txBytes, fullEndpoint, name, publicKey, allowedAddress } = peer._processed
+
+              return (
+                <div
+                  key={peer['.id'] || peer.id || index}
+                  className="p-5 border border-gray-200 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-800 shadow-sm hover:shadow-md transition-all duration-200"
+                >
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex-1 min-w-0">
+                      {/* Başlık ve Durum */}
+                      <div className="flex items-center gap-3 mb-3">
+                        <div className={`w-3 h-3 rounded-full flex-shrink-0 ${
+                          lastActivity.isOnline 
+                            ? 'bg-green-500 animate-pulse' 
+                            : 'bg-gray-400'
+                        }`}></div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <p className="font-semibold text-gray-900 dark:text-white truncate">
+                              {name}
+                            </p>
+                            <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                              lastActivity.isOnline
+                                ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400'
+                                : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400'
+                            }`}>
+                              {lastActivity.isOnline ? 'Çevrimiçi' : 'Çevrimdışı'}
+                            </span>
+                          </div>
+                          <p className="text-sm text-gray-600 dark:text-gray-400 truncate">
+                            {fullEndpoint}
+                          </p>
+                        </div>
+                      </div>
+                      
+                      {/* Peer Bilgileri */}
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                        <div className="space-y-2">
+                          <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">
+                            Genel Anahtar
+                          </p>
+                          <p className="text-xs font-mono text-gray-700 dark:text-gray-300 break-all bg-gray-50 dark:bg-gray-900/50 p-2 rounded">
+                            {publicKey.substring(0, 44)}...
+                          </p>
+                        </div>
+                        <div className="space-y-2">
+                          <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">
+                            İzin Verilen IP Adresi
+                          </p>
+                          <p className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                            {allowedAddress}
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* İstatistikler */}
+                      <div className="flex flex-wrap items-center gap-4 mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+                        <div className="flex items-center gap-2">
+                          <div className="p-1.5 rounded-lg bg-blue-100 dark:bg-blue-900/30">
+                            <Download className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                          </div>
+                          <div>
+                            <p className="text-xs text-gray-500 dark:text-gray-400">İndirme</p>
+                            <p className="text-sm font-semibold text-gray-900 dark:text-white">
+                              {formatBytes(rxBytes)}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <div className="p-1.5 rounded-lg bg-green-100 dark:bg-green-900/30">
+                            <Upload className="w-4 h-4 text-green-600 dark:text-green-400" />
+                          </div>
+                          <div>
+                            <p className="text-xs text-gray-500 dark:text-gray-400">Yükleme</p>
+                            <p className="text-sm font-semibold text-gray-900 dark:text-white">
+                              {formatBytes(txBytes)}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <div className="p-1.5 rounded-lg bg-purple-100 dark:bg-purple-900/30">
+                            <Clock className="w-4 h-4 text-purple-600 dark:text-purple-400" />
+                          </div>
+                  <div>
+                            <p className="text-xs text-gray-500 dark:text-gray-400">Son Aktivite</p>
+                            <p className={`text-sm font-semibold ${
+                              lastActivity.isOnline 
+                                ? 'text-green-600 dark:text-green-400' 
+                                : 'text-gray-600 dark:text-gray-400'
+                            }`}>
+                              {lastActivity.text}
+                            </p>
+                          </div>
+                        </div>
+                        {connectionDuration && (
+                          <div className="flex items-center gap-2">
+                            <div className="p-1.5 rounded-lg bg-orange-100 dark:bg-orange-900/30">
+                              <Wifi className="w-4 h-4 text-orange-600 dark:text-orange-400" />
+                            </div>
+                            <div>
+                              <p className="text-xs text-gray-500 dark:text-gray-400">Bağlantı Süresi</p>
+                              <p className="text-sm font-semibold text-gray-900 dark:text-white">
+                                {connectionDuration}
+                              </p>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Aksiyon Butonları */}
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      <button
+                        onClick={() => {
+                          const peerId = peer.id || peer['.id']
+                          if (!peerId) {
+                            alert('Peer ID bulunamadı.')
+                            return
+                          }
+                          handleShowPeerLogs(peerId, peer.interfaceName)
+                        }}
+                        className="px-3 py-1.5 rounded-lg bg-purple-600 text-white text-sm font-medium hover:bg-purple-700 transition-colors flex items-center gap-2"
+                        title="Peer Logları"
+                      >
+                        <FileText className="w-4 h-4" />
+                        Loglar
+                      </button>
+                      <button
+                        onClick={() => {
+                          const peerId = peer.id || peer['.id']
+                          if (!peerId) {
+                            alert('Peer ID bulunamadı.')
+                            return
+                          }
+                          handleShowPeerTraffic(peerId, peer.interfaceName, peer.comment || peer.name)
+                        }}
+                        className="px-3 py-1.5 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 transition-colors flex items-center gap-2"
+                        title="Peer Trafik Geçmişi"
+                      >
+                        <TrendingUp className="w-4 h-4" />
+                        Trafik
+                      </button>
+                      <Link
+                        to={`/wireguard/${peer.interfaceName}`}
+                        className="px-3 py-1.5 rounded-lg bg-primary-600 text-white text-sm font-medium hover:bg-primary-700 transition-colors"
+                      >
+                        Detay
+                      </Link>
+                    </div>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* Peer Logları Modal */}
+      {showLogsModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
+              <div>
+                <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
+                  Peer Logları
+                </h2>
+                {selectedPeer && (
+                  <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                    Arayüz: {selectedPeer.interfaceName} | Peer ID: {selectedPeer.peerId}
+                  </p>
+                )}
+              </div>
+              <button
+                onClick={() => {
+                  setShowLogsModal(false)
+                  setSelectedPeer(null)
+                  setPeerLogs([])
+                  setLogSummary(null)
+                  setStartDate('')
+                  setEndDate('')
+                }}
+                className="p-2 rounded-lg text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+
+            {/* Tarih Filtreleri ve İstatistikler */}
+            <div className="p-6 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50">
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Başlangıç Tarihi
+                  </label>
+                  <input
+                    type="date"
+                    value={startDate}
+                    onChange={(e) => setStartDate(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Bitiş Tarihi
+                  </label>
+                  <input
+                    type="date"
+                    value={endDate}
+                    onChange={(e) => setEndDate(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                  />
+                </div>
+                <div className="flex items-end">
+                  <button
+                    onClick={handleFilterLogs}
+                    className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                  >
+                    Filtrele
+                  </button>
+                </div>
+                <div className="flex items-end">
+                  <button
+                    onClick={() => {
+                      setStartDate('')
+                      setEndDate('')
+                      handleFilterLogs()
+                    }}
+                    className="w-full px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
+                  >
+                    Temizle
+                  </button>
+                </div>
+              </div>
+              
+              {/* İstatistikler */}
+              {logSummary && (
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4">
+                  <div className="bg-green-100 dark:bg-green-900/30 p-3 rounded-lg">
+                    <p className="text-xs text-gray-600 dark:text-gray-400">Online Olaylar</p>
+                    <p className="text-2xl font-bold text-green-700 dark:text-green-400">{logSummary.total_online_events || 0}</p>
+                  </div>
+                  <div className="bg-red-100 dark:bg-red-900/30 p-3 rounded-lg">
+                    <p className="text-xs text-gray-600 dark:text-gray-400">Offline Olaylar</p>
+                    <p className="text-2xl font-bold text-red-700 dark:text-red-400">{logSummary.total_offline_events || 0}</p>
+                  </div>
+                  <div className="bg-orange-100 dark:bg-orange-900/30 p-3 rounded-lg">
+                    <p className="text-xs text-gray-600 dark:text-gray-400">Kopma Sayısı</p>
+                    <p className="text-2xl font-bold text-orange-700 dark:text-orange-400">{logSummary.disconnections || 0}</p>
+                  </div>
+                  <div className="bg-blue-100 dark:bg-blue-900/30 p-3 rounded-lg">
+                    <p className="text-xs text-gray-600 dark:text-gray-400">Toplam Olay</p>
+                    <p className="text-2xl font-bold text-blue-700 dark:text-blue-400">{logSummary.total_events || 0}</p>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Modal Content */}
+            <div className="flex-1 overflow-y-auto p-6">
+              {loadingLogs ? (
+                <div className="text-center py-8">
+                  <RefreshCw className="w-8 h-8 animate-spin mx-auto mb-2 text-primary-600 dark:text-primary-400" />
+                  <p className="text-gray-500 dark:text-gray-400">Kayıtlar yükleniyor...</p>
+                </div>
+              ) : peerLogs.length === 0 ? (
+                <div className="text-center py-8">
+                  <FileText className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                  <p className="text-gray-500 dark:text-gray-400">Henüz kayıt bulunamadı</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {peerLogs.map((log, index) => (
+                    <div
+                      key={log.id || index}
+                      className={`p-4 rounded-lg border ${
+                        log.is_online
+                          ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800'
+                          : 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <div
+                            className={`w-3 h-3 rounded-full ${
+                              log.is_online ? 'bg-green-500' : 'bg-red-500'
+                            }`}
+                          ></div>
+                          <div>
+                            <p
+                              className={`font-semibold ${
+                                log.is_online
+                                  ? 'text-green-700 dark:text-green-400'
+                                  : 'text-red-700 dark:text-red-400'
+                              }`}
+                            >
+                              {log.is_online ? '🟢 Çevrimiçi' : '🔴 Çevrimdışı'}
+                            </p>
+                            <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                              {log.event_time ? formatDateTime(log.event_time) : 'Bilinmiyor'}
+                            </p>
+                          </div>
+                        </div>
+                        {log.last_handshake_value && (
+                          <div className="text-right">
+                            <p className="text-xs text-gray-500 dark:text-gray-400">Son Bağlantı</p>
+                            <p className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                              {log.last_handshake_value}
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+            {/* Modal Footer */}
+            <div className="p-6 border-t border-gray-200 dark:border-gray-700 flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <p className="text-sm text-gray-600 dark:text-gray-400">
+                  Toplam {peerLogs.length} kayıt gösteriliyor
+                </p>
+                {peerLogs.length >= logLimit && (
+                  <button
+                    onClick={loadMoreLogs}
+                    disabled={loadingLogs}
+                    className="px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                  >
+                    {loadingLogs ? (
+                      <>
+                        <RefreshCw className="w-4 h-4 animate-spin" />
+                        Yükleniyor...
+                      </>
+                    ) : (
+                      'Daha Fazla Yükle'
+                    )}
+                  </button>
+                )}
+              </div>
+              <button
+                onClick={() => {
+                  setShowLogsModal(false)
+                  setSelectedPeer(null)
+                  setPeerLogs([])
+                  setLogSummary(null)
+                  setStartDate('')
+                  setEndDate('')
+                  setLogOffset(0)
+                }}
+                className="px-4 py-2 rounded-lg bg-gray-600 text-white text-sm font-medium hover:bg-gray-700 transition-colors"
+              >
+                Kapat
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Peer Trafik Geçmişi Modal */}
+      {showTrafficModal && selectedPeer && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 overflow-y-auto">
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xl max-w-6xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
+              <div>
+                <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
+                  Peer Trafik Geçmişi
+                </h2>
+                <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                  Peer: {selectedPeer.peerName} | Arayüz: {selectedPeer.interfaceName} | Peer ID: {selectedPeer.peerId}
+                </p>
+              </div>
+              <button
+                onClick={() => {
+                  setShowTrafficModal(false)
+                  setSelectedPeer(null)
+                  setPeerTrafficData([])
+                  setPeerTrafficSummary(null)
+                  setTrafficStartDate('')
+                  setTrafficEndDate('')
+                }}
+                className="p-2 rounded-lg text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+
+            {/* Filtreler */}
+            <div className="p-6 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50">
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Zaman Aralığı
+                  </label>
+                  <select
+                    value={trafficPeriodType}
+                    onChange={(e) => {
+                      setTrafficPeriodType(e.target.value)
+                      loadPeerTrafficData(selectedPeer.peerId, selectedPeer.interfaceName, e.target.value, trafficStartDate, trafficEndDate)
+                    }}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                  >
+                    <option value="hourly">Saatlik Trafik</option>
+                    <option value="daily">Günlük Trafik</option>
+                    <option value="monthly">Aylık Trafik</option>
+                    <option value="yearly">Yıllık Trafik</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Başlangıç Tarihi
+                  </label>
+                  <input
+                    type="date"
+                    value={trafficStartDate}
+                    onChange={(e) => setTrafficStartDate(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Bitiş Tarihi
+                  </label>
+                  <input
+                    type="date"
+                    value={trafficEndDate}
+                    onChange={(e) => setTrafficEndDate(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                  />
+                </div>
+                <div className="flex items-end gap-2">
+                  <button
+                    onClick={handleFilterPeerTraffic}
+                    className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"
+                  >
+                    <RefreshCwIcon className={`w-4 h-4 ${loadingTraffic ? 'animate-spin' : ''}`} />
+                    Filtrele
+                  </button>
+                  <button
+                    onClick={() => {
+                      setTrafficStartDate('')
+                      setTrafficEndDate('')
+                      loadPeerTrafficData(selectedPeer.peerId, selectedPeer.interfaceName, trafficPeriodType, '', '')
+                    }}
+                    className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
+                  >
+                    Temizle
+                  </button>
+                </div>
+              </div>
+
+              {/* Özet İstatistikler */}
+              {peerTrafficSummary && peerTrafficSummary.record_count > 0 && (
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4">
+                  <div className="bg-blue-100 dark:bg-blue-900/30 p-3 rounded-lg">
+                    <p className="text-xs text-gray-600 dark:text-gray-400">Toplam İndirme</p>
+                    <p className="text-2xl font-bold text-blue-700 dark:text-blue-400">{peerTrafficSummary.total_rx_mb.toFixed(2)} MB</p>
+                  </div>
+                  <div className="bg-green-100 dark:bg-green-900/30 p-3 rounded-lg">
+                    <p className="text-xs text-gray-600 dark:text-gray-400">Toplam Yükleme</p>
+                    <p className="text-2xl font-bold text-green-700 dark:text-green-400">{peerTrafficSummary.total_tx_mb.toFixed(2)} MB</p>
+                  </div>
+                  <div className="bg-purple-100 dark:bg-purple-900/30 p-3 rounded-lg">
+                    <p className="text-xs text-gray-600 dark:text-gray-400">Ortalama İndirme</p>
+                    <p className="text-2xl font-bold text-purple-700 dark:text-purple-400">{(peerTrafficSummary.avg_rx_bytes / (1024 * 1024)).toFixed(2)} MB</p>
+                  </div>
+                  <div className="bg-orange-100 dark:bg-orange-900/30 p-3 rounded-lg">
+                    <p className="text-xs text-gray-600 dark:text-gray-400">Kayıt Sayısı</p>
+                    <p className="text-2xl font-bold text-orange-700 dark:text-orange-400">{peerTrafficSummary.record_count}</p>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Grafik */}
+            <div className="flex-1 overflow-y-auto p-6">
+              {loadingTraffic ? (
+                <div className="flex items-center justify-center h-96">
+                  <RefreshCwIcon className="w-8 h-8 animate-spin text-primary-600 dark:text-primary-400" />
+                </div>
+              ) : peerTrafficData.length === 0 ? (
+                <div className="flex flex-col items-center justify-center h-96 text-gray-500 dark:text-gray-400">
+                  <TrendingUp className="w-16 h-16 mb-4" />
+                  <p className="text-lg font-medium">Henüz trafik verisi bulunamadı</p>
+                  <p className="text-sm mt-2">Trafik verileri periyodik olarak kaydedilecek</p>
+                </div>
+              ) : (
+                <div className="h-96 mb-6">
+                  <Line
+                    data={{
+                      labels: peerTrafficData.map((item) => {
+                        const date = new Date(item.timestamp)
+                        const day = String(date.getDate()).padStart(2, '0')
+                        const month = String(date.getMonth() + 1).padStart(2, '0')
+                        const year = date.getFullYear()
+                        const hours = String(date.getHours()).padStart(2, '0')
+                        const minutes = String(date.getMinutes()).padStart(2, '0')
+                        
+                        if (trafficPeriodType === 'hourly') {
+                          return `${day}.${month}.${year} ${hours}:${minutes}`
+                        } else if (trafficPeriodType === 'daily') {
+                          return `${day}.${month}.${year}`
+                        } else if (trafficPeriodType === 'monthly') {
+                          return `${month}.${year}`
+                        } else {
+                          return `${year}`
+                        }
+                      }),
+                      datasets: [
+                        {
+                          label: 'İndirme (MB)',
+                          data: peerTrafficData.map((item) => item.rx_mb),
+                          borderColor: 'rgb(59, 130, 246)',
+                          backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                          fill: true,
+                          tension: 0.4,
+                        },
+                        {
+                          label: 'Yükleme (MB)',
+                          data: peerTrafficData.map((item) => item.tx_mb),
+                          borderColor: 'rgb(34, 197, 94)',
+                          backgroundColor: 'rgba(34, 197, 94, 0.1)',
+                          fill: true,
+                          tension: 0.4,
+                        },
+                      ],
+                    }}
+                    options={{
+                      responsive: true,
+                      maintainAspectRatio: false,
+                      plugins: {
+                        legend: {
+                          position: 'top',
+                        },
+                        title: {
+                          display: true,
+                          text: `${trafficPeriodType === 'hourly' ? 'Saatlik' : trafficPeriodType === 'daily' ? 'Günlük' : trafficPeriodType === 'monthly' ? 'Aylık' : 'Yıllık'} Trafik Kullanımı`,
+                        },
+                        tooltip: {
+                          mode: 'index',
+                          intersect: false,
+                          callbacks: {
+                            label: function (context) {
+                              return `${context.dataset.label}: ${context.parsed.y.toFixed(2)} MB`
+                            },
+                          },
+                        },
+                      },
+                      scales: {
+                        y: {
+                          beginAtZero: true,
+                          title: {
+                            display: true,
+                            text: 'Trafik (MB)',
+                          },
+                        },
+                        x: {
+                          title: {
+                            display: true,
+                            text: 'Zaman',
+                          },
+                        },
+                      },
+                    }}
+                  />
+                </div>
+              )}
+
+              {/* Veri Tablosu */}
+              {peerTrafficData.length > 0 && (
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+                    Detaylı Veriler
+                  </h3>
+                  <div className="overflow-x-auto">
+                    <table className="w-full">
+                      <thead>
+                        <tr className="border-b border-gray-200 dark:border-gray-700">
+                          <th className="text-left py-3 px-4 text-sm font-medium text-gray-700 dark:text-gray-300">Tarih/Saat</th>
+                          <th className="text-right py-3 px-4 text-sm font-medium text-gray-700 dark:text-gray-300">İndirme (MB)</th>
+                          <th className="text-right py-3 px-4 text-sm font-medium text-gray-700 dark:text-gray-300">Yükleme (MB)</th>
+                          <th className="text-right py-3 px-4 text-sm font-medium text-gray-700 dark:text-gray-300">Toplam (MB)</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {peerTrafficData.map((item) => {
+                          const date = new Date(item.timestamp)
+                          const day = String(date.getDate()).padStart(2, '0')
+                          const month = String(date.getMonth() + 1).padStart(2, '0')
+                          const year = date.getFullYear()
+                          const hours = String(date.getHours()).padStart(2, '0')
+                          const minutes = String(date.getMinutes()).padStart(2, '0')
+                          
+                          let dateStr = ''
+                          if (trafficPeriodType === 'hourly') {
+                            dateStr = `${day}.${month}.${year} ${hours}:${minutes}`
+                          } else if (trafficPeriodType === 'daily') {
+                            dateStr = `${day}.${month}.${year}`
+                          } else if (trafficPeriodType === 'monthly') {
+                            dateStr = `${month}.${year}`
+                          } else {
+                            dateStr = `${year}`
+                          }
+                          
+                          return (
+                            <tr key={item.id} className="border-b border-gray-100 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                              <td className="py-3 px-4 text-sm text-gray-900 dark:text-white">{dateStr}</td>
+                              <td className="py-3 px-4 text-sm text-right text-blue-600 dark:text-blue-400 font-medium">{item.rx_mb.toFixed(2)}</td>
+                              <td className="py-3 px-4 text-sm text-right text-green-600 dark:text-green-400 font-medium">{item.tx_mb.toFixed(2)}</td>
+                              <td className="py-3 px-4 text-sm text-right text-gray-900 dark:text-white font-semibold">{(item.rx_mb + item.tx_mb).toFixed(2)}</td>
+                            </tr>
+                          )
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+export default Dashboard

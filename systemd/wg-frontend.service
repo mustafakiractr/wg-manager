@@ -1,0 +1,33 @@
+[Unit]
+Description=MikroTik WireGuard Manager Frontend (Development Server)
+Documentation=https://github.com/your-repo/wg-manager
+After=network.target wg-backend.service
+
+[Service]
+Type=simple
+User=root
+Group=root
+WorkingDirectory=/root/wg/frontend
+
+# Frontend dev server başlat
+ExecStart=/usr/bin/npm run dev
+
+# Otomatik yeniden başlatma
+Restart=always
+RestartSec=10
+StartLimitInterval=60
+StartLimitBurst=5
+
+# Loglar
+StandardOutput=append:/root/wg/frontend.log
+StandardError=append:/root/wg/frontend_error.log
+
+# Güvenlik ayarları
+NoNewPrivileges=true
+PrivateTmp=true
+
+# Kaynak limitleri
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target

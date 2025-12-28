@@ -1,0 +1,701 @@
+/**
+ * Kullanıcı Yönetimi sayfası
+ * Kullanıcı listesi, ekleme, düzenleme, silme ve şifre değiştirme
+ */
+import { useState, useEffect } from 'react'
+import { useAuthStore } from '../store/authStore'
+import {
+  getUsers,
+  createUser,
+  updateUser,
+  deleteUser,
+  changePasswordByAdmin,
+} from '../services/userService'
+import {
+  Users,
+  Plus,
+  Edit,
+  Trash2,
+  Key,
+  Search,
+  RefreshCw,
+  Shield,
+  ShieldCheck,
+  X,
+  Eye,
+  EyeOff,
+} from 'lucide-react'
+
+function UsersPage() {
+  const { user: currentUser } = useAuthStore()
+  const [users, setUsers] = useState([])
+  const [loading, setLoading] = useState(false)
+  const [searchTerm, setSearchTerm] = useState('')
+  const [showAddModal, setShowAddModal] = useState(false)
+  const [showEditModal, setShowEditModal] = useState(false)
+  const [showPasswordModal, setShowPasswordModal] = useState(false)
+  const [selectedUser, setSelectedUser] = useState(null)
+  const [showPassword, setShowPassword] = useState(false)
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
+  
+  // Form state
+  const [formData, setFormData] = useState({
+    username: '',
+    email: '',
+    password: '',
+    confirmPassword: '',
+    is_admin: false,
+  })
+
+  // İlk yükleme
+  useEffect(() => {
+    loadUsers()
+  }, [])
+
+  const loadUsers = async () => {
+    setLoading(true)
+    try {
+      const response = await getUsers()
+      if (response.success) {
+        setUsers(response.data || [])
+      }
+    } catch (error) {
+      console.error('Kullanıcı listesi yüklenemedi:', error)
+      alert('Kullanıcı listesi yüklenemedi: ' + (error.response?.data?.detail || error.message))
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const resetForm = () => {
+    setFormData({
+      username: '',
+      email: '',
+      password: '',
+      confirmPassword: '',
+      is_admin: false,
+    })
+    setShowPassword(false)
+    setShowConfirmPassword(false)
+  }
+
+  const handleAddUser = async (e) => {
+    e.preventDefault()
+    
+    if (!formData.username || !formData.password) {
+      alert('Kullanıcı adı ve şifre zorunludur')
+      return
+    }
+    
+    if (formData.password !== formData.confirmPassword) {
+      alert('Şifreler eşleşmiyor')
+      return
+    }
+    
+    if (formData.password.length < 6) {
+      alert('Şifre en az 6 karakter olmalıdır')
+      return
+    }
+    
+    try {
+      await createUser({
+        username: formData.username,
+        email: formData.email || undefined,
+        password: formData.password,
+        is_admin: formData.is_admin,
+      })
+      alert('Kullanıcı başarıyla oluşturuldu')
+      setShowAddModal(false)
+      resetForm()
+      await loadUsers()
+    } catch (error) {
+      alert('Kullanıcı oluşturulamadı: ' + (error.response?.data?.detail || error.message))
+    }
+  }
+
+  const handleEditUser = async (e) => {
+    e.preventDefault()
+    
+    if (!selectedUser) return
+    
+    try {
+      await updateUser(selectedUser.id, {
+        username: formData.username,
+        email: formData.email || undefined,
+        is_admin: formData.is_admin,
+      })
+      alert('Kullanıcı başarıyla güncellendi')
+      setShowEditModal(false)
+      setSelectedUser(null)
+      resetForm()
+      await loadUsers()
+    } catch (error) {
+      alert('Kullanıcı güncellenemedi: ' + (error.response?.data?.detail || error.message))
+    }
+  }
+
+  const handleDeleteUser = async (userId) => {
+    if (!confirm('Bu kullanıcıyı silmek istediğinizden emin misiniz?')) return
+    
+    try {
+      await deleteUser(userId)
+      alert('Kullanıcı başarıyla silindi')
+      await loadUsers()
+    } catch (error) {
+      alert('Kullanıcı silinemedi: ' + (error.response?.data?.detail || error.message))
+    }
+  }
+
+  const handleChangePassword = async (e) => {
+    e.preventDefault()
+    
+    if (!formData.password || !formData.confirmPassword) {
+      alert('Şifre alanları zorunludur')
+      return
+    }
+    
+    if (formData.password !== formData.confirmPassword) {
+      alert('Şifreler eşleşmiyor')
+      return
+    }
+    
+    if (!formData.password || formData.password.length < 6) {
+      alert('Şifre en az 6 karakter olmalıdır')
+      return
+    }
+    
+    if (formData.password.length > 72) {
+      alert('Şifre en fazla 72 karakter olabilir')
+      return
+    }
+    
+    if (!selectedUser) return
+    
+    try {
+      await changePasswordByAdmin(selectedUser.id, formData.password)
+      alert('Şifre başarıyla değiştirildi')
+      setShowPasswordModal(false)
+      setSelectedUser(null)
+      resetForm()
+    } catch (error) {
+      alert('Şifre değiştirilemedi: ' + (error.response?.data?.detail || error.message))
+    }
+  }
+
+  const openEditModal = (user) => {
+    setSelectedUser(user)
+    setFormData({
+      username: user.username,
+      email: user.email || '',
+      password: '',
+      confirmPassword: '',
+      is_admin: user.is_admin || false,
+    })
+    setShowEditModal(true)
+  }
+
+  const openPasswordModal = (user) => {
+    setSelectedUser(user)
+    setFormData({
+      username: '',
+      email: '',
+      password: '',
+      confirmPassword: '',
+      is_admin: false,
+    })
+    setShowPasswordModal(true)
+  }
+
+  // Filtreleme
+  const filteredUsers = users.filter((user) => {
+    const term = searchTerm.toLowerCase()
+    return (
+      user.username.toLowerCase().includes(term) ||
+      (user.email && user.email.toLowerCase().includes(term))
+    )
+  })
+
+  // Sadece admin kullanıcılar kullanıcı yönetimi yapabilir
+  if (!currentUser?.is_admin) {
+    return (
+      <div className="flex items-center justify-center h-96">
+        <div className="text-center">
+          <Shield className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+          <p className="text-lg font-medium text-gray-900 dark:text-white">
+            Bu sayfaya erişim için admin yetkisi gereklidir
+          </p>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Sayfa başlığı */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+            Kullanıcı Yönetimi
+          </h1>
+          <p className="text-gray-600 dark:text-gray-400 mt-1">
+            Kullanıcıları yönetin, ekleyin, düzenleyin ve silin
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={loadUsers}
+            disabled={loading}
+            className="btn btn-secondary flex items-center gap-2"
+          >
+            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+            Yenile
+          </button>
+          <button
+            onClick={() => {
+              resetForm()
+              setShowAddModal(true)
+            }}
+            className="btn btn-primary flex items-center gap-2"
+          >
+            <Plus className="w-4 h-4" />
+            Kullanıcı Ekle
+          </button>
+        </div>
+      </div>
+
+      {/* Arama */}
+      <div className="card">
+        <div className="relative">
+          <Search className="w-5 h-5 text-gray-400 absolute left-3 top-1/2 transform -translate-y-1/2" />
+          <input
+            type="text"
+            placeholder="Kullanıcı adı veya email ile ara..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="input pl-10"
+          />
+        </div>
+      </div>
+
+      {/* Kullanıcı listesi */}
+      <div className="card">
+        {loading ? (
+          <div className="flex items-center justify-center h-64">
+            <RefreshCw className="w-8 h-8 animate-spin text-primary-600 dark:text-primary-400" />
+          </div>
+        ) : filteredUsers.length === 0 ? (
+          <div className="text-center py-8">
+            <Users className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+            <p className="text-gray-500 dark:text-gray-400">
+              {searchTerm ? 'Arama sonucu bulunamadı' : 'Henüz kullanıcı bulunamadı'}
+            </p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-gray-200 dark:border-gray-700">
+                  <th className="text-left py-3 px-4 text-sm font-medium text-gray-700 dark:text-gray-300">
+                    Kullanıcı Adı
+                  </th>
+                  <th className="text-left py-3 px-4 text-sm font-medium text-gray-700 dark:text-gray-300">
+                    Email
+                  </th>
+                  <th className="text-left py-3 px-4 text-sm font-medium text-gray-700 dark:text-gray-300">
+                    Yetki
+                  </th>
+                  <th className="text-left py-3 px-4 text-sm font-medium text-gray-700 dark:text-gray-300">
+                    Oluşturulma
+                  </th>
+                  <th className="text-right py-3 px-4 text-sm font-medium text-gray-700 dark:text-gray-300">
+                    İşlemler
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredUsers.map((user) => (
+                  <tr
+                    key={user.id}
+                    className="border-b border-gray-100 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700/50"
+                  >
+                    <td className="py-3 px-4">
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium text-gray-900 dark:text-white">
+                          {user.username}
+                        </span>
+                        {user.id === currentUser?.id && (
+                          <span className="text-xs text-blue-600 dark:text-blue-400">
+                            (Siz)
+                          </span>
+                        )}
+                      </div>
+                    </td>
+                    <td className="py-3 px-4 text-sm text-gray-600 dark:text-gray-400">
+                      {user.email || '-'}
+                    </td>
+                    <td className="py-3 px-4">
+                      {user.is_admin ? (
+                        <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400">
+                          <ShieldCheck className="w-3 h-3" />
+                          Admin
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-400">
+                          <Shield className="w-3 h-3" />
+                          Kullanıcı
+                        </span>
+                      )}
+                    </td>
+                    <td className="py-3 px-4 text-sm text-gray-600 dark:text-gray-400">
+                      {user.created_at
+                        ? new Date(user.created_at).toLocaleDateString('tr-TR')
+                        : '-'}
+                    </td>
+                    <td className="py-3 px-4">
+                      <div className="flex items-center justify-end gap-2">
+                        <button
+                          onClick={() => openEditModal(user)}
+                          className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded text-blue-600 dark:text-blue-400"
+                          title="Düzenle"
+                        >
+                          <Edit className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => openPasswordModal(user)}
+                          className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded text-green-600 dark:text-green-400"
+                          title="Şifre Değiştir"
+                        >
+                          <Key className="w-4 h-4" />
+                        </button>
+                        {user.id !== currentUser?.id && (
+                          <button
+                            onClick={() => handleDeleteUser(user.id)}
+                            className="p-2 hover:bg-red-100 dark:hover:bg-red-900/30 rounded text-red-600 dark:text-red-400"
+                            title="Sil"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* Kullanıcı Ekleme Modal */}
+      {showAddModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-lg max-w-md w-full p-6">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-xl font-semibold text-gray-900 dark:text-white">
+                Yeni Kullanıcı Ekle
+              </h3>
+              <button
+                onClick={() => {
+                  setShowAddModal(false)
+                  resetForm()
+                }}
+                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleAddUser} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Kullanıcı Adı *
+                </label>
+                <input
+                  type="text"
+                  value={formData.username}
+                  onChange={(e) => setFormData({ ...formData, username: e.target.value })}
+                  className="input"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Email
+                </label>
+                <input
+                  type="email"
+                  value={formData.email}
+                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                  className="input"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Şifre *
+                </label>
+                <div className="relative">
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    value={formData.password}
+                    onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                    className="input pr-10"
+                    required
+                    minLength={6}
+                    maxLength={72}
+                    placeholder="En az 6, en fazla 72 karakter"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                  >
+                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Şifre Tekrar *
+                </label>
+                <div className="relative">
+                  <input
+                    type={showConfirmPassword ? 'text' : 'password'}
+                    value={formData.confirmPassword}
+                    onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
+                    className="input pr-10"
+                    required
+                    minLength={6}
+                    maxLength={72}
+                    placeholder="En az 6, en fazla 72 karakter"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                  >
+                    {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <label className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={formData.is_admin}
+                    onChange={(e) => setFormData({ ...formData, is_admin: e.target.checked })}
+                    className="rounded"
+                  />
+                  <span className="text-sm text-gray-700 dark:text-gray-300">
+                    Admin Yetkisi
+                  </span>
+                </label>
+              </div>
+
+              <div className="flex gap-2 pt-4">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowAddModal(false)
+                    resetForm()
+                  }}
+                  className="flex-1 btn btn-secondary"
+                >
+                  İptal
+                </button>
+                <button type="submit" className="flex-1 btn btn-primary">
+                  Oluştur
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Kullanıcı Düzenleme Modal */}
+      {showEditModal && selectedUser && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-lg max-w-md w-full p-6">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-xl font-semibold text-gray-900 dark:text-white">
+                Kullanıcı Düzenle
+              </h3>
+              <button
+                onClick={() => {
+                  setShowEditModal(false)
+                  setSelectedUser(null)
+                  resetForm()
+                }}
+                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleEditUser} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Kullanıcı Adı *
+                </label>
+                <input
+                  type="text"
+                  value={formData.username}
+                  onChange={(e) => setFormData({ ...formData, username: e.target.value })}
+                  className="input"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Email
+                </label>
+                <input
+                  type="email"
+                  value={formData.email}
+                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                  className="input"
+                />
+              </div>
+
+              <div>
+                <label className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={formData.is_admin}
+                    onChange={(e) => setFormData({ ...formData, is_admin: e.target.checked })}
+                    className="rounded"
+                  />
+                  <span className="text-sm text-gray-700 dark:text-gray-300">
+                    Admin Yetkisi
+                  </span>
+                </label>
+              </div>
+
+              <div className="flex gap-2 pt-4">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowEditModal(false)
+                    setSelectedUser(null)
+                    resetForm()
+                  }}
+                  className="flex-1 btn btn-secondary"
+                >
+                  İptal
+                </button>
+                <button type="submit" className="flex-1 btn btn-primary">
+                  Kaydet
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Şifre Değiştirme Modal */}
+      {showPasswordModal && selectedUser && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-lg max-w-md w-full p-6">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-xl font-semibold text-gray-900 dark:text-white">
+                Şifre Değiştir
+              </h3>
+              <button
+                onClick={() => {
+                  setShowPasswordModal(false)
+                  setSelectedUser(null)
+                  resetForm()
+                }}
+                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="mb-4">
+              <p className="text-sm text-gray-600 dark:text-gray-400">
+                Kullanıcı: <span className="font-medium">{selectedUser.username}</span>
+              </p>
+            </div>
+
+            <form onSubmit={handleChangePassword} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Yeni Şifre *
+                </label>
+                <div className="relative">
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    value={formData.password}
+                    onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                    className="input pr-10"
+                    required
+                    minLength={6}
+                    maxLength={72}
+                    placeholder="En az 6, en fazla 72 karakter"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                  >
+                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Yeni Şifre Tekrar *
+                </label>
+                <div className="relative">
+                  <input
+                    type={showConfirmPassword ? 'text' : 'password'}
+                    value={formData.confirmPassword}
+                    onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
+                    className="input pr-10"
+                    required
+                    minLength={6}
+                    maxLength={72}
+                    placeholder="En az 6, en fazla 72 karakter"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                  >
+                    {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex gap-2 pt-4">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowPasswordModal(false)
+                    setSelectedUser(null)
+                    resetForm()
+                  }}
+                  className="flex-1 btn btn-secondary"
+                >
+                  İptal
+                </button>
+                <button type="submit" className="flex-1 btn btn-primary">
+                  Değiştir
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+export default UsersPage
+

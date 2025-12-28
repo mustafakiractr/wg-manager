@@ -1,0 +1,36 @@
+[Unit]
+Description=MikroTik WireGuard Manager Backend API
+Documentation=https://github.com/your-repo/wg-manager
+After=network.target
+
+[Service]
+Type=simple
+User=root
+Group=root
+WorkingDirectory=/root/wg/backend
+Environment="PATH=/root/wg/backend/venv/bin:/usr/local/bin:/usr/bin:/bin"
+Environment="PYTHONPATH=/root/wg/backend"
+
+# Backend servisini başlat
+ExecStart=/root/wg/backend/venv/bin/python /root/wg/backend/run.py
+
+# Otomatik yeniden başlatma
+Restart=always
+RestartSec=10
+StartLimitInterval=60
+StartLimitBurst=5
+
+# Loglar
+StandardOutput=append:/root/wg/backend/logs/backend.log
+StandardError=append:/root/wg/backend/logs/backend_error.log
+
+# Güvenlik ayarları
+NoNewPrivileges=true
+PrivateTmp=true
+
+# Kaynak limitleri
+LimitNOFILE=65536
+LimitNPROC=4096
+
+[Install]
+WantedBy=multi-user.target
