@@ -313,17 +313,19 @@ function WireGuardInterfaceDetail() {
       alert('Genel Anahtar (Public Key) zorunludur')
       return
     }
-    
+
     if (!formData.allowed_address.trim()) {
       alert('İzin Verilen IP Adresleri zorunludur')
       return
     }
-    
-    if (!validateIP(formData.allowed_address)) {
-      alert('Geçersiz IP adresi formatı. Örnek: 192.168.1.1/32')
+
+    // "auto" değerine izin ver (IP Pool'dan otomatik tahsis için)
+    const allowedAddressValue = formData.allowed_address.trim().toLowerCase()
+    if (allowedAddressValue !== 'auto' && !validateIP(formData.allowed_address)) {
+      alert('Geçersiz IP adresi formatı. Örnek: 192.168.1.1/32 veya "auto" (otomatik tahsis için)')
       return
     }
-    
+
     // Public key duplicate kontrolü (performans için ön kontrol)
     const publicKeyTrimmed = formData.public_key.trim()
     const existingPeer = peers.find(p => {
@@ -718,12 +720,12 @@ function WireGuardInterfaceDetail() {
         setPoolInfo(response.data)
 
         if (response.data.next_ip) {
-          // Sıradaki IP'yi /32 ile birlikte formData'ya ekle
+          // "auto" yaz - backend IP Pool'dan otomatik tahsis edecek
           setFormData(prev => ({
             ...prev,
-            allowed_address: `${response.data.next_ip}/32`
+            allowed_address: 'auto'
           }))
-          console.log('✅ Sıradaki IP alındı:', response.data.next_ip)
+          console.log('✅ Otomatik IP tahsisi aktif - backend IP Pool\'dan sıradaki boş IP\'yi kullanacak (şu anda: ' + response.data.next_ip + ')')
         } else {
           console.warn('⚠️ Pool dolu, boş IP yok')
           alert('IP Pool dolu! Lütfen pool kapasitesini artırın veya manuel IP girin.')
@@ -1786,19 +1788,24 @@ function WireGuardInterfaceDetail() {
                       setFormData({ ...formData, allowed_address: value })
                     }}
                     className={`input font-mono text-sm ${
-                      formData.allowed_address && !validateIP(formData.allowed_address)
+                      formData.allowed_address && formData.allowed_address.toLowerCase() !== 'auto' && !validateIP(formData.allowed_address)
                         ? 'border-red-500 dark:border-red-500'
                         : ''
                     }`}
                     placeholder="192.168.46.14/32 veya 192.168.46.14/32, 192.168.40.0/24"
                     required
                   />
-                  {formData.allowed_address && !validateIP(formData.allowed_address) && (
+                  {formData.allowed_address && formData.allowed_address.toLowerCase() !== 'auto' && !validateIP(formData.allowed_address) && (
                     <p className="text-xs text-red-600 dark:text-red-400">
                       Geçersiz IP adresi formatı. Örnek: 192.168.46.14/32 veya birden fazla: 192.168.46.14/32, 192.168.40.0/24
                     </p>
                   )}
-                  {formData.allowed_address && validateIP(formData.allowed_address) && (
+                  {formData.allowed_address && formData.allowed_address.toLowerCase() === 'auto' && (
+                    <p className="text-xs text-blue-600 dark:text-blue-400">
+                      🔄 Otomatik IP tahsisi - Backend IP Pool'dan sıradaki boş IP kullanılacak
+                    </p>
+                  )}
+                  {formData.allowed_address && formData.allowed_address.toLowerCase() !== 'auto' && validateIP(formData.allowed_address) && (
                     <p className="text-xs text-green-600 dark:text-green-400">
                       ✓ IP Adresi/CIDR geçerli: {formData.allowed_address}
                     </p>
