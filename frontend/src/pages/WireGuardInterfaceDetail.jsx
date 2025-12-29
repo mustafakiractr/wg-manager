@@ -767,6 +767,8 @@ function WireGuardInterfaceDetail() {
         preshared_key: peerData.preshared_key || '',
         dns: peerData.dns || '',
         endpoint_allowed_address: peerData.endpoint_allowed_address || '',
+        endpoint_address: template.endpoint_address || '',
+        endpoint_port: template.endpoint_port || '',
         mtu: peerData.mtu || '',
       }))
 
