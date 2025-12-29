@@ -1032,6 +1032,106 @@ function Dashboard() {
         </div>
       </div>
 
+      {/* Aktif Peer'lar */}
+      <div className="card">
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+              Aktif Peer'lar
+            </h2>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+              Şu anda bağlı olan cihazlar
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-2xl font-bold text-green-600 dark:text-green-400">
+              {filteredPeers.filter(p => p._processed.lastActivity.isOnline).length}
+            </span>
+            <Wifi className="w-6 h-6 text-green-600 dark:text-green-400" />
+          </div>
+        </div>
+
+        {filteredPeers.filter(p => p._processed.lastActivity.isOnline).length === 0 ? (
+          <div className="text-center py-8">
+            <Wifi className="w-12 h-12 text-gray-300 dark:text-gray-600 mx-auto mb-3" />
+            <p className="text-gray-500 dark:text-gray-400">Şu anda aktif peer yok</p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-gray-200 dark:border-gray-700">
+                  <th className="text-left py-3 px-4 text-sm font-semibold text-gray-700 dark:text-gray-300">
+                    Peer Adı
+                  </th>
+                  <th className="text-left py-3 px-4 text-sm font-semibold text-gray-700 dark:text-gray-300">
+                    IP Adresi
+                  </th>
+                  <th className="text-left py-3 px-4 text-sm font-semibold text-gray-700 dark:text-gray-300">
+                    Endpoint
+                  </th>
+                  <th className="text-right py-3 px-4 text-sm font-semibold text-gray-700 dark:text-gray-300">
+                    İndirme
+                  </th>
+                  <th className="text-right py-3 px-4 text-sm font-semibold text-gray-700 dark:text-gray-300">
+                    Yükleme
+                  </th>
+                  <th className="text-center py-3 px-4 text-sm font-semibold text-gray-700 dark:text-gray-300">
+                    Son İletişim
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredPeers
+                  .filter(p => p._processed.lastActivity.isOnline)
+                  .map((peer, index) => (
+                    <tr
+                      key={peer.id || peer['.id'] || index}
+                      className="border-b border-gray-100 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+                    >
+                      <td className="py-3 px-4">
+                        <div className="flex items-center gap-2">
+                          <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
+                          <span className="font-medium text-gray-900 dark:text-white">
+                            {peer._processed.name}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="py-3 px-4 text-sm text-gray-600 dark:text-gray-400">
+                        {peer._processed.allowedAddress}
+                      </td>
+                      <td className="py-3 px-4 text-sm text-gray-600 dark:text-gray-400">
+                        {peer._processed.fullEndpoint}
+                      </td>
+                      <td className="py-3 px-4 text-right">
+                        <div className="flex items-center justify-end gap-1">
+                          <Download className="w-4 h-4 text-blue-500" />
+                          <span className="text-sm font-medium text-gray-900 dark:text-white">
+                            {formatBytes(peer._processed.rxBytes)}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="py-3 px-4 text-right">
+                        <div className="flex items-center justify-end gap-1">
+                          <Upload className="w-4 h-4 text-green-500" />
+                          <span className="text-sm font-medium text-gray-900 dark:text-white">
+                            {formatBytes(peer._processed.txBytes)}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="py-3 px-4 text-center">
+                        <span className="text-xs text-green-600 dark:text-green-400 font-medium">
+                          {peer._processed.lastActivity.text}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
       {/* IP Pool Kullanım Detayları ve Son Aktiviteler */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* IP Pool Kullanım Detayları */}
