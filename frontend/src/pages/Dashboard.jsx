@@ -91,6 +91,7 @@ function Dashboard() {
   const [peerTrafficData, setPeerTrafficData] = useState([]) // Peer trafik verileri
   const [peerTrafficSummary, setPeerTrafficSummary] = useState(null) // Peer trafik özeti
   const [loadingTraffic, setLoadingTraffic] = useState(false) // Trafik yükleme durumu
+  const [loadingPeers, setLoadingPeers] = useState(true) // Peer'lar yükleniyor mu?
   const [showPeerDetailsModal, setShowPeerDetailsModal] = useState(false) // Peer detay modal durumu
   const [showWidgetSettings, setShowWidgetSettings] = useState(false) // Widget ayarları modal durumu
 
@@ -222,6 +223,7 @@ function Dashboard() {
     } catch (error) {
       console.error('Veri yükleme hatası:', error)
     } finally {
+      setLoadingPeers(false) // Peer yükleme tamamlandı
       if (showLoading) {
         setIsRefreshing(false) // Manuel yenileme tamamlandı
       }
@@ -1095,13 +1097,18 @@ function Dashboard() {
           </div>
           <div className="flex items-center gap-2">
             <span className="text-2xl font-bold text-green-600 dark:text-green-400">
-              {filteredPeers.filter(p => p._processed.lastActivity.isOnline).length}
+              {loadingPeers ? '...' : filteredPeers.filter(p => p._processed.lastActivity.isOnline).length}
             </span>
             <Wifi className="w-6 h-6 text-green-600 dark:text-green-400" />
           </div>
         </div>
 
-        {filteredPeers.filter(p => p._processed.lastActivity.isOnline).length === 0 ? (
+        {loadingPeers ? (
+          <div className="text-center py-8">
+            <RefreshCw className="w-12 h-12 text-primary-600 dark:text-primary-400 mx-auto mb-3 animate-spin" />
+            <p className="text-gray-500 dark:text-gray-400">Online peer'lar yükleniyor...</p>
+          </div>
+        ) : filteredPeers.filter(p => p._processed.lastActivity.isOnline).length === 0 ? (
           <div className="text-center py-8">
             <Wifi className="w-12 h-12 text-gray-300 dark:text-gray-600 mx-auto mb-3" />
             <p className="text-gray-500 dark:text-gray-400">Şu anda aktif peer yok</p>
