@@ -79,6 +79,7 @@ function WireGuardInterfaces() {
   const [togglingPeer, setTogglingPeer] = useState(null)
   const [loadingPool, setLoadingPool] = useState(false) // IP Pool yükleme durumu
   const [poolInfo, setPoolInfo] = useState(null) // IP Pool bilgisi
+  const [addingPeer, setAddingPeer] = useState(false) // Peer ekleme durumu
 
   // Toplu işlemler için
   const [selectedPeers, setSelectedPeers] = useState([]) // Seçili peer ID'leri
@@ -423,23 +424,28 @@ function WireGuardInterfaces() {
       return
     }
 
+    setAddingPeer(true)
+
     // "auto" değeri varsa IP Pool'dan IP al
     let finalIP = formData.allowed_address.trim()
     if (finalIP.toLowerCase() === 'auto') {
       try {
         const nextIP = await fetchNextAvailableIP()
         if (!nextIP) {
+          setAddingPeer(false)
           alert('IP Pool\'dan IP alınamadı. Lütfen manuel IP girin.')
           return
         }
         finalIP = nextIP
       } catch (error) {
+        setAddingPeer(false)
         alert('IP Pool\'dan IP alınırken hata oluştu: ' + error.message)
         return
       }
     }
 
     if (!validateIP(finalIP)) {
+      setAddingPeer(false)
       alert('Geçersiz IP adresi formatı. Örnek: 192.168.1.1/32')
       return
     }
@@ -447,10 +453,36 @@ function WireGuardInterfaces() {
     try {
       // Public key kontrolü - zorunlu
       if (!formData.public_key || !formData.public_key.trim()) {
+        setAddingPeer(false)
         alert('Genel Anahtar (Public Key) zorunludur. Lütfen anahtar girin veya "Otomatik Oluştur" butonunu kullanın.')
         return
       }
-      
+
+      // Public key duplicate kontrolü
+      const publicKeyTrimmed = formData.public_key.trim()
+      const existingPeer = allPeers.find(p => {
+        const existingPublicKey = p['public-key'] || p.public_key
+        return existingPublicKey && existingPublicKey.trim() === publicKeyTrimmed
+      })
+
+      if (existingPeer) {
+        const peerId = existingPeer['.id'] || existingPeer.id || 'N/A'
+        const peerComment = existingPeer.comment || existingPeer.name || 'N/A'
+        const confirmDuplicate = confirm(
+          `⚠️ UYARI: Bu public key zaten kullanımda!\n\n` +
+          `Mevcut Peer:\n` +
+          `- ID: ${peerId}\n` +
+          `- Comment: ${peerComment}\n` +
+          `- Interface: ${existingPeer.interface || 'N/A'}\n\n` +
+          `Aynı public key'e sahip iki peer olması güvenlik riski oluşturur ve bağlantı sorunlarına neden olabilir.\n\n` +
+          `Yine de devam etmek istiyor musunuz?`
+        )
+        if (!confirmDuplicate) {
+          setAddingPeer(false)
+          return
+        }
+      }
+
       // Private key kontrolü - QR kod ve config için gerekli
       if (!formData.private_key || !formData.private_key.trim()) {
         const confirmGenerate = confirm('Özel Anahtar (Private Key) girilmedi. QR kod ve config dosyası oluşturmak için private key gereklidir.\n\nOtomatik olarak oluşturulsun mu?')
@@ -458,6 +490,7 @@ function WireGuardInterfaces() {
           await handleGenerateKeys()
           // Anahtarlar oluşturulduktan sonra tekrar dene
           if (!formData.private_key || !formData.private_key.trim()) {
+            setAddingPeer(false)
             alert('Private key oluşturulamadı. Lütfen manuel olarak girin.')
             return
           }
@@ -505,6 +538,8 @@ function WireGuardInterfaces() {
       loadAllData()
     } catch (error) {
       alert('Peer eklenemedi: ' + (error.response?.data?.detail || error.message))
+    } finally {
+      setAddingPeer(false)
     }
   }
 
@@ -525,23 +560,28 @@ function WireGuardInterfaces() {
       return
     }
 
+    setAddingPeer(true)
+
     // "auto" değeri varsa IP Pool'dan IP al
     let finalIP = formData.allowed_address.trim()
     if (finalIP.toLowerCase() === 'auto') {
       try {
         const nextIP = await fetchNextAvailableIP()
         if (!nextIP) {
+          setAddingPeer(false)
           alert('IP Pool\'dan IP alınamadı. Lütfen manuel IP girin.')
           return
         }
         finalIP = nextIP
       } catch (error) {
+        setAddingPeer(false)
         alert('IP Pool\'dan IP alınırken hata oluştu: ' + error.message)
         return
       }
     }
 
     if (!validateIP(finalIP)) {
+      setAddingPeer(false)
       alert('Geçersiz IP adresi formatı. Örnek: 192.168.1.1/32')
       return
     }
@@ -549,6 +589,7 @@ function WireGuardInterfaces() {
     try {
       // Public key kontrolü - zorunlu
       if (!formData.public_key || !formData.public_key.trim()) {
+        setAddingPeer(false)
         alert('Genel Anahtar (Public Key) zorunludur. Lütfen anahtar girin veya "Otomatik Oluştur" butonunu kullanın.')
         return
       }
@@ -617,6 +658,8 @@ function WireGuardInterfaces() {
       alert(`${bulkCount} peer başarıyla eklendi!`)
     } catch (error) {
       alert('Toplu ekleme hatası: ' + (error.response?.data?.detail || error.message))
+    } finally {
+      setAddingPeer(false)
     }
   }
 
@@ -1933,19 +1976,24 @@ function WireGuardInterfaces() {
                       setFormData({ ...formData, allowed_address: value })
                     }}
                     className={`input font-mono text-sm ${
-                      formData.allowed_address && !validateIP(formData.allowed_address)
+                      formData.allowed_address && formData.allowed_address.toLowerCase() !== 'auto' && !validateIP(formData.allowed_address)
                         ? 'border-red-500 dark:border-red-500'
                         : ''
                     }`}
-                    placeholder="192.168.46.14/32"
+                    placeholder="192.168.46.14/32 veya 'auto'"
                     required
                   />
-                  {formData.allowed_address && !validateIP(formData.allowed_address) && (
+                  {formData.allowed_address && formData.allowed_address.toLowerCase() !== 'auto' && !validateIP(formData.allowed_address) && (
                     <p className="text-xs text-red-600 dark:text-red-400">
-                      Geçersiz IP adresi formatı. Örnek: 192.168.46.14/32
+                      Geçersiz IP adresi formatı. Örnek: 192.168.46.14/32 veya 'auto' yazarak otomatik tahsis
                     </p>
                   )}
-                  {formData.allowed_address && validateIP(formData.allowed_address) && (
+                  {formData.allowed_address && formData.allowed_address.toLowerCase() === 'auto' && (
+                    <p className="text-xs text-blue-600 dark:text-blue-400">
+                      🔄 Otomatik IP tahsisi - Backend IP Pool'dan sıradaki boş IP kullanılacak
+                    </p>
+                  )}
+                  {formData.allowed_address && formData.allowed_address.toLowerCase() !== 'auto' && validateIP(formData.allowed_address) && (
                     <p className="text-xs text-green-600 dark:text-green-400">
                       ✓ IP Adresi/CIDR geçerli: {formData.allowed_address}
                     </p>
@@ -2084,8 +2132,15 @@ function WireGuardInterfaces() {
                 >
                   İptal
                 </button>
-                <button type="submit" className="flex-1 btn btn-primary">
-                  {bulkMode ? `${bulkCount} Peer Ekle` : 'Ekle'}
+                <button type="submit" className="flex-1 btn btn-primary" disabled={addingPeer}>
+                  {addingPeer ? (
+                    <>
+                      <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                      Ekleniyor...
+                    </>
+                  ) : (
+                    bulkMode ? `${bulkCount} Peer Ekle` : 'Ekle'
+                  )}
                 </button>
               </div>
             </form>

@@ -17,6 +17,10 @@ import {
 } from '../services/wireguardService'
 import api from '../services/api'
 import {
+  getAllTemplates,
+  previewTemplate,
+} from '../services/peerTemplateService'
+import {
   ArrowLeft,
   Plus,
   Edit,
@@ -37,6 +41,8 @@ import {
   EyeOff,
   Download,
   FileText,
+  Layers,
+  CheckCircle,
 } from 'lucide-react'
 
 function WireGuardInterfaceDetail() {
@@ -88,6 +94,10 @@ function WireGuardInterfaceDetail() {
   const [poolInfo, setPoolInfo] = useState(null)
   const [loadingPool, setLoadingPool] = useState(false)
 
+  // Template yönetimi için
+  const [availableTemplates, setAvailableTemplates] = useState([]) // Mevcut şablonlar
+  const [selectedTemplate, setSelectedTemplate] = useState(null) // Seçili şablon
+
   // Verileri yükle - useCallback ile optimize edildi
   const loadData = useCallback(async (showLoading = true) => {
     try {
@@ -137,6 +147,19 @@ function WireGuardInterfaceDetail() {
     }
   }, [interfaceName])
 
+  // Şablonları yükle
+  const loadTemplates = async () => {
+    try {
+      const response = await getAllTemplates()
+      if (response.data && response.data.success) {
+        const templates = response.data.templates || []
+        setAvailableTemplates(templates.filter(t => t.is_active))
+      }
+    } catch (error) {
+      console.error('Şablon yükleme hatası:', error)
+    }
+  }
+
   useEffect(() => {
     loadData() // İlk yükleme
     
@@ -173,6 +196,13 @@ function WireGuardInterfaceDetail() {
       document.removeEventListener('visibilitychange', handleVisibilityChange)
     }
   }, [loadData])
+
+  // Modal açıldığında şablonları yükle
+  useEffect(() => {
+    if (showAddModal) {
+      loadTemplates()
+    }
+  }, [showAddModal])
 
   // IP adresi validasyonu - useCallback ile optimize edildi
   const validateIP = useCallback((ip) => {
@@ -375,14 +405,21 @@ function WireGuardInterfaceDetail() {
       console.warn('⚠️ FormData private_key değeri:', formData.private_key)
     }
     
+    // Template ID ekle (kullanım istatistikleri için)
+    if (selectedTemplate) {
+      peerData.template_id = selectedTemplate.id
+      console.log('📊 Template kullanıldı, ID backend\'e gönderiliyor:', selectedTemplate.id)
+    }
+
     // Debug: Gönderilecek peerData'yı logla
     console.log('📤 Gönderilecek peerData:', {
       interface: peerData.interface,
       public_key: peerData.public_key.substring(0, 20) + '...',
       private_key: peerData.private_key ? peerData.private_key.substring(0, 20) + '...' : 'YOK',
-      allowed_address: peerData.allowed_address
+      allowed_address: peerData.allowed_address,
+      template_id: peerData.template_id || 'YOK'
     })
-    
+
     // Loading state'i göster
     setAddingPeer(true)
     
@@ -583,7 +620,12 @@ function WireGuardInterfaceDetail() {
           } else {
             console.warn(`⚠️ Peer ${i + 1} için private key boş`)
           }
-        
+
+          // Template ID ekle (kullanım istatistikleri için)
+          if (selectedTemplate) {
+            peerData.template_id = selectedTemplate.id
+          }
+
         const response = await addPeer(peerData)
         
         // Başarılı eklenen peer'ları topla (performans için)
@@ -645,6 +687,39 @@ function WireGuardInterfaceDetail() {
     setBulkCount(1)
     setShowPrivateKey(false)
     setShowAdvanced(false)
+    setSelectedTemplate(null)
+  }
+
+  // Şablon seçildiğinde formu doldur
+  const handleTemplateSelect = async (templateId) => {
+    if (!templateId) {
+      setSelectedTemplate(null)
+      return
+    }
+
+    try {
+      const template = availableTemplates.find(t => t.id === parseInt(templateId))
+      setSelectedTemplate(template)
+
+      // Template verilerini forma doldur
+      const preview = await previewTemplate(templateId)
+      const peerData = preview.peer_data
+
+      setFormData(prev => ({
+        ...prev,
+        allowed_address: peerData.allowed_address || '',
+        persistent_keepalive: peerData.persistent_keepalive || '',
+        preshared_key: peerData.preshared_key || '',
+        dns: peerData.dns || '',
+        endpoint_allowed_address: peerData.endpoint_allowed_address || '',
+        mtu: peerData.mtu || '',
+      }))
+
+      alert(`"${template.name}" şablonu seçildi. Formu kontrol edip gerekirse değişiklik yapabilirsiniz.`)
+    } catch (error) {
+      console.error('Şablon yükleme hatası:', error)
+      alert('Şablon yüklenirken hata oluştu: ' + error.message)
+    }
   }
 
   // Otomatik anahtar oluştur
@@ -1679,6 +1754,34 @@ function WireGuardInterfaceDetail() {
                 </p>
               )}
             </div>
+
+            {/* Şablon Seçimi */}
+            {availableTemplates.length > 0 && (
+              <div className="mb-4 p-3 bg-purple-50 dark:bg-purple-900/10 border border-purple-200 dark:border-purple-800 rounded-lg">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 flex items-center gap-2">
+                  <Layers className="w-4 h-4 text-purple-600" />
+                  Şablondan Oluştur (Opsiyonel)
+                </label>
+                <select
+                  value={selectedTemplate?.id || ''}
+                  onChange={(e) => handleTemplateSelect(e.target.value)}
+                  className="input"
+                >
+                  <option value="">Şablon kullanma</option>
+                  {availableTemplates.map((template) => (
+                    <option key={template.id} value={template.id}>
+                      {template.name} ({template.usage_count || 0} kullanım)
+                    </option>
+                  ))}
+                </select>
+                {selectedTemplate && (
+                  <p className="text-xs text-purple-600 dark:text-purple-400 mt-1 flex items-center gap-1">
+                    <CheckCircle className="w-3 h-3" />
+                    Şablon seçildi. Formu kontrol edip gerekirse düzenleyebilirsiniz.
+                  </p>
+                )}
+              </div>
+            )}
 
             <form onSubmit={bulkMode ? (e) => { e.preventDefault(); handleBulkAdd(); } : handleAddPeer} className="space-y-4">
               {/* Ad */}
