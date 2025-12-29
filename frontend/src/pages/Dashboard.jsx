@@ -62,6 +62,10 @@ import {
   FileCode,
   Zap,
   BarChart3,
+  Settings,
+  Eye,
+  EyeOff,
+  Info,
 } from 'lucide-react'
 
 function Dashboard() {
@@ -87,6 +91,20 @@ function Dashboard() {
   const [peerTrafficData, setPeerTrafficData] = useState([]) // Peer trafik verileri
   const [peerTrafficSummary, setPeerTrafficSummary] = useState(null) // Peer trafik özeti
   const [loadingTraffic, setLoadingTraffic] = useState(false) // Trafik yükleme durumu
+  const [showPeerDetailsModal, setShowPeerDetailsModal] = useState(false) // Peer detay modal durumu
+  const [showWidgetSettings, setShowWidgetSettings] = useState(false) // Widget ayarları modal durumu
+
+  // Widget görünürlük ayarları - localStorage'dan yükle
+  const [widgetVisibility, setWidgetVisibility] = useState(() => {
+    const saved = localStorage.getItem('dashboardWidgets')
+    return saved ? JSON.parse(saved) : {
+      stats: true,
+      trafficCharts: true,
+      activePeers: true,
+      ipPoolUsage: true,
+      recentActivities: true
+    }
+  })
   const [stats, setStats] = useState({
     totalInterfaces: 0,
     totalPeers: 0,
@@ -251,6 +269,25 @@ function Dashboard() {
     }, minRefreshRate * 1000)
     return () => clearInterval(interval)
   }, [refreshRate, loadData])
+
+  // Widget görünürlük ayarlarını localStorage'a kaydet
+  useEffect(() => {
+    localStorage.setItem('dashboardWidgets', JSON.stringify(widgetVisibility))
+  }, [widgetVisibility])
+
+  // Widget görünürlük toggle fonksiyonu
+  const toggleWidget = (widgetName) => {
+    setWidgetVisibility(prev => ({
+      ...prev,
+      [widgetName]: !prev[widgetName]
+    }))
+  }
+
+  // Peer detaylarını göster
+  const handleShowPeerDetails = (peer) => {
+    setSelectedPeer(peer)
+    setShowPeerDetailsModal(true)
+  }
 
   // Byte'ı okunabilir formata çevir - useCallback ile optimize edildi
   const formatBytes = useCallback((bytes) => {
@@ -758,17 +795,27 @@ function Dashboard() {
   return (
     <div className="space-y-6">
       {/* Sayfa başlığı */}
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-          Dashboard
-        </h1>
-        <p className="text-gray-600 dark:text-gray-400 mt-1">
-          WireGuard aktif peer'ları ve istatistikleri
-        </p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+            Dashboard
+          </h1>
+          <p className="text-gray-600 dark:text-gray-400 mt-1">
+            WireGuard aktif peer'ları ve istatistikleri
+          </p>
+        </div>
+        <button
+          onClick={() => setShowWidgetSettings(true)}
+          className="flex items-center gap-2 px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg transition-colors"
+          title="Widget Görünürlük Ayarları"
+        >
+          <Settings className="w-5 h-5" />
+          <span className="hidden sm:inline">Ayarlar</span>
+        </button>
       </div>
 
       {/* Genel Bakış Kartları */}
-      {dashboardStats && (
+      {widgetVisibility.stats && dashboardStats && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           {/* IP Pool Kartı */}
           <div className="card bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20 border-blue-200 dark:border-blue-800">
@@ -887,6 +934,7 @@ function Dashboard() {
       </div>
 
       {/* Gerçek Zamanlı Veri Kullanımı Grafikleri */}
+      {widgetVisibility.trafficCharts && (
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div className="card">
           <div className="flex items-center justify-between mb-4">
@@ -1031,8 +1079,10 @@ function Dashboard() {
           </div>
         </div>
       </div>
+      )}
 
       {/* Aktif Peer'lar */}
+      {widgetVisibility.activePeers && (
       <div className="card">
         <div className="flex items-center justify-between mb-6">
           <div>
@@ -1087,7 +1137,8 @@ function Dashboard() {
                   .map((peer, index) => (
                     <tr
                       key={peer.id || peer['.id'] || index}
-                      className="border-b border-gray-100 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+                      onClick={() => handleShowPeerDetails(peer)}
+                      className="border-b border-gray-100 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors cursor-pointer"
                     >
                       <td className="py-3 px-4">
                         <div className="flex items-center gap-2">
@@ -1131,11 +1182,12 @@ function Dashboard() {
           </div>
         )}
       </div>
+      )}
 
       {/* IP Pool Kullanım Detayları ve Son Aktiviteler */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* IP Pool Kullanım Detayları */}
-        {ipPoolUsage.length > 0 && (
+        {widgetVisibility.ipPoolUsage && ipPoolUsage.length > 0 && (
           <div className="card">
             <div className="flex items-center justify-between mb-6">
               <div>
@@ -1188,7 +1240,7 @@ function Dashboard() {
         )}
 
         {/* Son Aktiviteler Timeline */}
-        {recentActivities.length > 0 && (
+        {widgetVisibility.recentActivities && recentActivities.length > 0 && (
           <div className="card">
             <div className="flex items-center justify-between mb-6">
               <div>
@@ -1940,6 +1992,170 @@ function Dashboard() {
                   </div>
                 </div>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Peer Detay Modal */}
+      {showPeerDetailsModal && selectedPeer && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-hidden">
+            <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
+              <h2 className="text-xl font-bold text-gray-900 dark:text-white">
+                Peer Detayları
+              </h2>
+              <button
+                onClick={() => setShowPeerDetailsModal(false)}
+                className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-6 overflow-y-auto max-h-[calc(90vh-80px)]">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-3">
+                  <div>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">Peer Adı</p>
+                    <p className="font-medium text-gray-900 dark:text-white">
+                      {selectedPeer._processed?.name || 'N/A'}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">IP Adresi</p>
+                    <p className="font-medium text-gray-900 dark:text-white">
+                      {selectedPeer._processed?.allowedAddress || 'N/A'}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">Endpoint</p>
+                    <p className="font-medium text-gray-900 dark:text-white">
+                      {selectedPeer._processed?.fullEndpoint || 'N/A'}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">Public Key</p>
+                    <p className="font-mono text-xs text-gray-900 dark:text-white break-all">
+                      {selectedPeer._processed?.publicKey || 'N/A'}
+                    </p>
+                  </div>
+                </div>
+                <div className="space-y-3">
+                  <div>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">Interface</p>
+                    <p className="font-medium text-gray-900 dark:text-white">
+                      {selectedPeer.interfaceName || 'N/A'}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">Durum</p>
+                    <div className="flex items-center gap-2">
+                      <div className={`w-2 h-2 rounded-full ${selectedPeer._processed?.lastActivity.isOnline ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`}></div>
+                      <span className={`font-medium ${selectedPeer._processed?.lastActivity.isOnline ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+                        {selectedPeer._processed?.lastActivity.isOnline ? 'Online' : 'Offline'}
+                      </span>
+                    </div>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">Son İletişim</p>
+                    <p className="font-medium text-gray-900 dark:text-white">
+                      {selectedPeer._processed?.lastActivity.text || 'N/A'}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">Bağlantı Süresi</p>
+                    <p className="font-medium text-gray-900 dark:text-white">
+                      {selectedPeer._processed?.connectionDuration || 'N/A'}
+                    </p>
+                  </div>
+                </div>
+              </div>
+              <div className="mt-6 pt-6 border-t border-gray-200 dark:border-gray-700">
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+                  Veri Kullanımı
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="card bg-blue-50 dark:bg-blue-900/20">
+                    <div className="flex items-center gap-3">
+                      <Download className="w-8 h-8 text-blue-600 dark:text-blue-400" />
+                      <div>
+                        <p className="text-sm text-blue-700 dark:text-blue-300">İndirme</p>
+                        <p className="text-xl font-bold text-blue-900 dark:text-blue-100">
+                          {formatBytes(selectedPeer._processed?.rxBytes || 0)}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="card bg-green-50 dark:bg-green-900/20">
+                    <div className="flex items-center gap-3">
+                      <Upload className="w-8 h-8 text-green-600 dark:text-green-400" />
+                      <div>
+                        <p className="text-sm text-green-700 dark:text-green-300">Yükleme</p>
+                        <p className="text-xl font-bold text-green-900 dark:text-green-100">
+                          {formatBytes(selectedPeer._processed?.txBytes || 0)}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Widget Ayarları Modal */}
+      {showWidgetSettings && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full">
+            <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
+              <h2 className="text-xl font-bold text-gray-900 dark:text-white">
+                Dashboard Widget Ayarları
+              </h2>
+              <button
+                onClick={() => setShowWidgetSettings(false)}
+                className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-6 space-y-4">
+              <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                Dashboard'da görüntülemek istediğiniz widget'ları seçin
+              </p>
+
+              {[
+                { key: 'stats', label: 'İstatistik Kartları', icon: BarChart3 },
+                { key: 'trafficCharts', label: 'Trafik Grafikleri', icon: TrendingUp },
+                { key: 'activePeers', label: 'Aktif Peer\'lar', icon: Wifi },
+                { key: 'ipPoolUsage', label: 'IP Pool Kullanımı', icon: Database },
+                { key: 'recentActivities', label: 'Son Aktiviteler', icon: Clock }
+              ].map(widget => {
+                const Icon = widget.icon
+                return (
+                  <button
+                    key={widget.key}
+                    onClick={() => toggleWidget(widget.key)}
+                    className={`w-full flex items-center justify-between p-4 rounded-lg transition-colors ${
+                      widgetVisibility[widget.key]
+                        ? 'bg-primary-100 dark:bg-primary-900/30 border-2 border-primary-500'
+                        : 'bg-gray-100 dark:bg-gray-700 border-2 border-transparent'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <Icon className={`w-5 h-5 ${widgetVisibility[widget.key] ? 'text-primary-600 dark:text-primary-400' : 'text-gray-500 dark:text-gray-400'}`} />
+                      <span className={`font-medium ${widgetVisibility[widget.key] ? 'text-gray-900 dark:text-white' : 'text-gray-600 dark:text-gray-400'}`}>
+                        {widget.label}
+                      </span>
+                    </div>
+                    {widgetVisibility[widget.key] ? (
+                      <Eye className="w-5 h-5 text-primary-600 dark:text-primary-400" />
+                    ) : (
+                      <EyeOff className="w-5 h-5 text-gray-400" />
+                    )}
+                  </button>
+                )
+              })}
             </div>
           </div>
         </div>
