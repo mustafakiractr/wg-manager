@@ -1296,11 +1296,11 @@ function Dashboard() {
         )}
       </div>
 
-      {/* Online Peer Listesi */}
+      {/* Tüm Peer Listesi */}
       <div className="card">
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-            Online Peer'lar
+            Tüm Peer'lar
           </h2>
           <div className="flex items-center gap-2">
             <button
