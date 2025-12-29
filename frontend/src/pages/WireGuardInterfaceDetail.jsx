@@ -76,6 +76,8 @@ function WireGuardInterfaceDetail() {
     persistent_keepalive: '',
     dns: '',
     endpoint_allowed_address: '',
+    endpoint_address: '',
+    endpoint_port: '',
     preshared_key: '',
     mtu: '',
   })
@@ -405,6 +407,8 @@ function WireGuardInterfaceDetail() {
     } else {
       peerData.endpoint_allowed_address = "192.168.46.1/32"
     }
+    if (formData.endpoint_address.trim()) peerData.endpoint_address = formData.endpoint_address.trim()
+    if (formData.endpoint_port) peerData.endpoint_port = parseInt(formData.endpoint_port)
     if (formData.preshared_key.trim()) peerData.preshared_key = formData.preshared_key.trim()
     if (formData.mtu) peerData.mtu = parseInt(formData.mtu)
     
@@ -671,6 +675,8 @@ function WireGuardInterfaceDetail() {
           } else {
             peerData.endpoint_allowed_address = "192.168.46.1/32"
           }
+          if (formData.endpoint_address.trim()) peerData.endpoint_address = formData.endpoint_address.trim()
+          if (formData.endpoint_port) peerData.endpoint_port = parseInt(formData.endpoint_port)
           if (formData.preshared_key.trim()) peerData.preshared_key = formData.preshared_key.trim()
           if (formData.mtu) peerData.mtu = parseInt(formData.mtu)
 
@@ -735,6 +741,8 @@ function WireGuardInterfaceDetail() {
         persistent_keepalive: '',
       dns: '',
       endpoint_allowed_address: '',
+      endpoint_address: '',
+      endpoint_port: '',
       preshared_key: '',
       mtu: '',
     })
