@@ -520,7 +520,12 @@ function WireGuardInterfaces() {
       
       // Advanced options
       if (formData.dns.trim()) peerData.dns = formData.dns.trim()
-      if (formData.endpoint_allowed_address.trim()) peerData.endpoint_allowed_address = formData.endpoint_allowed_address.trim()
+      // Endpoint'e Erişim İçin İzin Verilen IP Adresleri - varsayılan 192.168.46.1/32
+      if (formData.endpoint_allowed_address.trim()) {
+        peerData.endpoint_allowed_address = formData.endpoint_allowed_address.trim()
+      } else {
+        peerData.endpoint_allowed_address = "192.168.46.1/32"
+      }
       if (formData.preshared_key.trim()) peerData.preshared_key = formData.preshared_key.trim()
       if (formData.mtu) peerData.mtu = parseInt(formData.mtu)
       if (formData.endpoint_address.trim()) peerData.endpoint_address = formData.endpoint_address.trim()
@@ -637,7 +642,12 @@ function WireGuardInterfaces() {
         
         // Advanced options
         if (formData.dns.trim()) peerData.dns = formData.dns.trim()
-        if (formData.endpoint_allowed_address.trim()) peerData.endpoint_allowed_address = formData.endpoint_allowed_address.trim()
+        // Endpoint'e Erişim İçin İzin Verilen IP Adresleri - varsayılan 192.168.46.1/32
+        if (formData.endpoint_allowed_address.trim()) {
+          peerData.endpoint_allowed_address = formData.endpoint_allowed_address.trim()
+        } else {
+          peerData.endpoint_allowed_address = "192.168.46.1/32"
+        }
         if (formData.preshared_key.trim()) peerData.preshared_key = formData.preshared_key.trim()
         if (formData.mtu) peerData.mtu = parseInt(formData.mtu)
 
@@ -1980,12 +1990,12 @@ function WireGuardInterfaces() {
                         ? 'border-red-500 dark:border-red-500'
                         : ''
                     }`}
-                    placeholder="192.168.46.14/32 veya 'auto'"
+                    placeholder="192.168.46.14/32, 192.168.40.0/24 veya 'auto'"
                     required
                   />
                   {formData.allowed_address && formData.allowed_address.toLowerCase() !== 'auto' && !validateIP(formData.allowed_address) && (
                     <p className="text-xs text-red-600 dark:text-red-400">
-                      Geçersiz IP adresi formatı. Örnek: 192.168.46.14/32 veya 'auto' yazarak otomatik tahsis
+                      Geçersiz IP adresi formatı. Örnek: 192.168.46.14/32, birden fazla: 192.168.46.14/32, 192.168.40.0/24 veya 'auto' yazarak otomatik tahsis
                     </p>
                   )}
                   {formData.allowed_address && formData.allowed_address.toLowerCase() === 'auto' && (
@@ -2128,14 +2138,19 @@ function WireGuardInterfaces() {
                     setShowAddModal(false)
                     resetForm()
                   }}
+                  disabled={addingPeer}
                   className="flex-1 btn btn-secondary"
                 >
                   İptal
                 </button>
-                <button type="submit" className="flex-1 btn btn-primary" disabled={addingPeer}>
+                <button
+                  type="submit"
+                  disabled={addingPeer}
+                  className="flex-1 btn btn-primary flex items-center justify-center gap-2"
+                >
                   {addingPeer ? (
                     <>
-                      <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                      <RefreshCw className="w-4 h-4 animate-spin" />
                       Ekleniyor...
                     </>
                   ) : (

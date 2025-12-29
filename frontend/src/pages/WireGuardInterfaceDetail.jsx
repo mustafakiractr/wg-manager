@@ -376,8 +376,7 @@ function WireGuardInterfaceDetail() {
       interface: interfaceName,
       public_key: formData.public_key.trim(),
       allowed_address: formData.allowed_address.trim(),
-      name: formData.name.trim() || undefined,  // MikroTik'teki name alanı (Ad kısmı)
-      comment: formData.comment.trim() || undefined,  // Açıklama
+      comment: formData.comment.trim() || (formData.name.trim() || undefined),
       persistent_keepalive: formData.persistent_keepalive.trim() || undefined,
     }
     
@@ -392,17 +391,29 @@ function WireGuardInterfaceDetail() {
     if (formData.preshared_key.trim()) peerData.preshared_key = formData.preshared_key.trim()
     if (formData.mtu) peerData.mtu = parseInt(formData.mtu)
     
-    // Private key kontrolü - trim edilmiş değer varsa ve boş değilse gönder
-    // NOT: Private key QR kod ve config dosyası için gerekli, MikroTik'e de gönderilmeli
-    const privateKeyValue = formData.private_key || ''
-    const trimmedPrivateKey = privateKeyValue.trim()
-    if (trimmedPrivateKey && trimmedPrivateKey.length > 0) {
-      peerData.private_key = trimmedPrivateKey
-      console.log('✅ Private key gönderiliyor (ilk 20 karakter):', trimmedPrivateKey.substring(0, 20) + '...')
-      console.log('✅ Public key gönderiliyor (ilk 20 karakter):', peerData.public_key.substring(0, 20) + '...')
-    } else {
-      console.warn('⚠️ Private key boş, MikroTik\'e gönderilmiyor. QR kod ve config dosyası için private key gerekli.')
-      console.warn('⚠️ FormData private_key değeri:', formData.private_key)
+    // Private key kontrolü - QR kod ve config için gerekli
+    if (!formData.private_key || !formData.private_key.trim()) {
+      const confirmGenerate = confirm('Özel Anahtar (Private Key) girilmedi. QR kod ve config dosyası oluşturmak için private key gereklidir.\n\nOtomatik olarak oluşturulsun mu?')
+      if (confirmGenerate) {
+        await handleGenerateKeys()
+        // Anahtarlar oluşturulduktan sonra tekrar dene
+        if (!formData.private_key || !formData.private_key.trim()) {
+          setAddingPeer(false)
+          alert('Private key oluşturulamadı. Lütfen manuel olarak girin.')
+          return
+        }
+      } else {
+        alert('Private key girilmedi. Peer eklenecek ancak QR kod ve config dosyası oluşturulamayacak.')
+      }
+    }
+
+    // Private key'i mutlaka ekle (QR kod ve config için gerekli)
+    if (formData.private_key && formData.private_key.trim()) {
+      peerData.private_key = formData.private_key.trim()
+      console.log('📤 Peer eklenirken private key gönderiliyor (veritabanına kaydedilecek):', {
+        private_key_length: peerData.private_key.length,
+        public_key_preview: peerData.public_key.substring(0, 20) + '...'
+      })
     }
     
     // Template ID ekle (kullanım istatistikleri için)
@@ -581,27 +592,42 @@ function WireGuardInterfaceDetail() {
     }
     
     try {
-      let currentIP = formData.allowed_address
-      // NOT: Otomatik isimlendirme yapılmaz - kullanıcının yazdığı name değeri kullanılır
-      // Eğer name boşsa, her peer için aynı name kullanılır veya name gönderilmez
-      const baseName = formData.name.trim() || undefined
-      
-        // Private key kontrolü - toplu eklemede her peer için aynı private key kullanılır
-        // NOT: Toplu eklemede her peer için farklı anahtar çifti oluşturulmalı, ama şu an aynı anahtar kullanılıyor
-        // Bu bir güvenlik sorunu olabilir, gelecekte düzeltilmeli
-        const privateKeyValue = formData.private_key || ''
-        const trimmedPrivateKey = privateKeyValue.trim()
-        
-        for (let i = 0; i < bulkCount; i++) {
+      let currentIP = finalIP
+      const baseName = formData.name.trim() || 'peer'
+
+      for (let i = 0; i < bulkCount; i++) {
+          // Her peer için yeni key çifti oluştur (toplu eklemede)
+          let peerPublicKey = formData.public_key.trim()
+          let peerPrivateKey = formData.private_key ? formData.private_key.trim() : null
+
+          // Eğer private key yoksa veya ilk peer ise yeni key çifti oluştur
+          if (!peerPrivateKey || i === 0) {
+            try {
+              const keyResult = await generateKeys()
+              if (keyResult.success && keyResult.private_key && keyResult.public_key) {
+                peerPrivateKey = keyResult.private_key.trim()
+                peerPublicKey = keyResult.public_key.trim()
+                console.log(`🔑 Peer ${i + 1} için anahtarlar oluşturuldu`)
+              }
+            } catch (keyError) {
+              console.error(`Anahtar oluşturma hatası (peer ${i + 1}):`, keyError)
+              // Hata olursa mevcut key'leri kullan
+            }
+          }
+
           const peerData = {
             interface: interfaceName,
-            public_key: formData.public_key.trim(),
+            public_key: peerPublicKey,
             allowed_address: currentIP,
-            name: baseName,  // Manuel yazılan name değeri (otomatik numara eklenmez)
-            comment: formData.comment.trim() || undefined,  // Açıklama
+            comment: `${baseName}-${i + 1}`,
             persistent_keepalive: formData.persistent_keepalive.trim() || undefined,
           }
-          
+
+          // Private key'i mutlaka ekle (QR kod ve config için gerekli)
+          if (peerPrivateKey && peerPrivateKey.trim()) {
+            peerData.private_key = peerPrivateKey.trim()
+          }
+
           // Advanced options
           if (formData.dns.trim()) peerData.dns = formData.dns.trim()
           // Endpoint'e Erişim İçin İzin Verilen IP Adresleri - varsayılan 192.168.46.1/32
@@ -612,14 +638,6 @@ function WireGuardInterfaceDetail() {
           }
           if (formData.preshared_key.trim()) peerData.preshared_key = formData.preshared_key.trim()
           if (formData.mtu) peerData.mtu = parseInt(formData.mtu)
-          
-          // Private key kontrolü - trim edilmiş değer varsa ve boş değilse gönder
-          if (trimmedPrivateKey && trimmedPrivateKey.length > 0) {
-            peerData.private_key = trimmedPrivateKey
-            console.log(`✅ Peer ${i + 1} için private key gönderiliyor`)
-          } else {
-            console.warn(`⚠️ Peer ${i + 1} için private key boş`)
-          }
 
           // Template ID ekle (kullanım istatistikleri için)
           if (selectedTemplate) {
@@ -1895,12 +1913,12 @@ function WireGuardInterfaceDetail() {
                         ? 'border-red-500 dark:border-red-500'
                         : ''
                     }`}
-                    placeholder="192.168.46.14/32 veya 192.168.46.14/32, 192.168.40.0/24"
+                    placeholder="192.168.46.14/32, 192.168.40.0/24 veya 'auto'"
                     required
                   />
                   {formData.allowed_address && formData.allowed_address.toLowerCase() !== 'auto' && !validateIP(formData.allowed_address) && (
                     <p className="text-xs text-red-600 dark:text-red-400">
-                      Geçersiz IP adresi formatı. Örnek: 192.168.46.14/32 veya birden fazla: 192.168.46.14/32, 192.168.40.0/24
+                      Geçersiz IP adresi formatı. Örnek: 192.168.46.14/32, birden fazla: 192.168.46.14/32, 192.168.40.0/24 veya 'auto' yazarak otomatik tahsis
                     </p>
                   )}
                   {formData.allowed_address && formData.allowed_address.toLowerCase() === 'auto' && (
