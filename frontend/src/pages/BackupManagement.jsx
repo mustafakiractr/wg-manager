@@ -25,7 +25,7 @@ export default function BackupManagement() {
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
   const [filterType, setFilterType] = useState('all');
-  const { showToast } = useToast();
+  const toast = useToast();
 
   // Modal states
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -58,7 +58,7 @@ export default function BackupManagement() {
 
     } catch (error) {
       console.error('Error loading backups:', error);
-      showToast('Backup verileri yüklenemedi', 'error');
+      toast.error('Backup verileri yüklenemedi');
     } finally {
       setLoading(false);
     }
@@ -77,13 +77,13 @@ export default function BackupManagement() {
         { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } }
       );
 
-      showToast('Backup başarıyla oluşturuldu', 'success');
+      toast.success('Backup başarıyla oluşturuldu');
       setShowCreateModal(false);
       setDescription('');
       loadData();
     } catch (error) {
       console.error('Error creating backup:', error);
-      showToast(error.response?.data?.detail || 'Backup oluşturulamadı', 'error');
+      toast.error(error.response?.data?.detail || 'Backup oluşturulamadı');
     } finally {
       setCreating(false);
     }
@@ -105,18 +105,18 @@ export default function BackupManagement() {
         { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } }
       );
 
-      showToast('Backup başarıyla geri yüklendi', 'success');
+      toast.success('Backup başarıyla geri yüklendi');
       setShowRestoreModal(false);
       setSelectedBackup(null);
 
       if (selectedBackup.backup_type === 'full') {
-        showToast('Full backup restore edildi. Servisleri yeniden başlatmanız gerekebilir.', 'warning');
+        toast.warning('Full backup restore edildi. Servisleri yeniden başlatmanız gerekebilir.');
       }
 
       loadData();
     } catch (error) {
       console.error('Error restoring backup:', error);
-      showToast(error.response?.data?.detail || 'Backup geri yüklenemedi', 'error');
+      toast.error(error.response?.data?.detail || 'Backup geri yüklenemedi');
     } finally {
       setCreating(false);
     }
@@ -133,11 +133,11 @@ export default function BackupManagement() {
         headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
       });
 
-      showToast('Backup silindi', 'success');
+      toast.success('Backup silindi');
       loadData();
     } catch (error) {
       console.error('Error deleting backup:', error);
-      showToast(error.response?.data?.detail || 'Backup silinemedi', 'error');
+      toast.error(error.response?.data?.detail || 'Backup silinemedi');
     }
   };
 

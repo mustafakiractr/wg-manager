@@ -102,7 +102,7 @@ async def get_dashboard_stats(
         twenty_four_hours_ago = datetime.utcnow() - timedelta(hours=24)
         result = await db.execute(
             select(func.count(ActivityLog.id)).where(
-                ActivityLog.timestamp >= twenty_four_hours_ago
+                ActivityLog.created_at >= twenty_four_hours_ago
             )
         )
         activities_24h = result.scalar() or 0
@@ -177,7 +177,7 @@ async def get_recent_activities(
     try:
         result = await db.execute(
             select(ActivityLog)
-            .order_by(desc(ActivityLog.timestamp))
+            .order_by(desc(ActivityLog.created_at))
             .limit(limit)
         )
         activities = result.scalars().all()
@@ -189,11 +189,13 @@ async def get_recent_activities(
                 'user_id': activity.user_id,
                 'username': activity.username,
                 'action': activity.action,
-                'resource_type': activity.resource_type,
-                'resource_name': activity.resource_name,
+                'category': activity.category,
+                'description': activity.description,
+                'target_type': activity.target_type,
+                'target_id': activity.target_id,
                 'ip_address': activity.ip_address,
-                'timestamp': activity.timestamp.isoformat() if activity.timestamp else None,
-                'details': activity.details
+                'created_at': activity.created_at.isoformat() if activity.created_at else None,
+                'success': activity.success
             })
 
         return {
