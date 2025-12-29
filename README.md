@@ -1,6 +1,6 @@
 # 🔒 WireGuard Manager Panel
 
-Modern web-based management interface for MikroTik RouterOS v7+ WireGuard VPN.
+MikroTik RouterOS v7+ WireGuard VPN için modern web tabanlı yönetim arayüzü.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/)
@@ -8,118 +8,118 @@ Modern web-based management interface for MikroTik RouterOS v7+ WireGuard VPN.
 
 ---
 
-## ✨ Features
+## ✨ Özellikler
 
-- 🔐 **WireGuard Management** - Create, edit, delete interfaces and peers
-- 📊 **Dashboard & Analytics** - Real-time traffic statistics and monitoring
-- 🔔 **Notification System** - Real-time alerts and notifications
-- 📝 **Activity Logging** - Complete audit trail of all operations
-- 🎯 **IP Pool Management** - Automatic IP allocation with templates
-- 📱 **QR Code Generation** - Easy mobile device configuration
-- 🎨 **Modern UI** - Dark mode, responsive design, intuitive interface
-- 🔒 **Secure** - JWT authentication, role-based access control, rate limiting
+- 🔐 **WireGuard Yönetimi** - Arayüz ve peer oluşturma, düzenleme, silme
+- 📊 **Panel & Analitik** - Gerçek zamanlı trafik istatistikleri ve izleme
+- 🔔 **Bildirim Sistemi** - Gerçek zamanlı uyarılar ve bildirimler
+- 📝 **Aktivite Günlüğü** - Tüm işlemlerin tam denetim kaydı
+- 🎯 **IP Havuzu Yönetimi** - Şablonlarla otomatik IP tahsisi
+- 📱 **QR Kod Üretimi** - Kolay mobil cihaz yapılandırması
+- 🎨 **Modern Arayüz** - Karanlık mod, duyarlı tasarım, sezgisel arayüz
+- 🔒 **Güvenli** - JWT kimlik doğrulama, rol tabanlı erişim kontrolü, hız sınırlama
 
 ---
 
-## 🚀 Quick Start
+## 🚀 Hızlı Başlangıç
 
-### Prerequisites
+### Ön Gereksinimler
 
-**System Requirements:**
-- Ubuntu 20.04+ / Debian 11+ / CentOS 8+ (or similar Linux)
-- 1GB RAM minimum (2GB recommended)
-- 1GB disk space
-- MikroTik RouterOS v7+ with API enabled
+**Sistem Gereksinimleri:**
+- Ubuntu 20.04+ / Debian 11+ / CentOS 8+ (veya benzer Linux)
+- Minimum 1GB RAM (2GB önerilir)
+- 1GB disk alanı
+- API etkin MikroTik RouterOS v7+
 
-**Note:** Python 3.9+, Node.js 18+, and all other dependencies will be **automatically installed** by the installation script!
+**Not:** Python 3.9+, Node.js 18+ ve diğer tüm bağımlılıklar kurulum scripti tarafından **otomatik olarak yüklenecektir**!
 
-### Installation
+### Kurulum
 
 ```bash
-# Clone the repository
+# Repository'yi klonlayın
 git clone https://github.com/mustafakiractr/wg-manager.git /opt/wg-manager
 cd /opt/wg-manager
 
-# OPTION 1: Quick Start (Recommended - Auto-installs everything)
+# SEÇENEK 1: Hızlı Başlangıç (Önerilen - Her şeyi otomatik yükler)
 sudo bash quick-start.sh
 
-# OPTION 2: Manual Installation
-sudo bash install.sh  # Auto-installs Python, Node.js, npm and all dependencies
-nano backend/.env     # Configure MikroTik connection
-bash start_all.sh     # Start services
+# SEÇENEK 2: Manuel Kurulum
+sudo bash install.sh  # Python, Node.js, npm ve tüm bağımlılıkları otomatik yükler
+nano backend/.env     # MikroTik bağlantısını yapılandırın
+bash start_all.sh     # Servisleri başlatın
 ```
 
-### Access the Application
+### Uygulamaya Erişim
 
 ```
 URL: http://localhost:5173
-Username: admin
-Password: admin123
+Kullanıcı Adı: admin
+Şifre: admin123
 ```
 
-⚠️ **Change the default password immediately after first login!**
+⚠️ **İlk girişten sonra varsayılan şifreyi hemen değiştirin!**
 
 ---
 
-## 📖 Documentation
+## 📖 Dokümantasyon
 
-For comprehensive documentation, please refer to:
+Kapsamlı dokümantasyon için lütfen şu dosyalara bakın:
 
-- **[PROJECT_GUIDE.md](PROJECT_GUIDE.md)** - Complete guide with installation, configuration, API docs, and troubleshooting
-- **[Backend API Documentation](#)** - Available at `/docs` endpoint when running
-- **[Archived Documentation](archive/docs/)** - Historical docs and specific guides
+- **[PROJECT_GUIDE.md](PROJECT_GUIDE.md)** - Kurulum, yapılandırma, API dokümanları ve sorun gidermeyi içeren tam kılavuz
+- **[Backend API Dokümantasyonu](#)** - Çalışırken `/docs` endpoint'inde mevcut
+- **[Arşivlenmiş Dokümantasyon](archive/docs/)** - Geçmiş dokümanlar ve özel kılavuzlar
 
 ---
 
-## 🏗️ Tech Stack
+## 🏗️ Teknoloji Yığını
 
 **Backend:**
 - FastAPI (Python 3.9+)
 - SQLAlchemy (async ORM)
 - PostgreSQL / SQLite
-- JWT Authentication
+- JWT Kimlik Doğrulama
 
 **Frontend:**
 - React 18 + Vite
 - Tailwind CSS
-- Zustand (state management)
+- Zustand (durum yönetimi)
 - React Router v6
 
-**Infrastructure:**
+**Altyapı:**
 - MikroTik RouterOS API
-- WebSocket (real-time updates)
-- Systemd services
+- WebSocket (gerçek zamanlı güncellemeler)
+- Systemd servisleri
 
 ---
 
-## 📁 Project Structure
+## 📁 Proje Yapısı
 
 ```
 wg-manager/
-├── backend/              # FastAPI application
+├── backend/              # FastAPI uygulaması
 │   ├── app/
-│   │   ├── api/         # API endpoints
-│   │   ├── models/      # Database models
-│   │   ├── services/    # Business logic
-│   │   └── main.py      # Application entry
+│   │   ├── api/         # API endpoint'leri
+│   │   ├── models/      # Veritabanı modelleri
+│   │   ├── services/    # İş mantığı
+│   │   └── main.py      # Uygulama giriş noktası
 │   └── requirements.txt
 │
-├── frontend/            # React application
+├── frontend/            # React uygulaması
 │   ├── src/
-│   │   ├── components/  # React components
-│   │   ├── pages/       # Page components
+│   │   ├── components/  # React bileşenleri
+│   │   ├── pages/       # Sayfa bileşenleri
 │   │   └── App.jsx
 │   └── package.json
 │
-├── archive/             # Archived documentation
-├── systemd/             # Service configurations
-├── README.md           # This file
-└── PROJECT_GUIDE.md    # Complete documentation
+├── archive/             # Arşivlenmiş dokümantasyon
+├── systemd/             # Servis yapılandırmaları
+├── README.md           # Bu dosya
+└── PROJECT_GUIDE.md    # Tam dokümantasyon
 ```
 
 ---
 
-## 🔧 Development
+## 🔧 Geliştirme
 
 ### Backend
 
@@ -141,135 +141,135 @@ npm run dev
 
 ---
 
-## 🔐 Security
+## 🔐 Güvenlik
 
-- JWT-based authentication
-- Role-based access control (RBAC)
-- Rate limiting on sensitive endpoints
-- Activity logging and audit trail
-- Bcrypt password hashing
-- CORS protection
-- HTTPS support
+- JWT tabanlı kimlik doğrulama
+- Rol tabanlı erişim kontrolü (RBAC)
+- Hassas endpoint'lerde hız sınırlama
+- Aktivite kaydı ve denetim izi
+- Bcrypt şifre hashleme
+- CORS koruması
+- HTTPS desteği
 
-For security best practices, see [PROJECT_GUIDE.md](PROJECT_GUIDE.md#security).
-
----
-
-## 📊 Screenshots
-
-### Dashboard
-Real-time monitoring of WireGuard interfaces, peers, and traffic statistics.
-
-### WireGuard Management
-Easy interface and peer management with QR code generation.
-
-### Activity Logs
-Complete audit trail of all system operations.
+Güvenlik en iyi uygulamaları için [PROJECT_GUIDE.md](PROJECT_GUIDE.md#security) dosyasına bakın.
 
 ---
 
-## 🛠️ Production Deployment
+## 📊 Ekran Görüntüleri
 
-### Systemd Services
+### Panel
+WireGuard arayüzleri, peer'lar ve trafik istatistiklerinin gerçek zamanlı izlenmesi.
 
-**Backend Service:**
+### WireGuard Yönetimi
+QR kod üretimi ile kolay arayüz ve peer yönetimi.
+
+### Aktivite Günlükleri
+Tüm sistem işlemlerinin tam denetim kaydı.
+
+---
+
+## 🛠️ Production Dağıtımı
+
+### Systemd Servisleri
+
+**Backend Servisi:**
 ```bash
-# Enable and start backend
+# Backend'i etkinleştir ve başlat
 sudo systemctl enable router-manager-backend
 sudo systemctl start router-manager-backend
 sudo systemctl status router-manager-backend
 ```
 
-**Frontend Service:**
+**Frontend Servisi:**
 ```bash
-# Install serve for static file serving
+# Statik dosya sunumu için serve yükle
 npm install -g serve
 
-# Enable and start frontend
+# Frontend'i etkinleştir ve başlat
 sudo systemctl enable router-manager-frontend
 sudo systemctl start router-manager-frontend
 sudo systemctl status router-manager-frontend
 ```
 
-**Access the application:**
-- Frontend: http://your-server:5173
-- Backend API: http://your-server:8000
-- API Docs: http://your-server:8000/docs
+**Uygulamaya erişim:**
+- Frontend: http://sunucunuz:5173
+- Backend API: http://sunucunuz:8000
+- API Dokümanları: http://sunucunuz:8000/docs
 
-For complete deployment guide, see [PROJECT_GUIDE.md](PROJECT_GUIDE.md#deployment).
+Tam dağıtım kılavuzu için [PROJECT_GUIDE.md](PROJECT_GUIDE.md#deployment) dosyasına bakın.
 
 ---
 
-## 🐛 Troubleshooting
+## 🐛 Sorun Giderme
 
-### Common Issues
+### Yaygın Sorunlar
 
-**Backend won't start:**
+**Backend başlamıyor:**
 ```bash
 cd backend
 source venv/bin/activate
 pip install -r requirements.txt
 ```
 
-**MikroTik connection failed:**
+**MikroTik bağlantısı başarısız:**
 ```bash
-# Check MikroTik API service
+# MikroTik API servisini kontrol edin
 /ip service print
 /ip service set api disabled=no
 ```
 
-**Frontend CORS errors:**
+**Frontend CORS hataları:**
 ```bash
-# Check CORS_ORIGINS in backend/.env
+# backend/.env dosyasında CORS_ORIGINS'i kontrol edin
 CORS_ORIGINS=["http://localhost:5173"]
 ```
 
-For more troubleshooting help, see [PROJECT_GUIDE.md](PROJECT_GUIDE.md#troubleshooting).
+Daha fazla sorun giderme yardımı için [PROJECT_GUIDE.md](PROJECT_GUIDE.md#troubleshooting) dosyasına bakın.
 
 ---
 
-## 📝 API Documentation
+## 📝 API Dokümantasyonu
 
-Interactive API documentation is available when the backend is running:
+Backend çalışırken interaktif API dokümantasyonu mevcut:
 
 - **Swagger UI:** http://localhost:8000/docs
 - **ReDoc:** http://localhost:8000/redoc
 
-For detailed API documentation, see [PROJECT_GUIDE.md](PROJECT_GUIDE.md#api-documentation).
+Detaylı API dokümantasyonu için [PROJECT_GUIDE.md](PROJECT_GUIDE.md#api-documentation) dosyasına bakın.
 
 ---
 
-## 🤝 Contributing
+## 🤝 Katkıda Bulunma
 
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'feat: Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
-
----
-
-## 📄 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+1. Repository'yi fork edin
+2. Özellik dalı oluşturun (`git checkout -b feature/harika-ozellik`)
+3. Değişikliklerinizi commit edin (`git commit -m 'feat: Harika özellik ekle'`)
+4. Dalı push edin (`git push origin feature/harika-ozellik`)
+5. Pull Request açın
 
 ---
 
-## 🙏 Acknowledgments
+## 📄 Lisans
 
-- [MikroTik](https://mikrotik.com/) - RouterOS and API
-- [WireGuard](https://www.wireguard.com/) - Fast, modern VPN protocol
+Bu proje MIT Lisansı altında lisanslanmıştır - detaylar için [LICENSE](LICENSE) dosyasına bakın.
+
+---
+
+## 🙏 Teşekkürler
+
+- [MikroTik](https://mikrotik.com/) - RouterOS ve API
+- [WireGuard](https://www.wireguard.com/) - Hızlı, modern VPN protokolü
 - [FastAPI](https://fastapi.tiangolo.com/) - Modern Python web framework
-- [React](https://react.dev/) - UI library
+- [React](https://react.dev/) - UI kütüphanesi
 
 ---
 
-## 📞 Support
+## 📞 Destek
 
-For issues and questions:
+Sorunlar ve sorular için:
 - 📋 [GitHub Issues](https://github.com/mustafakiractr/wg-manager/issues)
-- 📖 Documentation: [PROJECT_GUIDE.md](PROJECT_GUIDE.md)
+- 📖 Dokümantasyon: [PROJECT_GUIDE.md](PROJECT_GUIDE.md)
 
 ---
 
-**Made with ❤️ using FastAPI and React**
+**FastAPI ve React ile ❤️ ile yapılmıştır**
