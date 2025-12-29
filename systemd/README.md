@@ -70,12 +70,13 @@ sudo journalctl -u wg-frontend -n 100
 
 - Service dosyalarındaki path'leri kendi sistemınıza göre düzenleyin
 - `User` ve `Group` değerlerini uygun kullanıcı ile değiştirin
-- Production ortamı için frontend'i Nginx ile serve edin
+- Production ortamı için frontend'i `serve` paketi ile static serve edin
 - Log dosyalarının oluşturulabildiğinden emin olun
 
 ## Production İçin Öneriler
 
-1. **Frontend:** Nginx ile static build serve edin
-2. **User:** Root yerine dedicated user kullanın
-3. **Logs:** Log rotation kurun
+1. **Frontend:** `serve -s dist -l 5173` ile static build serve edin
+2. **User:** Root yerine dedicated user kullanın (www-data önerilir)
+3. **Logs:** Log rotation kurun (`journalctl`)
 4. **Security:** Service hardening ayarları ekleyin
+5. **Reverse Proxy:** SSL/TLS için Caddy veya Traefik kullanın

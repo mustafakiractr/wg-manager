@@ -168,7 +168,7 @@ PrivateTmp=true
 WantedBy=multi-user.target
 EOF
 
-# Frontend service (production'da genellikle Nginx ile serve edilir)
+# Frontend service (production'da serve paketi ile static file serving)
 cat > /etc/systemd/system/wg-frontend.service << EOF
 [Unit]
 Description=MikroTik WireGuard Manager Frontend (Dev Server)
@@ -237,99 +237,54 @@ fi
 echo ""
 
 #############################################
-# 7. Nginx Yapılandırması (Opsiyonel)
+# 7. Frontend Static Server Yapılandırması
 #############################################
 
-if command -v nginx &> /dev/null; then
-    read -p "$(echo -e ${YELLOW}Nginx reverse proxy yapılandırması oluşturulsun mu? (y/N): ${NC})" -n 1 -r
-    echo
-    if [[ $REPLY =~ ^[Yy]$ ]]; then
-        read -p "Domain adınız (örn: wg.yourdomain.com): " DOMAIN
+echo -e "${BLUE}🌐 Frontend static server kurulumu...${NC}"
 
-        cat > /etc/nginx/sites-available/wg-manager << EOF
-# MikroTik WireGuard Manager
-# Frontend + Backend Reverse Proxy
+# serve paketini global olarak yükle
+if ! command -v serve &> /dev/null; then
+    echo -e "${YELLOW}serve paketi yükleniyor...${NC}"
+    npm install -g serve
+    echo -e "${GREEN}✅ serve paketi yüklendi${NC}"
+else
+    echo -e "${GREEN}✅ serve paketi zaten kurulu${NC}"
+fi
 
-upstream backend {
-    server 127.0.0.1:8001;
-}
+# Frontend build yap
+echo -e "${YELLOW}Frontend production build yapılıyor...${NC}"
+cd "$FRONTEND_DIR"
+npm run build
+echo -e "${GREEN}✅ Frontend build tamamlandı${NC}"
 
-server {
-    listen 80;
-    server_name $DOMAIN;
+# Frontend systemd service
+echo -e "${YELLOW}Frontend service oluşturuluyor...${NC}"
+cat > /etc/systemd/system/wg-frontend.service << EOF
+[Unit]
+Description=WireGuard Manager Frontend
+After=network.target
 
-    # Security headers
-    add_header X-Frame-Options "DENY" always;
-    add_header X-Content-Type-Options "nosniff" always;
-    add_header X-XSS-Protection "1; mode=block" always;
-    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+[Service]
+Type=simple
+User=www-data
+WorkingDirectory=$FRONTEND_DIR
+ExecStart=/usr/bin/serve -s dist -l 5173
+Restart=always
+RestartSec=3
 
-    # Frontend (production build)
-    location / {
-        root $FRONTEND_DIR/dist;
-        try_files \$uri \$uri/ /index.html;
-
-        # Cache static assets
-        location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2)$ {
-            expires 1y;
-            add_header Cache-Control "public, immutable";
-        }
-    }
-
-    # Backend API
-    location /api {
-        proxy_pass http://backend;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade \$http_upgrade;
-        proxy_set_header Connection 'upgrade';
-        proxy_set_header Host \$host;
-        proxy_set_header X-Real-IP \$remote_addr;
-        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto \$scheme;
-        proxy_cache_bypass \$http_upgrade;
-    }
-
-    # API Docs
-    location /docs {
-        proxy_pass http://backend;
-        proxy_set_header Host \$host;
-        proxy_set_header X-Real-IP \$remote_addr;
-    }
-
-    # Health check
-    location /health {
-        proxy_pass http://backend;
-        access_log off;
-    }
-
-    # WebSocket support
-    location /ws {
-        proxy_pass http://backend;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade \$http_upgrade;
-        proxy_set_header Connection "upgrade";
-        proxy_set_header Host \$host;
-        proxy_read_timeout 86400;
-    }
-}
+[Install]
+WantedBy=multi-user.target
 EOF
 
-        # Symlink oluştur
-        ln -sf /etc/nginx/sites-available/wg-manager /etc/nginx/sites-enabled/
+systemctl daemon-reload
+systemctl enable wg-frontend
+systemctl start wg-frontend
 
-        # Nginx config test
-        if nginx -t 2>/dev/null; then
-            systemctl reload nginx
-            echo -e "${GREEN}✅ Nginx yapılandırması oluşturuldu ve yüklendi${NC}"
-            echo -e "${YELLOW}💡 SSL için: certbot --nginx -d $DOMAIN${NC}"
-        else
-            echo -e "${RED}❌ Nginx config hatası!${NC}"
-            nginx -t
-        fi
-    fi
+if systemctl is-active --quiet wg-frontend; then
+    echo -e "${GREEN}✅ Frontend service başlatıldı${NC}"
 else
-    echo -e "${YELLOW}⚠️  Nginx bulunamadı (production için önerilir)${NC}"
-    echo -e "${YELLOW}   Yüklemek için: apt-get install nginx${NC}"
+    echo -e "${RED}❌ Frontend service başlatılamadı${NC}"
+    systemctl status wg-frontend
 fi
 
 echo ""
@@ -392,10 +347,10 @@ echo "  Toplam:     $(ls -1 $BACKUP_DIR/*.db 2>/dev/null | wc -l) backup"
 echo ""
 
 echo -e "${YELLOW}⚠️  Önemli Notlar:${NC}"
-echo "  • SSL/TLS sertifikası için: certbot --nginx"
+echo "  • SSL/TLS için reverse proxy (Caddy, Traefik vb.) kullanın"
 echo "  • Database backup'ları otomatik (30 gün)
 echo "  • Log dosyaları: backend/logs/ ve journalctl"
-echo "  • SECURITY.md dosyasındaki kontrol listesini uygulayın"
+echo "  • PROJECT_GUIDE.md dosyasındaki güvenlik kontrol listesini uygulayın"
 echo ""
 
 echo -e "${GREEN}✅ Production deployment başarılı!${NC}"

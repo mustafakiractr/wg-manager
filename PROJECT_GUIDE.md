@@ -85,7 +85,6 @@ MikroTik Router Yönetim Paneli, MikroTik RouterOS v7+ cihazlarını yönetmek i
 - MikroTik RouterOS API
 - WebSocket (real-time)
 - Systemd services
-- Nginx (production)
 
 ---
 
@@ -199,78 +198,77 @@ RestartSec=3
 WantedBy=multi-user.target
 ```
 
-**Frontend Build:**
+**Frontend Service** (`/etc/systemd/system/router-manager-frontend.service`):
 
+```ini
+[Unit]
+Description=WireGuard Manager Frontend
+After=network.target
+
+[Service]
+Type=simple
+User=www-data
+WorkingDirectory=/opt/wg-manager/frontend
+ExecStart=/usr/bin/npm start
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
+```
+
+**Not:** Frontend production build için:
 ```bash
 cd frontend
 npm run build
-
-# dist/ klasörü Nginx ile servis edilir
+# dist/ klasörü oluşur, bu klasör static file server ile servis edilir
 ```
 
-#### 2. Nginx Yapılandırması
+#### 2. Frontend Static Server (Production)
 
-```nginx
-server {
-    listen 80;
-    server_name your-domain.com;
-    return 301 https://$server_name$request_uri;
-}
-
-server {
-    listen 443 ssl http2;
-    server_name your-domain.com;
-
-    ssl_certificate /etc/letsencrypt/live/your-domain.com/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/your-domain.com/privkey.pem;
-
-    # Frontend
-    location / {
-        root /opt/wg-manager/frontend/dist;
-        try_files $uri $uri/ /index.html;
-    }
-
-    # API
-    location /api {
-        proxy_pass http://localhost:8000;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-    }
-
-    # WebSocket
-    location /ws {
-        proxy_pass http://localhost:8000;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection "upgrade";
-        proxy_set_header Host $host;
-    }
-}
-```
-
-#### 3. SSL Sertifikası (Let's Encrypt)
+Production'da frontend'i servis etmek için `serve` paketini kullanabilirsiniz:
 
 ```bash
-sudo apt install certbot python3-certbot-nginx
-sudo certbot --nginx -d your-domain.com
+# serve paketini global olarak yükle
+npm install -g serve
+
+# Frontend service dosyasını güncelle
+sudo nano /etc/systemd/system/router-manager-frontend.service
 ```
 
-#### 4. Servisleri Başlatma
+Güncellenmiş frontend service:
+
+```ini
+[Unit]
+Description=WireGuard Manager Frontend
+After=network.target
+
+[Service]
+Type=simple
+User=www-data
+WorkingDirectory=/opt/wg-manager/frontend
+ExecStart=/usr/bin/serve -s dist -l 5173
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
+```
+
+#### 3. Servisleri Başlatma
 
 ```bash
 # Servisleri etkinleştir
 sudo systemctl enable router-manager-backend
-sudo systemctl enable nginx
+sudo systemctl enable router-manager-frontend
 
 # Servisleri başlat
 sudo systemctl start router-manager-backend
-sudo systemctl start nginx
+sudo systemctl start router-manager-frontend
 
 # Durumu kontrol et
 sudo systemctl status router-manager-backend
-sudo systemctl status nginx
+sudo systemctl status router-manager-frontend
 ```
 
 ---
@@ -654,13 +652,14 @@ nano frontend/.env
 #### 4. WebSocket Bağlantı Sorunu
 
 ```bash
-# Nginx yapılandırmasını kontrol et
-# /ws endpoint'i için upgrade header'ları eklenmiş olmalı
-
 # Backend loglarını kontrol et
 tail -f backend/logs/app.log
 
 # Frontend console'da WebSocket durumunu kontrol et
+# WebSocket URL'inin doğru olduğundan emin olun: ws://localhost:8000/ws
+
+# Backend'in WebSocket'i desteklediğini doğrulayın
+curl -i -N -H "Connection: Upgrade" -H "Upgrade: websocket" http://localhost:8000/ws
 ```
 
 #### 5. Servis Yeniden Başlatma
@@ -673,7 +672,7 @@ bash restart_services.sh
 sudo systemctl restart router-manager-backend
 
 # Sadece frontend (production)
-sudo systemctl restart nginx
+sudo systemctl restart router-manager-frontend
 
 # Development modunda
 # Backend: Ctrl+C ile durdur, tekrar başlat
@@ -688,10 +687,7 @@ tail -f backend/logs/app.log
 
 # Systemd servis logları
 sudo journalctl -u router-manager-backend -f
-
-# Nginx logları
-sudo tail -f /var/log/nginx/error.log
-sudo tail -f /var/log/nginx/access.log
+sudo journalctl -u router-manager-frontend -f
 ```
 
 ### Veritabanı Sorunları
@@ -950,7 +946,6 @@ CREATE TABLE notifications (
 
 ### Araçlar
 - [Let's Encrypt](https://letsencrypt.org/)
-- [Nginx](https://nginx.org/en/docs/)
 - [Systemd](https://systemd.io/)
 
 ---

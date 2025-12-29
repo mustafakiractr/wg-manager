@@ -86,7 +86,6 @@ For comprehensive documentation, please refer to:
 **Infrastructure:**
 - MikroTik RouterOS API
 - WebSocket (real-time updates)
-- Nginx (production)
 - Systemd services
 
 ---
@@ -171,32 +170,29 @@ Complete audit trail of all system operations.
 
 ### Systemd Services
 
+**Backend Service:**
 ```bash
-# Enable and start services
+# Enable and start backend
 sudo systemctl enable router-manager-backend
 sudo systemctl start router-manager-backend
-
-# Check status
 sudo systemctl status router-manager-backend
 ```
 
-### Nginx Configuration
+**Frontend Service:**
+```bash
+# Install serve for static file serving
+npm install -g serve
 
-```nginx
-server {
-    listen 443 ssl http2;
-    server_name your-domain.com;
-
-    location / {
-        root /opt/wg-manager/frontend/dist;
-        try_files $uri $uri/ /index.html;
-    }
-
-    location /api {
-        proxy_pass http://localhost:8000;
-    }
-}
+# Enable and start frontend
+sudo systemctl enable router-manager-frontend
+sudo systemctl start router-manager-frontend
+sudo systemctl status router-manager-frontend
 ```
+
+**Access the application:**
+- Frontend: http://your-server:5173
+- Backend API: http://your-server:8000
+- API Docs: http://your-server:8000/docs
 
 For complete deployment guide, see [PROJECT_GUIDE.md](PROJECT_GUIDE.md#deployment).
 

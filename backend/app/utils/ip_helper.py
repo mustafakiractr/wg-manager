@@ -15,7 +15,7 @@ def get_client_ip(request: Request) -> str:
         # İlk IP gerçek client IP'dir
         return forwarded.split(",")[0].strip()
     
-    # X-Real-IP header'ını kontrol et (Nginx gibi)
+    # X-Real-IP header'ını kontrol et (reverse proxy kullanıyorsa)
     real_ip = request.headers.get("X-Real-IP")
     if real_ip:
         return real_ip.strip()
