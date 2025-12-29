@@ -1058,6 +1058,7 @@ async def add_peer(
                         existing_key.client_allowed_ips = client_allowed_ips  # Client AllowedIPs'i kaydet
                         existing_key.endpoint_address = peer_data.endpoint_address  # Endpoint adresi
                         existing_key.endpoint_port = peer_data.endpoint_port  # Endpoint portu
+                        existing_key.template_id = peer_data.template_id  # Template ID (usage tracking için)
                         await db.commit()
                         logger.info(f"✅ Private key güncellendi: Peer ID={peer_id}, Public Key={public_key_normalized[:30]}..., Private Key uzunluk={len(private_key_normalized)}")
                     else:
@@ -1069,7 +1070,8 @@ async def add_peer(
                             private_key=private_key_normalized,
                             client_allowed_ips=client_allowed_ips,
                             endpoint_address=peer_data.endpoint_address,
-                            endpoint_port=peer_data.endpoint_port
+                            endpoint_port=peer_data.endpoint_port,
+                            template_id=peer_data.template_id
                         )
                         db.add(new_key)
                         await db.commit()
@@ -1675,14 +1677,45 @@ async def delete_peer(
         # Peer'ı MikroTik'ten sil
         await mikrotik_conn.delete_wireguard_peer(peer_id, interface=interface)
 
-        # Private key'i veritabanından sil
+        # Private key'i veritabanından sil ve template usage count'u düşür
         try:
+            # Önce peer_key kaydını al (template_id'yi okumak için)
+            peer_key_result = await db.execute(
+                select(PeerKey).where(PeerKey.peer_id == str(peer_id))
+            )
+            peer_key_record = peer_key_result.scalar_one_or_none()
+
+            # Template ID'yi sakla (kayıt silindikten sonra kullanmak için)
+            template_id_to_decrement = None
+            if peer_key_record and peer_key_record.template_id:
+                template_id_to_decrement = peer_key_record.template_id
+                logger.info(f"📊 Peer template ile oluşturulmuş, usage count düşürülecek - Template ID: {template_id_to_decrement}")
+
+            # PeerKey kaydını sil
             result = await db.execute(
                 delete(PeerKey).where(PeerKey.peer_id == str(peer_id))
             )
             if result.rowcount > 0:
                 await db.commit()
                 logger.info(f"✅ Private key silindi: Peer ID={peer_id}")
+
+                # Template usage count'u düşür
+                if template_id_to_decrement:
+                    try:
+                        from app.models.peer_template import PeerTemplate
+                        template_result = await db.execute(
+                            select(PeerTemplate).where(PeerTemplate.id == template_id_to_decrement)
+                        )
+                        template = template_result.scalar_one_or_none()
+                        if template and template.usage_count > 0:
+                            template.usage_count -= 1
+                            await db.commit()
+                            logger.info(f"✅ Template usage count düşürüldü - Template ID: {template_id_to_decrement}, Yeni count: {template.usage_count}")
+                        else:
+                            logger.warning(f"⚠️ Template bulunamadı veya usage_count zaten 0 - Template ID: {template_id_to_decrement}")
+                    except Exception as template_error:
+                        logger.error(f"❌ Template usage count düşürülemedi: {template_error}")
+                        await db.rollback()
         except Exception as key_error:
             logger.warning(f"⚠️ Private key silme hatası (peer silme başarılı): {key_error}")
             await db.rollback()

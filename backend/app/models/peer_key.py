@@ -25,5 +25,6 @@ class PeerKey(Base):
     client_allowed_ips = Column(Text, nullable=True)  # Client'ın AllowedIPs değeri (config dosyası için)
     endpoint_address = Column(String, nullable=True)  # Endpoint adresi (DNS veya IP)
     endpoint_port = Column(Integer, nullable=True)  # Endpoint port numarası
+    template_id = Column(Integer, nullable=True, index=True)  # Kullanılan peer template ID'si (usage tracking için)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)  # Oluşturulma zamanı
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)  # Güncellenme zamanı
