@@ -476,7 +476,26 @@ class MikroTikConnection:
                 preshared_key = str(preshared_key).strip()
                 normalized_peer['preshared-key'] = preshared_key
                 normalized_peer['preshared_key'] = preshared_key
-            
+
+            # Endpoint address normalize et
+            endpoint_addr = normalized_peer.get('current-endpoint-address') or normalized_peer.get('endpoint-address') or normalized_peer.get('endpoint_address')
+            if endpoint_addr:
+                normalized_peer['current-endpoint-address'] = endpoint_addr
+                normalized_peer['endpoint-address'] = endpoint_addr
+
+            # Endpoint port normalize et
+            endpoint_port = normalized_peer.get('current-endpoint-port') or normalized_peer.get('endpoint-port') or normalized_peer.get('endpoint_port')
+            if endpoint_port:
+                normalized_peer['current-endpoint-port'] = endpoint_port
+                normalized_peer['endpoint-port'] = endpoint_port
+
+            # Endpoint (birleşik string) oluştur - current-endpoint yoksa elle oluştur
+            if not normalized_peer.get('endpoint'):
+                if endpoint_addr and endpoint_port and endpoint_port not in [0, '0']:
+                    normalized_peer['endpoint'] = f"{endpoint_addr}:{endpoint_port}"
+                elif endpoint_addr:
+                    normalized_peer['endpoint'] = endpoint_addr
+
             normalized_peers.append(normalized_peer)
         
         # Peer verilerini logla (debug için)
@@ -488,6 +507,12 @@ class MikroTikConnection:
                     logger.debug(f"public-key değeri: {peer['public-key'][:20]}... (uzunluk: {len(peer['public-key'])})")
                 if 'last-handshake' in peer:
                     logger.debug(f"last-handshake değeri: {peer['last-handshake']} (tip: {type(peer['last-handshake'])})")
+                if 'endpoint' in peer:
+                    logger.debug(f"endpoint değeri: {peer['endpoint']}")
+                if 'current-endpoint-address' in peer:
+                    logger.debug(f"current-endpoint-address: {peer['current-endpoint-address']}")
+                if 'current-endpoint-port' in peer:
+                    logger.debug(f"current-endpoint-port: {peer['current-endpoint-port']}")
         
         # Cache'le (30 saniye) - sadece cache kullanılıyorsa
         if use_cache:
