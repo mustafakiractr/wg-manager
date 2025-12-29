@@ -10,14 +10,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added - 2025-12-29
 
 #### Automated Dependency Installation
-- **Enhanced install.sh**: Now automatically installs Python 3.9+, Node.js 18+, npm, and all system dependencies
+- **Enhanced install.sh**: Now automatically installs Python 3.9+, Node.js 20+, npm, and all system dependencies
 - **Auto-Detection**: Detects and installs missing dependencies on Ubuntu, Debian, CentOS, and RHEL
 - **Version Management**: Automatically upgrades outdated Python and Node.js versions
 - **One-Command Setup**: Complete automation with `quick-start.sh`
 
 #### Installation Features:
 - Automatic Python 3.11 installation (Ubuntu/Debian) or Python 3.9 (CentOS/RHEL)
-- Automatic Node.js 18.x LTS installation via NodeSource repositories
+- Automatic Node.js 20.x LTS installation via NodeSource repositories
 - Automatic installation of build tools and development libraries
 - Platform-specific package management (apt/yum)
 - Smart dependency checking and version validation

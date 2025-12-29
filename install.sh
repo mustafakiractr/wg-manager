@@ -38,7 +38,7 @@ INSTALL_DIR=$(pwd)
 BACKEND_DIR="$INSTALL_DIR/backend"
 FRONTEND_DIR="$INSTALL_DIR/frontend"
 PYTHON_MIN_VERSION="3.9"
-NODE_MIN_VERSION="18"
+NODE_MIN_VERSION="20"
 
 echo -e "${BLUE}📍 Kurulum dizini: $INSTALL_DIR${NC}"
 echo ""
@@ -179,21 +179,21 @@ if check_command node; then
         # Eski Node.js'i kaldır ve yeni yükle
         if [ "$OS_ID" = "ubuntu" ] || [ "$OS_ID" = "debian" ]; then
             apt-get remove -y -qq nodejs npm || true
-            curl -fsSL https://deb.nodesource.com/setup_18.x | bash -
+            curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
             apt-get install -y -qq nodejs
-            print_success "Node.js 18.x yüklendi"
+            print_success "Node.js 20.x yüklendi"
         fi
     fi
 else
-    print_step "Node.js yükleniyor (Node.js 18.x LTS)..."
+    print_step "Node.js yükleniyor (Node.js 20.x LTS)..."
     if [ "$OS_ID" = "ubuntu" ] || [ "$OS_ID" = "debian" ]; then
-        curl -fsSL https://deb.nodesource.com/setup_18.x | bash -
+        curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
         apt-get install -y -qq nodejs
-        print_success "Node.js 18.x yüklendi"
+        print_success "Node.js 20.x yüklendi"
     elif [ "$OS_ID" = "centos" ] || [ "$OS_ID" = "rhel" ]; then
-        curl -fsSL https://rpm.nodesource.com/setup_18.x | bash -
+        curl -fsSL https://rpm.nodesource.com/setup_20.x | bash -
         yum install -y -q nodejs
-        print_success "Node.js 18.x yüklendi"
+        print_success "Node.js 20.x yüklendi"
     else
         print_error "Node.js otomatik yüklenemedi. Manuel olarak yükleyin:"
         echo "https://nodejs.org/en/download/"

@@ -4,7 +4,7 @@ MikroTik RouterOS v7+ WireGuard VPN için modern web tabanlı yönetim arayüzü
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/)
-[![Node.js 18+](https://img.shields.io/badge/node-18+-green.svg)](https://nodejs.org/)
+[![Node.js 20+](https://img.shields.io/badge/node-20+-green.svg)](https://nodejs.org/)
 
 ---
 
@@ -31,7 +31,7 @@ MikroTik RouterOS v7+ WireGuard VPN için modern web tabanlı yönetim arayüzü
 - 1GB disk alanı
 - API etkin MikroTik RouterOS v7+
 
-**Not:** Python 3.9+, Node.js 18+ ve diğer tüm bağımlılıklar kurulum scripti tarafından **otomatik olarak yüklenecektir**!
+**Not:** Python 3.9+, Node.js 20+ ve diğer tüm bağımlılıklar kurulum scripti tarafından **otomatik olarak yüklenecektir**!
 
 ### Kurulum
 

@@ -96,7 +96,7 @@ MikroTik Router Yönetim Paneli, MikroTik RouterOS v7+ cihazlarını yönetmek i
 # Sistem gereksinimleri
 - OS: Ubuntu 20.04+, Debian 11+, CentOS 8+
 - Python 3.9+
-- Node.js 18+
+- Node.js 20+
 - MikroTik RouterOS v7+
 - 1GB RAM (2GB önerilir)
 - 1GB disk alanı
