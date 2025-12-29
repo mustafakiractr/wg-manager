@@ -1668,7 +1668,7 @@ function WireGuardInterfaceDetail() {
                         </span>
                         {peer['endpoint'] && (
                           <span className="text-xs text-gray-500 dark:text-gray-400 mt-1 break-all">
-                            {peer['endpoint']}
+                            {peer['endpoint'].replace(/:0$/, '')}
                           </span>
                         )}
                       </div>

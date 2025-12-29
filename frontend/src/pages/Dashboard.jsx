@@ -523,7 +523,8 @@ function Dashboard() {
       const txBytes = parseInt(peer['tx-bytes'] || peer.tx || 0)
       const endpoint = peer['endpoint-address'] || peer.endpoint || peer['current-endpoint-address'] || 'Bağlı değil'
       const endpointPort = peer['endpoint-port'] || peer['current-endpoint-port'] || ''
-      const fullEndpoint = endpointPort ? `${endpoint}:${endpointPort}` : endpoint
+      // Port değeri 0 veya "0" ise gösterme (geçersiz port)
+      const fullEndpoint = (endpointPort && endpointPort !== '0' && endpointPort !== 0) ? `${endpoint}:${endpointPort}` : endpoint
       const name = peer.comment || peer.name || `Peer ${peer.id || peer['.id'] || ''}`
       const publicKey = peer['public-key'] || 'N/A'
       const allowedAddress = peer['allowed-address'] || 'N/A'
