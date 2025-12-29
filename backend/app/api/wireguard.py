@@ -2178,12 +2178,25 @@ async def get_peer_qrcode(
         if not allowed_ips_value or allowed_ips_value == "":
             allowed_ips_value = "0.0.0.0/0, ::/0"
         config_lines.append(f"AllowedIPs = {allowed_ips_value}")
-        
-        # Endpoint - vpn.sahacam.com kullan
-        if interface_data.get("listen-port"):
+
+        # Endpoint - Database'den endpoint bilgisini al, yoksa varsayılan kullan
+        endpoint_address = None
+        endpoint_port = None
+        if peer_key_record:
+            endpoint_address = peer_key_record.endpoint_address
+            endpoint_port = peer_key_record.endpoint_port
+            logger.info(f"✅ Database'den endpoint bilgisi alındı: {endpoint_address}:{endpoint_port}")
+
+        # Endpoint oluştur - database'den veya varsayılan
+        if endpoint_address and endpoint_port:
+            endpoint = f"{endpoint_address}:{endpoint_port}"
+            config_lines.append(f"Endpoint = {endpoint}")
+        elif interface_data.get("listen-port"):
+            # Fallback: endpoint bilgisi yoksa varsayılan kullan
             listen_port = interface_data.get("listen-port")
             endpoint = f"vpn.sahacam.com:{listen_port}"
             config_lines.append(f"Endpoint = {endpoint}")
+            logger.warning(f"⚠️ Database'de endpoint bilgisi yok, varsayılan kullanılıyor: {endpoint}")
         
         # Persistent Keepalive - varsayılan 25
         if peer.get("persistent-keepalive"):
@@ -2541,12 +2554,25 @@ async def get_peer_config(
         if not allowed_ips_value or allowed_ips_value == "":
             allowed_ips_value = "0.0.0.0/0, ::/0"
         config_lines.append(f"AllowedIPs = {allowed_ips_value}")
-        
-        # Endpoint - vpn.sahacam.com kullan
-        if interface_data.get("listen-port"):
+
+        # Endpoint - Database'den endpoint bilgisini al, yoksa varsayılan kullan
+        endpoint_address = None
+        endpoint_port = None
+        if peer_key_record:
+            endpoint_address = peer_key_record.endpoint_address
+            endpoint_port = peer_key_record.endpoint_port
+            logger.info(f"✅ Database'den endpoint bilgisi alındı: {endpoint_address}:{endpoint_port}")
+
+        # Endpoint oluştur - database'den veya varsayılan
+        if endpoint_address and endpoint_port:
+            endpoint = f"{endpoint_address}:{endpoint_port}"
+            config_lines.append(f"Endpoint = {endpoint}")
+        elif interface_data.get("listen-port"):
+            # Fallback: endpoint bilgisi yoksa varsayılan kullan
             listen_port = interface_data.get("listen-port")
             endpoint = f"vpn.sahacam.com:{listen_port}"
             config_lines.append(f"Endpoint = {endpoint}")
+            logger.warning(f"⚠️ Database'de endpoint bilgisi yok, varsayılan kullanılıyor: {endpoint}")
         
         # Persistent Keepalive - varsayılan 25
         if peer.get("persistent-keepalive"):
