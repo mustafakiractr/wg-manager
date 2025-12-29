@@ -349,10 +349,29 @@ function WireGuardInterfaceDetail() {
       return
     }
 
-    // "auto" değerine izin ver (IP Pool'dan otomatik tahsis için)
-    const allowedAddressValue = formData.allowed_address.trim().toLowerCase()
-    if (allowedAddressValue !== 'auto' && !validateIP(formData.allowed_address)) {
-      alert('Geçersiz IP adresi formatı. Örnek: 192.168.1.1/32 veya "auto" (otomatik tahsis için)')
+    setAddingPeer(true)
+
+    // "auto" değeri varsa IP Pool'dan IP al
+    let finalIP = formData.allowed_address.trim()
+    if (finalIP.toLowerCase() === 'auto') {
+      try {
+        const nextIP = await fetchNextAvailableIP()
+        if (!nextIP) {
+          setAddingPeer(false)
+          alert('IP Pool\'dan IP alınamadı. Lütfen manuel IP girin.')
+          return
+        }
+        finalIP = nextIP
+      } catch (error) {
+        setAddingPeer(false)
+        alert('IP Pool\'dan IP alınırken hata oluştu: ' + error.message)
+        return
+      }
+    }
+
+    if (!validateIP(finalIP)) {
+      setAddingPeer(false)
+      alert('Geçersiz IP adresi formatı. Örnek: 192.168.1.1/32')
       return
     }
 
@@ -375,7 +394,7 @@ function WireGuardInterfaceDetail() {
     const peerData = {
       interface: interfaceName,
       public_key: formData.public_key.trim(),
-      allowed_address: formData.allowed_address.trim(),
+      allowed_address: finalIP,
       comment: formData.comment.trim() || (formData.name.trim() || undefined),
       persistent_keepalive: formData.persistent_keepalive.trim() || undefined,
     }
@@ -431,9 +450,6 @@ function WireGuardInterfaceDetail() {
       template_id: peerData.template_id || 'YOK'
     })
 
-    // Loading state'i göster
-    setAddingPeer(true)
-    
     try {
         const response = await addPeer(peerData)
         
@@ -564,13 +580,34 @@ function WireGuardInterfaceDetail() {
       alert('Genel Anahtar (Public Key) zorunludur')
       return
     }
-    
+
     if (!formData.allowed_address.trim()) {
       alert('İzin Verilen IP Adresleri zorunludur')
       return
     }
-    
-    if (!validateIP(formData.allowed_address)) {
+
+    setAddingPeer(true)
+
+    // "auto" değeri varsa IP Pool'dan IP al
+    let finalIP = formData.allowed_address.trim()
+    if (finalIP.toLowerCase() === 'auto') {
+      try {
+        const nextIP = await fetchNextAvailableIP()
+        if (!nextIP) {
+          setAddingPeer(false)
+          alert('IP Pool\'dan IP alınamadı. Lütfen manuel IP girin.')
+          return
+        }
+        finalIP = nextIP
+      } catch (error) {
+        setAddingPeer(false)
+        alert('IP Pool\'dan IP alınırken hata oluştu: ' + error.message)
+        return
+      }
+    }
+
+    if (!validateIP(finalIP)) {
+      setAddingPeer(false)
       alert('Geçersiz IP adresi formatı. Örnek: 192.168.1.1/32')
       return
     }
@@ -684,6 +721,8 @@ function WireGuardInterfaceDetail() {
       alert(`${bulkCount} peer başarıyla eklendi!`)
     } catch (error) {
       alert('Toplu ekleme hatası: ' + (error.response?.data?.detail || error.message))
+    } finally {
+      setAddingPeer(false)
     }
   }
 
