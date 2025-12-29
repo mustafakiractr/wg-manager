@@ -1,189 +1,278 @@
-# MikroTik Router Yönetim Paneli
+# 🔒 WireGuard Manager Panel
 
-MikroTik RouterOS v7 cihazlarını yönetmek için modern bir web arayüzü. WireGuard interface ve peer yönetimi yapabilirsiniz.
+Modern web-based management interface for MikroTik RouterOS v7+ WireGuard VPN.
 
-## 🚀 Özellikler
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/)
+[![Node.js 18+](https://img.shields.io/badge/node-18+-green.svg)](https://nodejs.org/)
 
-- **WireGuard Yönetimi**: Interface ve peer ekleme, düzenleme, silme
-- **QR Kod Oluşturma**: Peer konfigürasyonları için QR kod
-- **Gerçek Zamanlı İstatistikler**: Trafik ve durum bilgileri
-- **Kullanıcı Yönetimi**: JWT tabanlı authentication
-- **Log Sistemi**: Tüm işlemlerin kaydı
-- **Karanlık Mod**: Modern ve göz yormayan arayüz
-- **Responsive Tasarım**: Mobil ve desktop uyumlu
+---
 
-## 📋 Gereksinimler
+## ✨ Features
+
+- 🔐 **WireGuard Management** - Create, edit, delete interfaces and peers
+- 📊 **Dashboard & Analytics** - Real-time traffic statistics and monitoring
+- 🔔 **Notification System** - Real-time alerts and notifications
+- 📝 **Activity Logging** - Complete audit trail of all operations
+- 🎯 **IP Pool Management** - Automatic IP allocation with templates
+- 📱 **QR Code Generation** - Easy mobile device configuration
+- 🎨 **Modern UI** - Dark mode, responsive design, intuitive interface
+- 🔒 **Secure** - JWT authentication, role-based access control, rate limiting
+
+---
+
+## 🚀 Quick Start
+
+### Prerequisites
 
 - Python 3.9+
 - Node.js 18+
 - MikroTik RouterOS v7+
-- PostgreSQL (opsiyonel, SQLite varsayılan)
+- 1GB RAM, 1GB disk space
 
-## 🛠️ Kurulum
+### Installation
 
-### Backend Kurulumu
+```bash
+# Clone the repository
+git clone <repository-url> /opt/wg-manager
+cd /opt/wg-manager
+
+# Run installation script
+sudo bash install.sh
+
+# Configure environment
+bash setup_environment.sh
+
+# Start services
+bash start_all.sh
+```
+
+### Access the Application
+
+```
+URL: http://localhost:5173
+Username: admin
+Password: admin123
+```
+
+⚠️ **Change the default password immediately after first login!**
+
+---
+
+## 📖 Documentation
+
+For comprehensive documentation, please refer to:
+
+- **[PROJECT_GUIDE.md](PROJECT_GUIDE.md)** - Complete guide with installation, configuration, API docs, and troubleshooting
+- **[Backend API Documentation](#)** - Available at `/docs` endpoint when running
+- **[Archived Documentation](archive/docs/)** - Historical docs and specific guides
+
+---
+
+## 🏗️ Tech Stack
+
+**Backend:**
+- FastAPI (Python 3.9+)
+- SQLAlchemy (async ORM)
+- PostgreSQL / SQLite
+- JWT Authentication
+
+**Frontend:**
+- React 18 + Vite
+- Tailwind CSS
+- Zustand (state management)
+- React Router v6
+
+**Infrastructure:**
+- MikroTik RouterOS API
+- WebSocket (real-time updates)
+- Nginx (production)
+- Systemd services
+
+---
+
+## 📁 Project Structure
+
+```
+wg-manager/
+├── backend/              # FastAPI application
+│   ├── app/
+│   │   ├── api/         # API endpoints
+│   │   ├── models/      # Database models
+│   │   ├── services/    # Business logic
+│   │   └── main.py      # Application entry
+│   └── requirements.txt
+│
+├── frontend/            # React application
+│   ├── src/
+│   │   ├── components/  # React components
+│   │   ├── pages/       # Page components
+│   │   └── App.jsx
+│   └── package.json
+│
+├── archive/             # Archived documentation
+├── systemd/             # Service configurations
+├── README.md           # This file
+└── PROJECT_GUIDE.md    # Complete documentation
+```
+
+---
+
+## 🔧 Development
+
+### Backend
 
 ```bash
 cd backend
-
-# Virtual environment oluştur
 python3 -m venv venv
-source venv/bin/activate  # Linux/Mac
-# veya
-venv\Scripts\activate  # Windows
-
-# Bağımlılıkları yükle
+source venv/bin/activate
 pip install -r requirements.txt
-
-# .env dosyasını oluştur
-cp .env.example .env
-# .env dosyasını düzenle ve MikroTik bilgilerini gir
-
-# Veritabanını başlat ve varsayılan kullanıcıyı oluştur
-python init_db.py
-
-# Backend'i başlat
-python run.py
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
-Backend varsayılan olarak `http://localhost:8000` adresinde çalışacak.
-
-### Frontend Kurulumu
+### Frontend
 
 ```bash
 cd frontend
-
-# Bağımlılıkları yükle
 npm install
-
-# .env dosyasını oluştur
-cp .env.example .env
-# API URL'ini kontrol et (varsayılan: http://localhost:8000/api/v1)
-
-# Development server'ı başlat
 npm run dev
 ```
 
-Frontend varsayılan olarak `http://localhost:5173` adresinde çalışacak.
+---
 
-## 🔐 Varsayılan Giriş Bilgileri
+## 🔐 Security
 
-- **Username**: `admin`
-- **Password**: `admin123`
+- JWT-based authentication
+- Role-based access control (RBAC)
+- Rate limiting on sensitive endpoints
+- Activity logging and audit trail
+- Bcrypt password hashing
+- CORS protection
+- HTTPS support
 
-⚠️ **ÖNEMLİ**: İlk girişten sonra şifreyi mutlaka değiştirin!
+For security best practices, see [PROJECT_GUIDE.md](PROJECT_GUIDE.md#security).
 
-## 📁 Proje Yapısı
+---
 
-```
-.
-├── backend/
-│   ├── app/
-│   │   ├── api/          # API endpoint'leri
-│   │   ├── mikrotik/     # MikroTik bağlantı sınıfı
-│   │   ├── services/     # İş mantığı servisleri
-│   │   ├── models/       # Veritabanı modelleri
-│   │   ├── database/     # Veritabanı yapılandırması
-│   │   ├── security/     # JWT ve güvenlik
-│   │   └── utils/        # Yardımcı fonksiyonlar
-│   ├── logs/             # Log dosyaları
-│   ├── requirements.txt  # Python bağımlılıkları
-│   └── run.py            # Uygulama başlatma
-│
-└── frontend/
-    ├── src/
-    │   ├── components/   # React bileşenleri
-    │   ├── pages/        # Sayfa bileşenleri
-    │   ├── services/     # API servisleri
-    │   ├── store/        # Zustand state yönetimi
-    │   └── App.jsx       # Ana uygulama
-    └── package.json      # Node.js bağımlılıkları
-```
+## 📊 Screenshots
 
-## 🔌 API Endpoint'leri
+### Dashboard
+Real-time monitoring of WireGuard interfaces, peers, and traffic statistics.
 
-### Authentication
-- `POST /api/v1/auth/login` - Kullanıcı girişi
-- `POST /api/v1/auth/refresh` - Token yenileme
-- `GET /api/v1/auth/me` - Mevcut kullanıcı bilgisi
+### WireGuard Management
+Easy interface and peer management with QR code generation.
 
-### WireGuard
-- `GET /api/v1/wg/interfaces` - Tüm interface'leri listele
-- `GET /api/v1/wg/interface/{name}` - Interface detayı
-- `POST /api/v1/wg/interface/{name}/toggle` - Interface aç/kapat
-- `GET /api/v1/wg/peers/{interface}` - Peer listesi
-- `POST /api/v1/wg/peer/add` - Peer ekle
-- `POST /api/v1/wg/peer/{peer_id}/update` - Peer güncelle
-- `DELETE /api/v1/wg/peer/{peer_id}` - Peer sil
-- `GET /api/v1/wg/peer/{peer_id}/qrcode` - QR kod oluştur
+### Activity Logs
+Complete audit trail of all system operations.
 
-### Logs
-- `GET /api/v1/logs` - Log kayıtlarını listele
+---
 
-## 🐳 Production Deployment
+## 🛠️ Production Deployment
 
-### Backend (Systemd Service)
+### Systemd Services
 
-`/etc/systemd/system/router-manager.service`:
+```bash
+# Enable and start services
+sudo systemctl enable router-manager-backend
+sudo systemctl start router-manager-backend
 
-```ini
-[Unit]
-Description=Router Manager API
-After=network.target
-
-[Service]
-Type=simple
-User=www-data
-WorkingDirectory=/path/to/backend
-Environment="PATH=/path/to/backend/venv/bin"
-ExecStart=/path/to/backend/venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000
-Restart=always
-
-[Install]
-WantedBy=multi-user.target
+# Check status
+sudo systemctl status router-manager-backend
 ```
 
-### Frontend (Nginx)
+### Nginx Configuration
 
 ```nginx
 server {
-    listen 80;
+    listen 443 ssl http2;
     server_name your-domain.com;
 
     location / {
-        root /path/to/frontend/dist;
+        root /opt/wg-manager/frontend/dist;
         try_files $uri $uri/ /index.html;
     }
 
     location /api {
         proxy_pass http://localhost:8000;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
     }
 }
 ```
 
-## 📝 Notlar
+For complete deployment guide, see [PROJECT_GUIDE.md](PROJECT_GUIDE.md#deployment).
 
-- MikroTik API portu varsayılan olarak 8728'dir (TLS için 8729)
-- SQLite varsayılan veritabanıdır, production için PostgreSQL önerilir
-- Tüm API endpoint'leri JWT token gerektirir (login hariç)
-- Loglar `backend/logs/app.log` dosyasına yazılır
+---
 
-## 🤝 Katkıda Bulunma
+## 🐛 Troubleshooting
 
-1. Fork yapın
-2. Feature branch oluşturun (`git checkout -b feature/amazing-feature`)
-3. Commit yapın (`git commit -m 'Add amazing feature'`)
-4. Push yapın (`git push origin feature/amazing-feature`)
-5. Pull Request açın
+### Common Issues
 
-## 📄 Lisans
+**Backend won't start:**
+```bash
+cd backend
+source venv/bin/activate
+pip install -r requirements.txt
+```
 
-Bu proje MIT lisansı altında lisanslanmıştır.
+**MikroTik connection failed:**
+```bash
+# Check MikroTik API service
+/ip service print
+/ip service set api disabled=no
+```
 
-## 🆘 Destek
+**Frontend CORS errors:**
+```bash
+# Check CORS_ORIGINS in backend/.env
+CORS_ORIGINS=["http://localhost:5173"]
+```
 
-Sorunlar için GitHub Issues kullanın.
+For more troubleshooting help, see [PROJECT_GUIDE.md](PROJECT_GUIDE.md#troubleshooting).
 
+---
 
+## 📝 API Documentation
+
+Interactive API documentation is available when the backend is running:
+
+- **Swagger UI:** http://localhost:8000/docs
+- **ReDoc:** http://localhost:8000/redoc
+
+For detailed API documentation, see [PROJECT_GUIDE.md](PROJECT_GUIDE.md#api-documentation).
+
+---
+
+## 🤝 Contributing
+
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'feat: Add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
+
+---
+
+## 📄 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+---
+
+## 🙏 Acknowledgments
+
+- [MikroTik](https://mikrotik.com/) - RouterOS and API
+- [WireGuard](https://www.wireguard.com/) - Fast, modern VPN protocol
+- [FastAPI](https://fastapi.tiangolo.com/) - Modern Python web framework
+- [React](https://react.dev/) - UI library
+
+---
+
+## 📞 Support
+
+For issues and questions:
+- 📋 [GitHub Issues](https://github.com/yourusername/wg-manager/issues)
+- 📧 Email: support@example.com
+- 📖 Documentation: [PROJECT_GUIDE.md](PROJECT_GUIDE.md)
+
+---
+
+**Made with ❤️ using FastAPI and React**
