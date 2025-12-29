@@ -2876,3 +2876,68 @@ async def bulk_delete_peers(
     except Exception as e:
         logger.error(f"❌ Toplu peer silme hatası: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/sync")
+async def sync_wireguard_from_mikrotik(
+    request: Request,
+    force: bool = Query(False, description="Sync tamamlanmış olsa bile yeniden sync yap"),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    MikroTik'teki mevcut WireGuard yapılandırmasını database'e manuel olarak sync eder
+
+    Args:
+        force: True ise sync tamamlanmış olsa bile yeniden sync yapar
+        db: Database session
+        current_user: Mevcut kullanıcı
+
+    Returns:
+        Sync istatistikleri ve sonuçları
+    """
+    try:
+        from app.services.sync_service import SyncService
+        from app.utils.activity_logger import ActivityLogger
+
+        # Sync durumunu kontrol et
+        sync_status = await SyncService.check_sync_status(db)
+
+        if sync_status and not force:
+            return {
+                "success": False,
+                "message": "İlk senkronizasyon zaten tamamlanmış. Yeniden sync için force=true kullanın",
+                "already_synced": True
+            }
+
+        # Sync başlat
+        logger.info(f"Manuel sync tetiklendi: {current_user.username}")
+        sync_result = await SyncService.perform_initial_sync(db)
+
+        # Activity log kaydet
+        await ActivityLogger.log(
+            db=db,
+            request=request,
+            action="manual_sync",
+            category="wireguard",
+            description=f"Manuel MikroTik sync: {sync_result['interfaces_synced']} interface, {sync_result['peers_synced']} peer",
+            user=current_user,
+            success='success' if sync_result['success'] else 'error',
+            error_message="; ".join(sync_result['errors']) if sync_result['errors'] else None
+        )
+
+        return {
+            "success": sync_result["success"],
+            "message": "Senkronizasyon tamamlandı",
+            "stats": {
+                "interfaces_synced": sync_result["interfaces_synced"],
+                "peers_synced": sync_result["peers_synced"],
+                "errors": sync_result["errors"]
+            }
+        }
+
+    except Exception as e:
+        logger.error(f"Manuel sync hatası: {e}")
+        import traceback
+        logger.debug(traceback.format_exc())
+        raise HTTPException(status_code=500, detail=str(e))

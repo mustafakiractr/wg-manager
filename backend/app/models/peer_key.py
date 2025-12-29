@@ -21,7 +21,7 @@ class PeerKey(Base):
     peer_id = Column(String, nullable=False, index=True)  # MikroTik peer ID
     interface_name = Column(String, nullable=False, index=True)  # Interface adı
     public_key = Column(String, nullable=False, index=True, unique=True)  # Peer public key (unique)
-    private_key = Column(Text, nullable=False)  # Private key (şifrelenmiş olarak saklanmalı)
+    private_key = Column(Text, nullable=True)  # Private key (MikroTik'ten import edilen peer'lar için NULL olabilir, sonradan manuel girilebilir)
     client_allowed_ips = Column(Text, nullable=True)  # Client'ın AllowedIPs değeri (config dosyası için)
     endpoint_address = Column(String, nullable=True)  # Endpoint adresi (DNS veya IP)
     endpoint_port = Column(Integer, nullable=True)  # Endpoint port numarası

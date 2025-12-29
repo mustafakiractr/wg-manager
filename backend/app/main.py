@@ -75,6 +75,37 @@ async def lifespan(app: FastAPI):
                         if connected:
                             logger.info(f"✅ MikroTik bağlantısı başarıyla kuruldu: {mikrotik_conn.host}:{mikrotik_conn.port}")
                             logger.info("MikroTik bağlantısı WireGuard işlemleri için açık tutuluyor")
+
+                            # İlk senkronizasyon kontrolü
+                            try:
+                                from app.services.sync_service import SyncService
+
+                                sync_needed = not await SyncService.check_sync_status(session)
+
+                                if sync_needed:
+                                    logger.info("🔄 İlk senkronizasyon başlatılıyor...")
+                                    sync_result = await SyncService.perform_initial_sync(session)
+
+                                    if sync_result["success"]:
+                                        logger.info(
+                                            f"✅ Senkronizasyon tamamlandı: "
+                                            f"{sync_result['interfaces_synced']} interface, "
+                                            f"{sync_result['peers_synced']} peer"
+                                        )
+                                    else:
+                                        logger.warning(
+                                            f"⚠️ Senkronizasyon kısmen başarılı: "
+                                            f"{len(sync_result['errors'])} hata"
+                                        )
+                                else:
+                                    logger.info("✓ İlk senkronizasyon daha önce tamamlanmış")
+
+                            except Exception as sync_error:
+                                # Sync hatası app'i crash ettirmemeli
+                                logger.error(f"❌ Senkronizasyon hatası: {sync_error}")
+                                logger.warning("Uygulama normal şekilde devam ediyor")
+                                import traceback
+                                logger.debug(traceback.format_exc())
                         else:
                             logger.error(f"❌ MikroTik bağlantısı kurulamadı: {mikrotik_conn.host}:{mikrotik_conn.port}")
                             logger.warning("WireGuard işlemleri sırasında tekrar denenilecek")

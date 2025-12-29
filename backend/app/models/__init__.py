@@ -12,6 +12,7 @@ from app.models.activity_log import ActivityLog
 from app.models.session import Session
 from app.models.peer_metadata import PeerMetadata
 from app.models.peer_template import PeerTemplate
+from app.models.sync_status import SyncStatus
 
 __all__ = [
     "User",
@@ -27,5 +28,6 @@ __all__ = [
     "ActivityLog",
     "Session",
     "PeerMetadata",
-    "PeerTemplate"
+    "PeerTemplate",
+    "SyncStatus"
 ]
