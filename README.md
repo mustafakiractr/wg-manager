@@ -25,10 +25,13 @@ Modern web-based management interface for MikroTik RouterOS v7+ WireGuard VPN.
 
 ### Prerequisites
 
-- Python 3.9+
-- Node.js 18+
-- MikroTik RouterOS v7+
-- 1GB RAM, 1GB disk space
+**System Requirements:**
+- Ubuntu 20.04+ / Debian 11+ / CentOS 8+ (or similar Linux)
+- 1GB RAM minimum (2GB recommended)
+- 1GB disk space
+- MikroTik RouterOS v7+ with API enabled
+
+**Note:** Python 3.9+, Node.js 18+, and all other dependencies will be **automatically installed** by the installation script!
 
 ### Installation
 
@@ -37,14 +40,13 @@ Modern web-based management interface for MikroTik RouterOS v7+ WireGuard VPN.
 git clone https://github.com/mustafakiractr/wg-manager.git /opt/wg-manager
 cd /opt/wg-manager
 
-# Run installation script
-sudo bash install.sh
+# OPTION 1: Quick Start (Recommended - Auto-installs everything)
+sudo bash quick-start.sh
 
-# Configure environment
-bash setup_environment.sh
-
-# Start services
-bash start_all.sh
+# OPTION 2: Manual Installation
+sudo bash install.sh  # Auto-installs Python, Node.js, npm and all dependencies
+nano backend/.env     # Configure MikroTik connection
+bash start_all.sh     # Start services
 ```
 
 ### Access the Application

@@ -2,9 +2,10 @@
 
 #############################################
 # MikroTik WireGuard Yönetim Paneli
-# Otomatik Kurulum Scripti
+# Otomatik Kurulum Scripti v2.0
 #
 # Kullanım: sudo bash install.sh
+# Tüm bağımlılıkları otomatik yükler
 #############################################
 
 set -e  # Hata durumunda dur
@@ -20,7 +21,8 @@ NC='\033[0m' # No Color
 echo -e "${BLUE}"
 echo "╔════════════════════════════════════════════╗"
 echo "║  MikroTik WireGuard Yönetim Paneli        ║"
-echo "║  Otomatik Kurulum v1.0                     ║"
+echo "║  Otomatik Kurulum v2.0                     ║"
+echo "║  🚀 Tüm Bağımlılıkları Otomatik Yükler    ║"
 echo "╚════════════════════════════════════════════╝"
 echo -e "${NC}"
 
@@ -36,7 +38,7 @@ INSTALL_DIR=$(pwd)
 BACKEND_DIR="$INSTALL_DIR/backend"
 FRONTEND_DIR="$INSTALL_DIR/frontend"
 PYTHON_MIN_VERSION="3.9"
-NODE_MIN_VERSION="16"
+NODE_MIN_VERSION="18"
 
 echo -e "${BLUE}📍 Kurulum dizini: $INSTALL_DIR${NC}"
 echo ""
@@ -63,10 +65,8 @@ print_warning() {
 
 check_command() {
     if command -v $1 &> /dev/null; then
-        print_success "$1 bulundu"
         return 0
     else
-        print_error "$1 bulunamadı"
         return 1
     fi
 }
@@ -77,90 +77,165 @@ version_ge() {
 }
 
 #############################################
-# 1. Sistem Gereksinimleri Kontrolü
+# 0. Sistem Bilgisi
 #############################################
 
-print_step "Sistem gereksinimleri kontrol ediliyor..."
+print_step "Sistem bilgileri alınıyor..."
 
 # İşletim sistemi
 if [ -f /etc/os-release ]; then
     . /etc/os-release
     print_success "İşletim Sistemi: $NAME $VERSION"
+    OS_ID=$ID
 else
     print_warning "İşletim sistemi tanımlanamadı"
+    OS_ID="unknown"
 fi
-
-# Python kontrolü
-if check_command python3; then
-    PYTHON_VERSION=$(python3 --version | cut -d' ' -f2)
-    if version_ge "$PYTHON_VERSION" "$PYTHON_MIN_VERSION"; then
-        print_success "Python $PYTHON_VERSION (Minimum: $PYTHON_MIN_VERSION)"
-    else
-        print_error "Python $PYTHON_VERSION çok eski! Minimum $PYTHON_MIN_VERSION gerekli"
-        exit 1
-    fi
-else
-    print_error "Python3 bulunamadı!"
-    echo -e "${YELLOW}Yüklemek için: apt-get install python3 python3-pip python3-venv${NC}"
-    exit 1
-fi
-
-# Node.js kontrolü
-if check_command node; then
-    NODE_VERSION=$(node --version | cut -d'v' -f2)
-    if version_ge "$NODE_VERSION" "$NODE_MIN_VERSION"; then
-        print_success "Node.js v$NODE_VERSION (Minimum: $NODE_MIN_VERSION)"
-    else
-        print_error "Node.js v$NODE_VERSION çok eski! Minimum $NODE_MIN_VERSION gerekli"
-        exit 1
-    fi
-else
-    print_error "Node.js bulunamadı!"
-    echo -e "${YELLOW}Yüklemek için: curl -fsSL https://deb.nodesource.com/setup_18.x | bash - && apt-get install -y nodejs${NC}"
-    exit 1
-fi
-
-# npm kontrolü
-check_command npm || {
-    print_error "npm bulunamadı!"
-    exit 1
-}
-
-# Git kontrolü (opsiyonel)
-check_command git || print_warning "Git bulunamadı (opsiyonel)"
 
 echo ""
 
 #############################################
-# 2. Sistem Paketlerini Güncelle
+# 1. Sistem Paketlerini Güncelle
 #############################################
 
 print_step "Sistem paketleri güncelleniyor..."
-apt-get update -qq || print_warning "apt-get update başarısız (devam ediliyor)"
-print_success "Paket listesi güncellendi"
+
+if [ "$OS_ID" = "ubuntu" ] || [ "$OS_ID" = "debian" ]; then
+    apt-get update -qq && apt-get upgrade -y -qq
+    print_success "Sistem paketleri güncellendi"
+elif [ "$OS_ID" = "centos" ] || [ "$OS_ID" = "rhel" ] || [ "$OS_ID" = "fedora" ]; then
+    yum update -y -q
+    print_success "Sistem paketleri güncellendi"
+else
+    print_warning "Bilinmeyen işletim sistemi, manuel güncelleme gerekebilir"
+fi
+
 echo ""
 
 #############################################
-# 3. Gerekli Sistem Paketleri
+# 2. Python 3.9+ Kurulumu
+#############################################
+
+print_step "Python kontrolü ve kurulumu..."
+
+if check_command python3; then
+    PYTHON_VERSION=$(python3 --version | cut -d' ' -f2)
+    if version_ge "$PYTHON_VERSION" "$PYTHON_MIN_VERSION"; then
+        print_success "Python $PYTHON_VERSION mevcut"
+    else
+        print_warning "Python $PYTHON_VERSION çok eski, güncelleniyor..."
+        if [ "$OS_ID" = "ubuntu" ] || [ "$OS_ID" = "debian" ]; then
+            apt-get install -y -qq software-properties-common
+            add-apt-repository -y ppa:deadsnakes/ppa
+            apt-get update -qq
+            apt-get install -y -qq python3.11 python3.11-venv python3.11-dev
+            update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.11 1
+            print_success "Python 3.11 yüklendi"
+        fi
+    fi
+else
+    print_step "Python yükleniyor..."
+    if [ "$OS_ID" = "ubuntu" ] || [ "$OS_ID" = "debian" ]; then
+        apt-get install -y -qq software-properties-common
+        add-apt-repository -y ppa:deadsnakes/ppa
+        apt-get update -qq
+        apt-get install -y -qq python3.11 python3.11-venv python3.11-dev python3-pip
+        update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.11 1
+        print_success "Python 3.11 yüklendi"
+    elif [ "$OS_ID" = "centos" ] || [ "$OS_ID" = "rhel" ]; then
+        yum install -y -q python39 python39-devel python39-pip
+        print_success "Python 3.9 yüklendi"
+    else
+        print_error "Python otomatik yüklenemedi. Manuel olarak yükleyin."
+        exit 1
+    fi
+fi
+
+# pip kontrolü ve kurulumu
+if ! check_command pip3; then
+    print_step "pip yükleniyor..."
+    if [ "$OS_ID" = "ubuntu" ] || [ "$OS_ID" = "debian" ]; then
+        apt-get install -y -qq python3-pip
+    elif [ "$OS_ID" = "centos" ] || [ "$OS_ID" = "rhel" ]; then
+        yum install -y -q python3-pip
+    fi
+    print_success "pip yüklendi"
+fi
+
+echo ""
+
+#############################################
+# 3. Node.js ve npm Kurulumu
+#############################################
+
+print_step "Node.js kontrolü ve kurulumu..."
+
+if check_command node; then
+    NODE_VERSION=$(node --version | cut -d'v' -f2)
+    if version_ge "$NODE_VERSION" "$NODE_MIN_VERSION"; then
+        print_success "Node.js v$NODE_VERSION mevcut"
+    else
+        print_warning "Node.js v$NODE_VERSION çok eski, güncelleniyor..."
+        # Eski Node.js'i kaldır ve yeni yükle
+        if [ "$OS_ID" = "ubuntu" ] || [ "$OS_ID" = "debian" ]; then
+            apt-get remove -y -qq nodejs npm || true
+            curl -fsSL https://deb.nodesource.com/setup_18.x | bash -
+            apt-get install -y -qq nodejs
+            print_success "Node.js 18.x yüklendi"
+        fi
+    fi
+else
+    print_step "Node.js yükleniyor (Node.js 18.x LTS)..."
+    if [ "$OS_ID" = "ubuntu" ] || [ "$OS_ID" = "debian" ]; then
+        curl -fsSL https://deb.nodesource.com/setup_18.x | bash -
+        apt-get install -y -qq nodejs
+        print_success "Node.js 18.x yüklendi"
+    elif [ "$OS_ID" = "centos" ] || [ "$OS_ID" = "rhel" ]; then
+        curl -fsSL https://rpm.nodesource.com/setup_18.x | bash -
+        yum install -y -q nodejs
+        print_success "Node.js 18.x yüklendi"
+    else
+        print_error "Node.js otomatik yüklenemedi. Manuel olarak yükleyin:"
+        echo "https://nodejs.org/en/download/"
+        exit 1
+    fi
+fi
+
+# npm kontrolü
+if ! check_command npm; then
+    print_error "npm yüklenemedi!"
+    exit 1
+fi
+
+print_success "npm $(npm --version) mevcut"
+
+echo ""
+
+#############################################
+# 4. Gerekli Sistem Paketleri
 #############################################
 
 print_step "Gerekli sistem paketleri yükleniyor..."
 
-REQUIRED_PACKAGES="build-essential libssl-dev libffi-dev python3-dev python3-venv curl"
+if [ "$OS_ID" = "ubuntu" ] || [ "$OS_ID" = "debian" ]; then
+    REQUIRED_PACKAGES="build-essential libssl-dev libffi-dev python3-dev python3-venv curl wget git sqlite3"
 
-for package in $REQUIRED_PACKAGES; do
-    if dpkg -l | grep -q "^ii  $package"; then
-        print_success "$package zaten yüklü"
-    else
-        print_step "$package yükleniyor..."
-        apt-get install -y -qq $package || print_warning "$package yüklenemedi"
-    fi
-done
+    for package in $REQUIRED_PACKAGES; do
+        if ! dpkg -l | grep -q "^ii  $package"; then
+            print_step "$package yükleniyor..."
+            apt-get install -y -qq $package || print_warning "$package yüklenemedi"
+        fi
+    done
+elif [ "$OS_ID" = "centos" ] || [ "$OS_ID" = "rhel" ]; then
+    yum groupinstall -y -q "Development Tools"
+    yum install -y -q openssl-devel libffi-devel python3-devel curl wget git sqlite
+fi
 
+print_success "Sistem paketleri yüklendi"
 echo ""
 
 #############################################
-# 4. Backend Kurulumu
+# 5. Backend Kurulumu
 #############################################
 
 print_step "Backend kurulumu başlatılıyor..."
@@ -186,13 +261,13 @@ source venv/bin/activate
 
 # pip güncelle
 print_step "pip güncelleniyor..."
-pip install --upgrade pip -q
+pip install --upgrade pip setuptools wheel -q
 print_success "pip güncellendi"
 
 # Backend bağımlılıkları yükle
 print_step "Backend bağımlılıkları yükleniyor (bu biraz zaman alabilir)..."
 if [ -f "requirements.txt" ]; then
-    pip install -r requirements.txt -q
+    pip install -r requirements.txt
     print_success "Backend bağımlılıkları yüklendi"
 else
     print_error "requirements.txt bulunamadı!"
@@ -207,7 +282,13 @@ if [ ! -f ".env" ]; then
 
         # Güvenli SECRET_KEY oluştur
         NEW_SECRET_KEY=$(python3 -c "import secrets; print(secrets.token_hex(32))")
-        sed -i "s/SECRET_KEY=.*/SECRET_KEY=\"$NEW_SECRET_KEY\"/" .env
+
+        # Platform uyumlu sed kullan
+        if [[ "$OSTYPE" == "darwin"* ]]; then
+            sed -i '' "s/SECRET_KEY=.*/SECRET_KEY=\"$NEW_SECRET_KEY\"/" .env
+        else
+            sed -i "s/SECRET_KEY=.*/SECRET_KEY=\"$NEW_SECRET_KEY\"/" .env
+        fi
 
         print_success ".env dosyası oluşturuldu ve SECRET_KEY güncellendi"
         print_warning "MikroTik bağlantı bilgilerini .env dosyasından düzenleyin!"
@@ -220,7 +301,8 @@ fi
 
 # Log dizini oluştur
 mkdir -p logs
-print_success "Log dizini hazır"
+mkdir -p backups
+print_success "Log ve backup dizinleri hazır"
 
 # Database oluştur ve varsayılan kullanıcıyı ekle
 print_step "Veritabanı başlatılıyor ve varsayılan kullanıcı oluşturuluyor..."
@@ -228,10 +310,10 @@ if [ -f "init_db.py" ]; then
     python3 init_db.py || print_warning "Veritabanı başlatma uyarısı (devam ediliyor)"
     print_success "Veritabanı hazır ve admin kullanıcısı oluşturuldu"
     echo ""
-    print_success "Varsayılan Giriş Bilgileri:"
-    echo "  Kullanıcı Adı: admin"
-    echo "  Şifre: admin123"
-    print_warning "İlk girişten sonra mutlaka şifrenizi değiştirin!"
+    print_success "📋 Varsayılan Giriş Bilgileri:"
+    echo "  Kullanıcı Adı: ${GREEN}admin${NC}"
+    echo "  Şifre: ${GREEN}admin123${NC}"
+    print_warning "⚠️  İlk girişten sonra mutlaka şifrenizi değiştirin!"
     echo ""
 else
     print_warning "init_db.py bulunamadı, veritabanı manuel olarak başlatılmalı"
@@ -243,7 +325,7 @@ cd "$INSTALL_DIR"
 echo ""
 
 #############################################
-# 5. Frontend Kurulumu
+# 6. Frontend Kurulumu
 #############################################
 
 print_step "Frontend kurulumu başlatılıyor..."
@@ -258,11 +340,21 @@ cd "$FRONTEND_DIR"
 # Node modüllerini yükle
 print_step "Frontend bağımlılıkları yükleniyor (bu biraz zaman alabilir)..."
 if [ -f "package.json" ]; then
-    npm install --silent
+    # npm cache temizle
+    npm cache clean --force 2>/dev/null || true
+
+    # Bağımlılıkları yükle
+    npm install
+
     print_success "Frontend bağımlılıkları yüklendi"
 else
     print_error "package.json bulunamadı!"
     exit 1
+fi
+
+# Build için gerekli araçları kontrol et
+if ! check_command npx; then
+    print_warning "npx bulunamadı, npm ile yeniden denenecek"
 fi
 
 cd "$INSTALL_DIR"
@@ -270,99 +362,114 @@ cd "$INSTALL_DIR"
 echo ""
 
 #############################################
-# 6. Çalıştırma Scriptlerini Hazırla
+# 7. Çalıştırma Scriptlerini Hazırla
 #############################################
 
 print_step "Çalıştırma scriptleri hazırlanıyor..."
 
-# start_all.sh zaten mevcut, executable yap
-chmod +x start_all.sh 2>/dev/null || true
-chmod +x status.sh 2>/dev/null || true
-chmod +x restart_all.sh 2>/dev/null || true
+# Tüm scriptleri executable yap
+for script in *.sh; do
+    [ -f "$script" ] && chmod +x "$script"
+done
 
 print_success "Çalıştırma scriptleri hazır"
 echo ""
 
 #############################################
-# 7. Systemd Servis Dosyaları (Opsiyonel)
+# 8. Systemd Servis Dosyaları (Opsiyonel)
 #############################################
 
-read -p "$(echo -e ${YELLOW}Systemd servisleri oluşturulsun mu? (y/N): ${NC})" -n 1 -r
-echo
-if [[ $REPLY =~ ^[Yy]$ ]]; then
-    print_step "Systemd servisleri oluşturuluyor..."
+if [ ! -f "/.dockerenv" ] && [ -d "/etc/systemd/system" ]; then
+    read -p "$(echo -e ${YELLOW}Systemd servisleri oluşturulsun mu? \(y/N\): ${NC})" -n 1 -r
+    echo
+    if [[ $REPLY =~ ^[Yy]$ ]]; then
+        print_step "Systemd servisleri oluşturuluyor..."
 
-    # Backend service
-    cat > /etc/systemd/system/wg-backend.service << EOF
+        # Backend service
+        cat > /etc/systemd/system/wg-manager-backend.service << EOF
 [Unit]
-Description=MikroTik WireGuard Manager Backend
+Description=WireGuard Manager Backend API
 After=network.target
 
 [Service]
 Type=simple
-User=$SUDO_USER
+User=${SUDO_USER:-$USER}
 WorkingDirectory=$BACKEND_DIR
-Environment="PATH=$BACKEND_DIR/venv/bin"
-ExecStart=$BACKEND_DIR/venv/bin/python $BACKEND_DIR/run.py
+Environment="PATH=$BACKEND_DIR/venv/bin:/usr/bin:/bin"
+ExecStart=$BACKEND_DIR/venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8001
 Restart=always
 RestartSec=10
+StandardOutput=journal
+StandardError=journal
 
 [Install]
 WantedBy=multi-user.target
 EOF
 
-    # Frontend service
-    cat > /etc/systemd/system/wg-frontend.service << EOF
+        # Frontend service (development mode)
+        cat > /etc/systemd/system/wg-manager-frontend.service << EOF
 [Unit]
-Description=MikroTik WireGuard Manager Frontend
-After=network.target
+Description=WireGuard Manager Frontend
+After=network.target wg-manager-backend.service
 
 [Service]
 Type=simple
-User=$SUDO_USER
+User=${SUDO_USER:-$USER}
 WorkingDirectory=$FRONTEND_DIR
-ExecStart=/usr/bin/npm run dev
+Environment="PATH=/usr/bin:/bin"
+ExecStart=/usr/bin/npm run dev -- --host 0.0.0.0
 Restart=always
 RestartSec=10
+StandardOutput=journal
+StandardError=journal
 
 [Install]
 WantedBy=multi-user.target
 EOF
 
-    systemctl daemon-reload
-    print_success "Systemd servisleri oluşturuldu"
-    print_warning "Servisleri başlatmak için: systemctl start wg-backend wg-frontend"
-    print_warning "Otomatik başlatma için: systemctl enable wg-backend wg-frontend"
-else
-    print_warning "Systemd servisleri oluşturulmadı"
-fi
-
-echo ""
-
-#############################################
-# 8. Güvenlik Kontrolleri
-#############################################
-
-print_step "Güvenlik kontrolleri yapılıyor..."
-
-# Firewall kontrol
-if command -v ufw &> /dev/null; then
-    print_warning "UFW firewall aktif. Port 8001 ve 5173'ü açmayı unutmayın:"
-    echo "  sudo ufw allow 8001/tcp"
-    echo "  sudo ufw allow 5173/tcp"
-fi
-
-# SELinux kontrol
-if command -v getenforce &> /dev/null; then
-    if [ "$(getenforce)" != "Disabled" ]; then
-        print_warning "SELinux aktif. Port ayarları gerekebilir"
+        systemctl daemon-reload
+        print_success "Systemd servisleri oluşturuldu"
+        echo ""
+        print_warning "📝 Servisleri başlatmak için:"
+        echo "  sudo systemctl start wg-manager-backend"
+        echo "  sudo systemctl start wg-manager-frontend"
+        echo ""
+        print_warning "📝 Otomatik başlatma için:"
+        echo "  sudo systemctl enable wg-manager-backend"
+        echo "  sudo systemctl enable wg-manager-frontend"
+        echo ""
+    else
+        print_warning "Systemd servisleri oluşturulmadı"
     fi
 fi
 
 echo ""
 
 #############################################
-# 9. Kurulum Tamamlandı
+# 9. Güvenlik Kontrolleri
+#############################################
+
+print_step "Güvenlik kontrolleri yapılıyor..."
+
+# Firewall kontrol
+if check_command ufw && ufw status | grep -q "Status: active"; then
+    print_warning "🔥 UFW firewall aktif. Portları açmak için:"
+    echo "  sudo ufw allow 8001/tcp comment 'WireGuard Manager Backend'"
+    echo "  sudo ufw allow 5173/tcp comment 'WireGuard Manager Frontend'"
+    echo ""
+fi
+
+# SELinux kontrol
+if check_command getenforce; then
+    if [ "$(getenforce)" != "Disabled" ]; then
+        print_warning "🔒 SELinux aktif. Port ayarları gerekebilir"
+    fi
+fi
+
+echo ""
+
+#############################################
+# 10. Kurulum Tamamlandı
 #############################################
 
 echo -e "${GREEN}"
@@ -375,6 +482,10 @@ echo -e "${BLUE}📋 Sonraki Adımlar:${NC}"
 echo ""
 echo "1️⃣  MikroTik bağlantı bilgilerini düzenleyin:"
 echo "   ${YELLOW}nano backend/.env${NC}"
+echo "   Değiştirmeniz gereken alanlar:"
+echo "   - MIKROTIK_HOST"
+echo "   - MIKROTIK_USER"
+echo "   - MIKROTIK_PASSWORD"
 echo ""
 echo "2️⃣  Uygulamayı başlatın:"
 echo "   ${YELLOW}bash start_all.sh${NC}"
@@ -382,21 +493,29 @@ echo ""
 echo "3️⃣  Durum kontrolü:"
 echo "   ${YELLOW}bash status.sh${NC}"
 echo ""
-echo "4️⃣  Erişim:"
-echo "   Frontend: ${GREEN}http://$(hostname -I | awk '{print $1}'):5173${NC}"
-echo "   Backend:  ${GREEN}http://$(hostname -I | awk '{print $1}'):8001${NC}"
-echo "   API Docs: ${GREEN}http://$(hostname -I | awk '{print $1}'):8001/docs${NC}"
+echo "4️⃣  Erişim adresleri:"
+SERVER_IP=$(hostname -I | awk '{print $1}' || echo "localhost")
+echo "   Frontend:  ${GREEN}http://$SERVER_IP:5173${NC}"
+echo "   Backend:   ${GREEN}http://$SERVER_IP:8001${NC}"
+echo "   API Docs:  ${GREEN}http://$SERVER_IP:8001/docs${NC}"
 echo ""
 echo "5️⃣  Servisleri durdurmak için:"
-echo "   ${YELLOW}pkill -f 'python.*run.py' && pkill -f 'vite'${NC}"
+echo "   ${YELLOW}pkill -f 'uvicorn' && pkill -f 'vite'${NC}"
 echo ""
 
-# Opsiyonel: İlk kullanıcı oluşturma
-echo -e "${BLUE}💡 İpuçları:${NC}"
-echo "  • Default admin kullanıcısını ilk girişte değiştirin"
-echo "  • Production'da SECRET_KEY'i mutlaka değiştirin"
-echo "  • CORS_ORIGINS'i production domain'leriniz ile güncelleyin"
-echo "  • Güvenlik ayarları için SECURITY.md dosyasına bakın"
+# Opsiyonel: İpuçları
+echo -e "${BLUE}💡 Önemli Güvenlik Notları:${NC}"
+echo "  • ${YELLOW}İlk girişte admin şifresini mutlaka değiştirin${NC}"
+echo "  • Production'da ENVIRONMENT=production ayarlayın"
+echo "  • HTTPS kullanın (nginx/apache reverse proxy)"
+echo "  • Firewall kurallarını düzenleyin"
+echo "  • Düzenli yedekleme yapın"
 echo ""
 
-print_success "Kurulum başarıyla tamamlandı!"
+print_success "🎉 Kurulum başarıyla tamamlandı!"
+echo ""
+echo -e "${BLUE}📚 Daha fazla bilgi için:${NC}"
+echo "  • README.md"
+echo "  • PROJECT_GUIDE.md"
+echo "  • https://github.com/mustafakiractr/wg-manager"
+echo ""
