@@ -61,6 +61,7 @@ backups/
 *.rar
 *.7z
 *.sha256
+archive/
 
 # Claude Code
 .claude/
