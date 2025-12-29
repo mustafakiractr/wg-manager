@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react';
-import axios from 'axios';
 import {
   Database,
   HardDrive,
@@ -16,8 +15,7 @@ import {
   Archive
 } from 'lucide-react';
 import { useToast } from '../context/ToastContext';
-
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1';
+import api from '../services/api';
 
 export default function BackupManagement() {
   const [backups, setBackups] = useState([]);
@@ -44,16 +42,13 @@ export default function BackupManagement() {
       setLoading(true);
 
       // Load backups
-      const backupsRes = await axios.get(`${API_URL}/backup/list`, {
-        params: filterType !== 'all' ? { backup_type: filterType } : {},
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+      const backupsRes = await api.get('/backup/list', {
+        params: filterType !== 'all' ? { backup_type: filterType } : {}
       });
       setBackups(backupsRes.data.backups || []);
 
       // Load stats
-      const statsRes = await axios.get(`${API_URL}/backup/stats`, {
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
-      });
+      const statsRes = await api.get('/backup/stats');
       setStats(statsRes.data.stats);
 
     } catch (error) {
@@ -68,14 +63,10 @@ export default function BackupManagement() {
     try {
       setCreating(true);
 
-      await axios.post(
-        `${API_URL}/backup/create`,
-        {
-          backup_type: createType,
-          description: description || `${createType === 'database' ? 'Database' : 'Full'} backup - ${new Date().toLocaleString()}`
-        },
-        { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } }
-      );
+      await api.post('/backup/create', {
+        backup_type: createType,
+        description: description || `${createType === 'database' ? 'Database' : 'Full'} backup - ${new Date().toLocaleString()}`
+      });
 
       toast.success('Backup başarıyla oluşturuldu');
       setShowCreateModal(false);
@@ -95,15 +86,11 @@ export default function BackupManagement() {
     try {
       setCreating(true);
 
-      await axios.post(
-        `${API_URL}/backup/restore`,
-        {
-          backup_name: selectedBackup.filename || selectedBackup.dirname,
-          backup_type: selectedBackup.backup_type,
-          create_backup_before: createBeforeRestore
-        },
-        { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } }
-      );
+      await api.post('/backup/restore', {
+        backup_name: selectedBackup.filename || selectedBackup.dirname,
+        backup_type: selectedBackup.backup_type,
+        create_backup_before: createBeforeRestore
+      });
 
       toast.success('Backup başarıyla geri yüklendi');
       setShowRestoreModal(false);
@@ -128,9 +115,8 @@ export default function BackupManagement() {
     }
 
     try {
-      await axios.delete(`${API_URL}/backup/delete`, {
-        data: { backup_name: backup.filename || backup.dirname },
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+      await api.delete('/backup/delete', {
+        data: { backup_name: backup.filename || backup.dirname }
       });
 
       toast.success('Backup silindi');
