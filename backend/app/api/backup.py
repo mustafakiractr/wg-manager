@@ -1,16 +1,17 @@
 """
 Backup/Restore API endpoints
-WireGuard konfigürasyon yedekleme ve geri yükleme
+WireGuard konfigürasyon, database ve full system backup/restore
 """
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 from app.mikrotik.connection import mikrotik_conn
 from app.security.auth import get_current_user
 from app.models.user import User
 from app.database.database import get_db
 from app.services.log_service import create_log
+from app.services.backup_service import backup_service
 from sqlalchemy.ext.asyncio import AsyncSession
 import logging
 from datetime import datetime
@@ -267,6 +268,240 @@ async def restore_wireguard_config(
             user=current_user.username,
             details=f"Restore hatası: {str(e)}",
             success=False
+        )
+
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ===== Database & Full System Backup Endpoints =====
+
+class CreateBackupRequest(BaseModel):
+    """Backup oluşturma isteği"""
+    backup_type: str  # "database" veya "full"
+    description: str = ""
+
+
+@router.post("/backup/create")
+async def create_backup(
+    request: CreateBackupRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Yeni backup oluşturur
+
+    Args:
+        request: Backup tipi ve açıklama
+            - backup_type: "database" veya "full"
+            - description: Backup açıklaması (opsiyonel)
+    """
+    try:
+        logger.info(f"💾 Backup oluşturma: Tip={request.backup_type}, Kullanıcı={current_user.username}")
+
+        if request.backup_type == "database":
+            result = backup_service.create_database_backup(description=request.description)
+        elif request.backup_type == "full":
+            result = backup_service.create_full_backup(description=request.description)
+        else:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Geçersiz backup tipi: {request.backup_type}. 'database' veya 'full' olmalı."
+            )
+
+        # Log kaydı
+        await create_log(
+            db=db,
+            username=current_user.username,
+            action="create_backup",
+            details=f"{request.backup_type} backup oluşturuldu: {result.get('backup_name')}"
+        )
+
+        logger.info(f"✅ Backup oluşturuldu: {result.get('backup_name')}")
+
+        return {
+            "success": True,
+            "message": "Backup başarıyla oluşturuldu",
+            "backup": result
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Backup oluşturma hatası: {e}")
+
+        await create_log(
+            db=db,
+            username=current_user.username,
+            action="create_backup_error",
+            details=f"Backup oluşturma hatası: {str(e)}"
+        )
+
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/backup/list")
+async def list_backups(
+    backup_type: Optional[str] = None,
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Mevcut backup'ları listeler
+
+    Args:
+        backup_type: Backup tipi filtresi ("database", "full", veya None=hepsi)
+    """
+    try:
+        backups = backup_service.list_backups(backup_type=backup_type)
+
+        return {
+            "success": True,
+            "backups": backups,
+            "count": len(backups)
+        }
+
+    except Exception as e:
+        logger.error(f"❌ Backup listesi hatası: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/backup/stats")
+async def get_backup_stats(
+    current_user: User = Depends(get_current_user)
+):
+    """Backup istatistiklerini döner"""
+    try:
+        stats = backup_service.get_backup_stats()
+
+        return {
+            "success": True,
+            "stats": stats
+        }
+
+    except Exception as e:
+        logger.error(f"❌ Backup stats hatası: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+class RestoreBackupRequest(BaseModel):
+    """Backup geri yükleme isteği"""
+    backup_name: str
+    backup_type: str  # "database" veya "full"
+    create_backup_before: bool = True
+
+
+@router.post("/backup/restore")
+async def restore_backup(
+    request: RestoreBackupRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Backup'tan geri yükler
+
+    Args:
+        request: Geri yükleme parametreleri
+            - backup_name: Geri yüklenecek backup adı
+            - backup_type: "database" veya "full"
+            - create_backup_before: Geri yüklemeden önce mevcut durumu yedekle
+    """
+    try:
+        logger.info(f"♻️ Backup restore: {request.backup_name}, Kullanıcı={current_user.username}")
+
+        if request.backup_type == "database":
+            result = backup_service.restore_database_backup(
+                backup_name=request.backup_name,
+                create_backup_before=request.create_backup_before
+            )
+        elif request.backup_type == "full":
+            result = backup_service.restore_full_backup(
+                backup_name=request.backup_name,
+                create_backup_before=request.create_backup_before
+            )
+        else:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Geçersiz backup tipi: {request.backup_type}"
+            )
+
+        # Log kaydı
+        await create_log(
+            db=db,
+            username=current_user.username,
+            action="restore_backup",
+            details=f"Backup geri yüklendi: {request.backup_name}"
+        )
+
+        logger.info(f"✅ Backup geri yüklendi: {request.backup_name}")
+
+        return {
+            "success": True,
+            "message": "Backup başarıyla geri yüklendi",
+            "result": result
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Backup restore hatası: {e}")
+
+        await create_log(
+            db=db,
+            username=current_user.username,
+            action="restore_backup_error",
+            details=f"Backup restore hatası: {str(e)}"
+        )
+
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+class DeleteBackupRequest(BaseModel):
+    """Backup silme isteği"""
+    backup_name: str
+
+
+@router.delete("/backup/delete")
+async def delete_backup(
+    request: DeleteBackupRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Backup'ı siler
+
+    Args:
+        request: Silinecek backup adı
+    """
+    try:
+        logger.info(f"🗑️ Backup silme: {request.backup_name}, Kullanıcı={current_user.username}")
+
+        result = backup_service.delete_backup(backup_name=request.backup_name)
+
+        # Log kaydı
+        await create_log(
+            db=db,
+            username=current_user.username,
+            action="delete_backup",
+            details=f"Backup silindi: {request.backup_name}"
+        )
+
+        logger.info(f"✅ Backup silindi: {request.backup_name}")
+
+        return {
+            "success": True,
+            "message": "Backup başarıyla silindi",
+            "result": result
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Backup silme hatası: {e}")
+
+        await create_log(
+            db=db,
+            username=current_user.username,
+            action="delete_backup_error",
+            details=f"Backup silme hatası: {str(e)}"
         )
 
         raise HTTPException(status_code=500, detail=str(e))

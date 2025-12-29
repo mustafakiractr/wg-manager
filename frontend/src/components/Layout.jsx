@@ -24,6 +24,7 @@ import {
   User,
   Database,
   Layers,
+  Archive,
 } from 'lucide-react'
 import NotificationDropdown from './NotificationDropdown'
 
@@ -136,6 +137,7 @@ function Layout() {
     { path: '/traffic', icon: TrendingUp, label: 'Trafik Geçmişi' },
     { path: '/users', icon: Users, label: 'Kullanıcılar' },
     { path: '/activity', icon: Power, label: 'Aktivite Geçmişi' },
+    { path: '/backup', icon: Archive, label: 'Backup Yönetimi' },
     { path: '/settings', icon: SettingsIcon, label: 'Ayarlar' },
   ]
 

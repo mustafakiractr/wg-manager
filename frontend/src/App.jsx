@@ -18,6 +18,7 @@ import ActivityLogs from './pages/ActivityLogs'
 import Settings from './pages/Settings'
 import IPPoolManagement from './pages/IPPoolManagement'
 import PeerTemplates from './pages/PeerTemplates'
+import BackupManagement from './pages/BackupManagement'
 import Layout from './components/Layout'
 
 // Protected Route bileşeni - giriş yapmamış kullanıcıları login'e yönlendirir
@@ -61,6 +62,7 @@ function App() {
               <Route path="traffic" element={<TrafficHistory />} />
               <Route path="users" element={<Users />} />
               <Route path="activity" element={<ActivityLogs />} />
+              <Route path="backup" element={<BackupManagement />} />
               <Route path="settings" element={<Settings />} />
             </Route>
           </Routes>

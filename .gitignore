@@ -73,3 +73,5 @@ wg*.zip
 *.tmp
 temp/
 tmp/
+test_*.py
+test_*.sh
