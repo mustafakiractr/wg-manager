@@ -17,7 +17,7 @@ fi
 if (netstat -tlnp 2>/dev/null || ss -tlnp 2>/dev/null) | grep -q :5173; then
     echo "✓ Port 5173 açık"
     echo ""
-    echo "🌐 Web arayüzü: http://192.168.40.38:5173"
+    echo "🌐 Web arayüzü: http://localhost:5173"
     echo ""
     echo "Eğer beyaz ekran görüyorsanız:"
     echo "1. Tarayıcıda F12 tuşuna basın"

@@ -17,14 +17,14 @@ export default defineConfig({
     host: '0.0.0.0',
     strictPort: false,
     allowedHosts: [
-      "wg.mustafakirac.tr",
-      ".mustafakirac.tr",
+      "localhost",
+      "127.0.0.1",
     ],
 
     // ✅ EKLE: /api isteklerini backend'e yönlendir
     proxy: {
       '/api': {
-        target: 'http://192.168.40.38:8001',
+        target: 'http://localhost:8001',
         changeOrigin: true,
         ws: true, // WebSocket desteğini etkinleştir
       },

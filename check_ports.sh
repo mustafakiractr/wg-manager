@@ -22,6 +22,6 @@ fi
 
 echo ""
 echo "=== Erişim Bilgileri ==="
-echo "Backend API:  http://192.168.40.38:8001"
-echo "Frontend Web: http://192.168.40.38:5173"
-echo "API Docs:     http://192.168.40.38:8001/docs"
+echo "Backend API:  http://localhost:8001"
+echo "Frontend Web: http://localhost:5173"
+echo "API Docs:     http://localhost:8001/docs"

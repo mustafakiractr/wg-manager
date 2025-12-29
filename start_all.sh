@@ -46,9 +46,9 @@ fi
 sleep 3
 echo ""
 echo "=== Servisler Başlatıldı ==="
-echo "Backend:  http://192.168.40.38:8001"
-echo "Frontend: http://192.168.40.38:5173"
-echo "API Docs: http://192.168.40.38:8001/docs"
+echo "Backend:  http://localhost:8001"
+echo "Frontend: http://localhost:5173"
+echo "API Docs: http://localhost:8001/docs"
 echo ""
 echo "Log dosyaları:"
 echo "  Backend:  /root/wg/backend/backend_output.log"

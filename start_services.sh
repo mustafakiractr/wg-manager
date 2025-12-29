@@ -32,8 +32,8 @@ fi
 
 echo ""
 echo "=== Servisler Başlatıldı ==="
-echo "Backend:  http://192.168.40.38:8001"
-echo "Frontend: http://192.168.40.38:5173"
+echo "Backend:  http://localhost:8001"
+echo "Frontend: http://localhost:5173"
 echo ""
 echo "Log dosyaları:"
 echo "  Backend:  /root/backend/logs/backend.log"

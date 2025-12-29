@@ -1957,12 +1957,12 @@ function WireGuardInterfaceDetail() {
                         ? 'border-red-500 dark:border-red-500'
                         : ''
                     }`}
-                    placeholder="192.168.46.14/32, 192.168.40.0/24 veya 'auto'"
+                    placeholder="192.168.46.14/32, 10.0.0.0/24 veya 'auto'"
                     required
                   />
                   {formData.allowed_address && formData.allowed_address.toLowerCase() !== 'auto' && !validateIP(formData.allowed_address) && (
                     <p className="text-xs text-red-600 dark:text-red-400">
-                      Geçersiz IP adresi formatı. Örnek: 192.168.46.14/32, birden fazla: 192.168.46.14/32, 192.168.40.0/24 veya 'auto' yazarak otomatik tahsis
+                      Geçersiz IP adresi formatı. Örnek: 192.168.46.14/32, birden fazla: 192.168.46.14/32, 10.0.0.0/24 veya 'auto' yazarak otomatik tahsis
                     </p>
                   )}
                   {formData.allowed_address && formData.allowed_address.toLowerCase() === 'auto' && (
