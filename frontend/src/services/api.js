@@ -9,7 +9,7 @@ import useAuthStore from "../store/authStore";
 const isDev = import.meta.env.DEV;
 
 // ✅ En güvenli ve stabil: her zaman same-origin
-// Cloudflare arkasında: https://wg.mustafakirac.tr/api/v1/*
+// Production örneği: https://yourdomain.com/api/v1/*
 // Local dev'de: http://localhost:5173/api/v1/*  (Vite proxy ile backend'e gider)
 const API_BASE_URL = "/api/v1";
 
