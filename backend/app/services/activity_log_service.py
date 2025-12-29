@@ -73,16 +73,14 @@ class ActivityLogService:
             )
 
             db.add(log_entry)
-            await db.commit()
-            await db.refresh(log_entry)
+            await db.flush()  # Pending state'e al, commit get_db() dependency'sinde yapılacak
 
             logger.info(f"Activity logged: {action} by {username or 'system'}")
             return log_entry
 
         except Exception as e:
             logger.error(f"Failed to log activity: {e}")
-            await db.rollback()
-            raise
+            raise  # Rollback get_db() dependency'sinde yapılacak
 
     @staticmethod
     async def get_logs(

@@ -34,7 +34,7 @@ Modern web-based management interface for MikroTik RouterOS v7+ WireGuard VPN.
 
 ```bash
 # Clone the repository
-git clone <repository-url> /opt/wg-manager
+git clone https://github.com/mustafakiractr/wg-manager.git /opt/wg-manager
 cd /opt/wg-manager
 
 # Run installation script
@@ -265,8 +265,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ## 📞 Support
 
 For issues and questions:
-- 📋 [GitHub Issues](https://github.com/yourusername/wg-manager/issues)
-- 📧 Email: support@example.com
+- 📋 [GitHub Issues](https://github.com/mustafakiractr/wg-manager/issues)
 - 📖 Documentation: [PROJECT_GUIDE.md](PROJECT_GUIDE.md)
 
 ---

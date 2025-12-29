@@ -72,7 +72,7 @@ class PeerTemplateService:
         )
 
         db.add(template)
-        await db.commit()
+        await db.flush()  # ID almak için flush yap, commit get_db() dependency'sinde yapılacak
         await db.refresh(template)
 
         logger.info(f"Peer şablonu oluşturuldu: {name}")
@@ -146,7 +146,7 @@ class PeerTemplateService:
             if hasattr(template, key) and value is not None:
                 setattr(template, key, value)
 
-        await db.commit()
+        await db.flush()  # Değişiklikleri flush et, commit get_db() dependency'sinde yapılacak
         await db.refresh(template)
 
         logger.info(f"Peer şablonu güncellendi: {template.name}")
@@ -168,8 +168,8 @@ class PeerTemplateService:
         if not template:
             return False
 
-        db.delete(template)  # session.delete() is synchronous in SQLAlchemy 2.0
-        await db.commit()
+        await db.delete(template)
+        # Commit işlemi get_db() dependency'sinde yapılacak
 
         logger.info(f"Peer şablonu silindi: {template.name}")
         return True
@@ -187,7 +187,7 @@ class PeerTemplateService:
         if template:
             template.usage_count = (template.usage_count or 0) + 1
             template.last_used_at = datetime.utcnow()
-            await db.commit()
+            # Commit get_db() dependency'sinde yapılacak
 
     @staticmethod
     async def toggle_active(db: AsyncSession, template_id: int) -> PeerTemplate:
@@ -206,7 +206,7 @@ class PeerTemplateService:
             raise ValueError(f"Şablon bulunamadı: ID {template_id}")
 
         template.is_active = not template.is_active
-        await db.commit()
+        await db.flush()  # Değişiklikleri flush et, commit get_db() dependency'sinde yapılacak
         await db.refresh(template)
 
         logger.info(f"Peer şablonu durumu değiştirildi: {template.name} -> {'aktif' if template.is_active else 'pasif'}")
