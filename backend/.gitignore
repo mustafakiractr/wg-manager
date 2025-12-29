@@ -28,6 +28,7 @@ logs/
 # Backup files
 *_backup_*.db
 *.bak
+backups/
 
 # Security sensitive files
 .encryption_key
