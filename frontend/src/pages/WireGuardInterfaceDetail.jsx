@@ -150,11 +150,9 @@ function WireGuardInterfaceDetail() {
   // Şablonları yükle
   const loadTemplates = async () => {
     try {
-      const response = await getAllTemplates()
-      if (response.data && response.data.success) {
-        const templates = response.data.templates || []
-        setAvailableTemplates(templates.filter(t => t.is_active))
-      }
+      const templates = await getAllTemplates(true) // Sadece aktif şablonlar
+      setAvailableTemplates(templates)
+      console.log('✅ Şablonlar yüklendi:', templates.length)
     } catch (error) {
       console.error('Şablon yükleme hatası:', error)
     }
@@ -852,24 +850,21 @@ function WireGuardInterfaceDetail() {
         setPoolInfo(response.data)
 
         if (response.data.next_ip) {
-          // "auto" yaz - backend IP Pool'dan otomatik tahsis edecek
-          setFormData(prev => ({
-            ...prev,
-            allowed_address: 'auto'
-          }))
-          console.log('✅ Otomatik IP tahsisi aktif - backend IP Pool\'dan sıradaki boş IP\'yi kullanacak (şu anda: ' + response.data.next_ip + ')')
+          console.log('✅ IP Pool\'dan IP alındı:', response.data.next_ip)
+          return response.data.next_ip
         } else {
           console.warn('⚠️ Pool dolu, boş IP yok')
-          alert('IP Pool dolu! Lütfen pool kapasitesini artırın veya manuel IP girin.')
+          return null
         }
       } else {
         setPoolInfo(null)
         console.log('ℹ️ Bu interface için IP pool yok')
+        return null
       }
     } catch (error) {
       console.error('❌ IP pool hatası:', error)
       setPoolInfo(null)
-      // Hata sessiz geçirilir, kullanıcı manuel IP girebilir
+      return null
     } finally {
       setLoadingPool(false)
     }
