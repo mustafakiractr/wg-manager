@@ -784,7 +784,7 @@ function Dashboard() {
       bgColor: 'bg-purple-100 dark:bg-purple-900/30',
     },
     {
-      title: 'Aktif Peer',
+      title: 'Online Peer',
       value: stats.activePeers,
       icon: Activity,
       color: 'text-green-600 dark:text-green-400',
@@ -1081,13 +1081,13 @@ function Dashboard() {
       </div>
       )}
 
-      {/* Aktif Peer'lar */}
+      {/* Online Peer'lar */}
       {widgetVisibility.activePeers && (
       <div className="card">
         <div className="flex items-center justify-between mb-6">
           <div>
             <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-              Aktif Peer'lar
+              Online Peer'lar
             </h2>
             <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
               Şu anda bağlı olan cihazlar
@@ -1296,11 +1296,11 @@ function Dashboard() {
         )}
       </div>
 
-      {/* Aktif Peer Listesi */}
+      {/* Online Peer Listesi */}
       <div className="card">
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-            Aktif Peer'lar
+            Online Peer'lar
           </h2>
           <div className="flex items-center gap-2">
             <button
@@ -2127,7 +2127,7 @@ function Dashboard() {
               {[
                 { key: 'stats', label: 'İstatistik Kartları', icon: BarChart3 },
                 { key: 'trafficCharts', label: 'Trafik Grafikleri', icon: TrendingUp },
-                { key: 'activePeers', label: 'Aktif Peer\'lar', icon: Wifi },
+                { key: 'activePeers', label: 'Online Peer\'lar', icon: Wifi },
                 { key: 'ipPoolUsage', label: 'IP Pool Kullanımı', icon: Database },
                 { key: 'recentActivities', label: 'Son Aktiviteler', icon: Clock }
               ].map(widget => {
