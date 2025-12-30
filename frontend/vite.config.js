@@ -18,6 +18,7 @@ export default defineConfig({
     strictPort: false,
     allowedHosts: [
       "localhost",
+      "wg.mustafakirac.tr",
       "127.0.0.1",
     ],
 

@@ -9,7 +9,7 @@ import TwoFactorSettings from '../components/TwoFactorSettings'
 import ActiveDevices from '../components/ActiveDevices'
 
 function Settings() {
-  const [activeTab, setActiveTab] = useState('security')
+  const [activeTab, setActiveTab] = useState('profile')
 
   return (
     <div className="space-y-6">

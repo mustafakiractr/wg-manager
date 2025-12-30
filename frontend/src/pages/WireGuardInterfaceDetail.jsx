@@ -43,6 +43,7 @@ import {
   FileText,
   Layers,
   CheckCircle,
+  Save,
 } from 'lucide-react'
 
 function WireGuardInterfaceDetail() {
@@ -65,6 +66,13 @@ function WireGuardInterfaceDetail() {
   const [searchTerm, setSearchTerm] = useState('')
   const [filterStatus, setFilterStatus] = useState('all') // 'all', 'active', 'inactive', 'online'
   const [togglingPeer, setTogglingPeer] = useState(null)
+
+  // Import modal state'leri
+  const [showImportModal, setShowImportModal] = useState(false)
+  const [importingPeer, setImportingPeer] = useState(null)
+  const [importPrivateKey, setImportPrivateKey] = useState('')
+  const [importing, setImporting] = useState(false)
+  const [importSelectedTemplate, setImportSelectedTemplate] = useState('')
 
   // Form state
   const [formData, setFormData] = useState({
@@ -199,10 +207,10 @@ function WireGuardInterfaceDetail() {
 
   // Modal açıldığında şablonları yükle
   useEffect(() => {
-    if (showAddModal) {
+    if (showAddModal || showImportModal) {
       loadTemplates()
     }
-  }, [showAddModal])
+  }, [showAddModal, showImportModal])
 
   // IP adresi validasyonu - useCallback ile optimize edildi
   const validateIP = useCallback((ip) => {
@@ -1136,6 +1144,59 @@ function WireGuardInterfaceDetail() {
     URL.revokeObjectURL(url)
   }
 
+  // Peer import et
+  const handleOpenImportModal = (peer) => {
+    setImportingPeer(peer)
+    setImportPrivateKey('')
+    setImportSelectedTemplate('')
+    setShowImportModal(true)
+  }
+
+  const handleImportPeer = async () => {
+    if (!importPrivateKey.trim()) {
+      alert('Lütfen private key girin')
+      return
+    }
+
+    if (!importingPeer) {
+      alert('İçe aktarılacak peer bulunamadı')
+      return
+    }
+
+    try {
+      setImporting(true)
+      const peerId = importingPeer['.id'] || importingPeer.id
+
+      const requestData = {
+        peer_id: peerId,
+        interface_name: interfaceName,
+        private_key: importPrivateKey.trim()
+      }
+
+      // Template seçildi mi?
+      if (importSelectedTemplate) {
+        requestData.template_id = parseInt(importSelectedTemplate)
+      }
+
+      const response = await api.post('/wg/peer/import', requestData)
+
+      if (response.data.success) {
+        alert('Peer başarıyla kaydedildi!')
+        setShowImportModal(false)
+        setImportingPeer(null)
+        setImportPrivateKey('')
+        setImportSelectedTemplate('')
+        // Peer listesini yenile
+        await loadData()
+      }
+    } catch (error) {
+      console.error('Peer import hatası:', error)
+      alert('Peer kaydedilemedi: ' + (error.response?.data?.detail || error.message))
+    } finally {
+      setImporting(false)
+    }
+  }
+
   // Config kopyala
   const handleCopyConfig = async (config) => {
     try {
@@ -1720,17 +1781,35 @@ function WireGuardInterfaceDetail() {
                                 <Power className="w-4 h-4" />
                               )}
                             </button>
+
+                        {/* DB'de kayıtlı değilse Import butonu göster */}
+                        {peer.saved_in_db === false && (
+                          <button
+                            onClick={() => handleOpenImportModal(peer)}
+                            className="p-2 hover:bg-primary-100 dark:hover:bg-primary-900/30 rounded text-primary-600 dark:text-primary-400"
+                            title="Veritabanına Kaydet (Private Key Gerekli)"
+                          >
+                            <Save className="w-4 h-4" />
+                          </button>
+                        )}
+
                         <button
                           onClick={() => handleShowQR(peer['.id'])}
-                              className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded text-blue-600 dark:text-blue-400"
-                          title="QR Kod"
+                          className={`p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded text-blue-600 dark:text-blue-400 ${
+                            peer.saved_in_db === false ? 'opacity-50 cursor-not-allowed' : ''
+                          }`}
+                          title={peer.saved_in_db === false ? 'QR Kod (Önce kaydet)' : 'QR Kod'}
+                          disabled={peer.saved_in_db === false}
                         >
                           <QrCode className="w-4 h-4" />
                         </button>
                             <button
                               onClick={() => handleShowConfig(peer['.id'])}
-                              className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded text-green-600 dark:text-green-400"
-                              title="Config Dosyası"
+                              className={`p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded text-green-600 dark:text-green-400 ${
+                                peer.saved_in_db === false ? 'opacity-50 cursor-not-allowed' : ''
+                              }`}
+                              title={peer.saved_in_db === false ? 'Config Dosyası (Önce kaydet)' : 'Config Dosyası'}
+                              disabled={peer.saved_in_db === false}
                             >
                               <FileText className="w-4 h-4" />
                             </button>
@@ -2423,6 +2502,154 @@ function WireGuardInterfaceDetail() {
               >
                 Kapat
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Import Modal */}
+      {showImportModal && importingPeer && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-lg max-w-md w-full p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                Peer'ı Veritabanına Kaydet
+              </h3>
+              <button
+                onClick={() => {
+                  setShowImportModal(false)
+                  setImportingPeer(null)
+                  setImportPrivateKey('')
+                  setImportSelectedTemplate('')
+                }}
+                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                  Bu peer'ı veritabanına kaydetmek için private key girin.
+                  Private key, peer'ın cihazındaki WireGuard config dosyasında bulunur.
+                </p>
+
+                <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3 mb-4">
+                  <p className="text-sm text-blue-800 dark:text-blue-300">
+                    <strong>Peer Bilgileri:</strong>
+                  </p>
+                  <p className="text-xs text-blue-700 dark:text-blue-400 mt-1">
+                    ID: {importingPeer['.id'] || importingPeer.id}
+                  </p>
+                  <p className="text-xs text-blue-700 dark:text-blue-400">
+                    Ad: {importingPeer.comment || importingPeer.name || 'Belirtilmemiş'}
+                  </p>
+                  <p className="text-xs text-blue-700 dark:text-blue-400">
+                    IP: {importingPeer['allowed-address'] || 'Belirtilmemiş'}
+                  </p>
+                </div>
+
+                {/* Template seçimi */}
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Peer Şablonu (Opsiyonel)
+                  </label>
+                  <select
+                    value={importSelectedTemplate}
+                    onChange={(e) => setImportSelectedTemplate(e.target.value)}
+                    className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500"
+                  >
+                    <option value="">Şablon kullanma</option>
+                    {availableTemplates.map((template) => (
+                      <option key={template.id} value={template.id}>
+                        {template.name}
+                        {template.endpoint_address && ` (${template.endpoint_address})`}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                    Şablon seçerek endpoint, DNS ve diğer ayarları otomatik doldurabilirsiniz.
+                  </p>
+
+                  {/* Template preview */}
+                  {importSelectedTemplate && (() => {
+                    const selectedTemplate = availableTemplates.find(t => t.id === parseInt(importSelectedTemplate))
+                    if (selectedTemplate) {
+                      return (
+                        <div className="mt-2 p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded text-xs">
+                          <p className="font-semibold text-green-800 dark:text-green-300 mb-1">
+                            Şablon Ayarları:
+                          </p>
+                          {selectedTemplate.endpoint_address && (
+                            <p className="text-green-700 dark:text-green-400">
+                              • Endpoint: {selectedTemplate.endpoint_address}
+                              {selectedTemplate.endpoint_port && `:${selectedTemplate.endpoint_port}`}
+                            </p>
+                          )}
+                          {selectedTemplate.persistent_keepalive && (
+                            <p className="text-green-700 dark:text-green-400">
+                              • Keepalive: {selectedTemplate.persistent_keepalive}s
+                            </p>
+                          )}
+                          {selectedTemplate.group_name && (
+                            <p className="text-green-700 dark:text-green-400">
+                              • Grup: {selectedTemplate.group_name}
+                            </p>
+                          )}
+                        </div>
+                      )
+                    }
+                    return null
+                  })()}
+                </div>
+
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Private Key *
+                </label>
+                <textarea
+                  value={importPrivateKey}
+                  onChange={(e) => setImportPrivateKey(e.target.value)}
+                  placeholder="Peer'ın private key'ini buraya yapıştırın..."
+                  className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-900 text-sm font-mono focus:ring-2 focus:ring-primary-500 dark:focus:ring-primary-400"
+                  rows={4}
+                />
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                  Private key genellikle 44 karakter uzunluğundadır ve base64 formatındadır.
+                </p>
+              </div>
+
+              <div className="flex gap-2 mt-6">
+                <button
+                  onClick={() => {
+                    setShowImportModal(false)
+                    setImportingPeer(null)
+                    setImportPrivateKey('')
+                    setImportSelectedTemplate('')
+                  }}
+                  className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
+                  disabled={importing}
+                >
+                  İptal
+                </button>
+                <button
+                  onClick={handleImportPeer}
+                  disabled={importing || !importPrivateKey.trim()}
+                  className="flex-1 px-4 py-2 bg-primary-600 text-white rounded hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                >
+                  {importing ? (
+                    <>
+                      <RefreshCw className="w-4 h-4 animate-spin" />
+                      Kaydediliyor...
+                    </>
+                  ) : (
+                    <>
+                      <Save className="w-4 h-4" />
+                      Kaydet
+                    </>
+                  )}
+                </button>
+              </div>
             </div>
           </div>
         </div>

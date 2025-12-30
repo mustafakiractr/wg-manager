@@ -2,7 +2,7 @@
 WireGuard API endpoint'leri
 Interface ve peer yönetimi için API'ler
 """
-from fastapi import APIRouter, Depends, HTTPException, Query, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException, Query, BackgroundTasks, Request
 from pydantic import BaseModel
 from typing import List, Optional, Dict, Any
 from app.mikrotik.connection import mikrotik_conn
@@ -252,6 +252,14 @@ class PeerUpdateRequest(BaseModel):
     persistent_keepalive: Optional[str] = None
     disabled: Optional[bool] = None
     interface: Optional[str] = None  # Interface adı (allowed_address birleştirme için gerekli)
+
+
+class PeerImportRequest(BaseModel):
+    """MikroTik'ten peer import etme isteği modeli"""
+    peer_id: str  # MikroTik peer ID'si
+    interface_name: str  # Interface adı
+    private_key: str  # Kullanıcıdan alınan private key
+    template_id: Optional[int] = None  # Opsiyonel template ID
 
 
 @router.get("/interfaces")
@@ -645,8 +653,10 @@ async def get_peers(
         # Bağlantının açık olduğundan emin ol
         await mikrotik_conn.ensure_connected()
         peers = await mikrotik_conn.get_wireguard_peers(interface)
-        
-        # Her peer için durumu takip et
+
+        # Her peer için durumu takip et ve DB'de olup olmadığını kontrol et
+        from sqlalchemy import select
+
         for peer in peers:
             peer_id = peer.get('id') or peer.get('.id')
             # Debug: Peer ID yapısını logla (sadece debug modunda)
@@ -657,7 +667,7 @@ async def get_peers(
                     public_key = peer.get('public-key') or peer.get('public_key')
                     if public_key:
                         public_key = str(public_key).strip()
-                    
+
                     await track_peer_status(
                         db=db,
                         peer_id=str(peer_id),
@@ -666,9 +676,25 @@ async def get_peers(
                         public_key=public_key,
                         last_handshake_value=peer.get('last-handshake')
                     )
+
+                    # DB'de bu peer kayıtlı mı kontrol et
+                    if public_key:
+                        stmt = select(PeerKey).where(
+                            PeerKey.public_key == public_key,
+                            PeerKey.interface_name == interface
+                        )
+                        result = await db.execute(stmt)
+                        peer_in_db = result.scalar_one_or_none()
+                        peer['saved_in_db'] = peer_in_db is not None
+                        logger.info(f"📊 Peer {peer_id} - saved_in_db: {peer['saved_in_db']}, public_key: {public_key[:20]}...")
+                    else:
+                        peer['saved_in_db'] = False
+                        logger.info(f"📊 Peer {peer_id} - saved_in_db: False (no public_key)")
+
                 except Exception as e:
                     logger.error(f"Peer durum tracking hatası ({peer_id}): {e}")
-        
+                    peer['saved_in_db'] = False
+
         return {
             "success": True,
             "data": peers
@@ -1802,6 +1828,218 @@ async def delete_peer(
             logger.error(f"🔴 Traceback:\n{error_trace}")
 
         raise HTTPException(status_code=500, detail=f"Peer silinemedi: {str(e)}")
+
+
+@router.post("/peer/import")
+async def import_peer_from_mikrotik(
+    import_data: PeerImportRequest,
+    background_tasks: BackgroundTasks,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+) -> Dict[str, Any]:
+    """
+    MikroTik'ten mevcut bir peer'ı veritabanına import eder
+    Private key kullanıcıdan alınır, böylece QR kod ve config oluşturulabilir
+    """
+    logger.info(f"📥 PEER IMPORT isteği alındı: peer_id={import_data.peer_id}, interface={import_data.interface_name}, user={current_user.username}")
+
+    try:
+        # Private key'i validate et
+        private_key = import_data.private_key.strip()
+        if not private_key or len(private_key) < 32:
+            raise HTTPException(status_code=400, detail="Geçersiz private key")
+
+        # Bağlantının açık olduğundan emin ol
+        await mikrotik_conn.ensure_connected()
+
+        # MikroTik'ten peer bilgilerini al
+        peers = await mikrotik_conn.get_wireguard_peers(import_data.interface_name, use_cache=False)
+
+        # Peer'ı bul
+        peer = None
+        for p in peers:
+            p_id = p.get('.id') or p.get('id')
+            if str(p_id) == str(import_data.peer_id) or str(p_id).lstrip('*') == str(import_data.peer_id).lstrip('*'):
+                peer = p
+                break
+
+        if not peer:
+            raise HTTPException(status_code=404, detail=f"Peer bulunamadı: {import_data.peer_id}")
+
+        # Public key'i al
+        public_key = peer.get('public-key') or peer.get('public_key')
+        if not public_key:
+            raise HTTPException(status_code=400, detail="Peer'da public key bulunamadı")
+
+        public_key = str(public_key).strip()
+
+        # DB'de zaten kayıtlı mı kontrol et
+        from sqlalchemy import select
+        existing_check = await db.execute(
+            select(PeerKey).where(
+                PeerKey.public_key == public_key,
+                PeerKey.interface_name == import_data.interface_name
+            )
+        )
+        existing_peer = existing_check.scalar_one_or_none()
+
+        if existing_peer:
+            # Sadece private key'i güncelle
+            existing_peer.private_key = private_key
+            await db.commit()
+            logger.info(f"✅ Mevcut peer'ın private key'i güncellendi: peer_id={import_data.peer_id}")
+            return {
+                "success": True,
+                "message": "Peer'ın private key'i güncellendi",
+                "peer_id": import_data.peer_id
+            }
+
+        # Yeni kayıt oluştur
+        # Allowed IPs'yi al
+        allowed_address = peer.get('allowed-address') or peer.get('allowed_address') or ""
+
+        # Endpoint bilgilerini al (önce template'ten, yoksa MikroTik'ten)
+        endpoint_address = peer.get('current-endpoint-address') or peer.get('endpoint-address')
+        endpoint_port = peer.get('current-endpoint-port') or peer.get('endpoint-port')
+        dns_servers = None
+
+        # Template seçildi mi kontrol et
+        template_data = None
+        if import_data.template_id:
+            try:
+                from app.models.peer_template import PeerTemplate
+                template_result = await db.execute(
+                    select(PeerTemplate).where(PeerTemplate.id == import_data.template_id)
+                )
+                template = template_result.scalar_one_or_none()
+
+                if template:
+                    logger.info(f"📋 Template kullanılıyor: {template.name} (ID: {template.id})")
+                    # Template bilgilerini kullan
+                    if template.endpoint_address:
+                        endpoint_address = template.endpoint_address
+                    if template.endpoint_port:
+                        endpoint_port = template.endpoint_port
+                    # DNS bilgisi şu an template'de yok, ileride eklenebilir
+
+                    # Template'i sakla (metadata ve usage count için)
+                    template_data = template
+                else:
+                    logger.warning(f"⚠️ Template bulunamadı: {import_data.template_id}")
+            except Exception as template_error:
+                logger.error(f"❌ Template yükleme hatası: {template_error}")
+
+        # PeerKey kaydı oluştur
+        peer_key = PeerKey(
+            peer_id=str(import_data.peer_id),
+            interface_name=import_data.interface_name,
+            public_key=public_key,
+            private_key=private_key,
+            client_allowed_ips=allowed_address,
+            endpoint_address=endpoint_address,
+            endpoint_port=int(endpoint_port) if endpoint_port else None,
+            template_id=import_data.template_id
+        )
+        db.add(peer_key)
+
+        # PeerMetadata oluştur
+        from app.models.peer_metadata import PeerMetadata
+        peer_metadata = PeerMetadata(
+            peer_id=str(import_data.peer_id),
+            interface_name=import_data.interface_name,
+            public_key=public_key,
+            group_name="Imported",
+            tags="mikrotik-import",
+            notes="MikroTik'ten manuel import edildi"
+        )
+        db.add(peer_metadata)
+
+        # IP allocation oluştur (eğer IP pool varsa)
+        if allowed_address:
+            try:
+                from app.services.ip_pool_service import IPPoolService
+
+                # İlk IP'yi al (virgülle ayrılmış olabilir)
+                ips = [ip.strip() for ip in allowed_address.split(',') if ip.strip()]
+                if ips:
+                    # İlk IP'yi parse et (CIDR notation'dan IP'yi ayır)
+                    first_ip = ips[0].split('/')[0]
+
+                    # Interface için pool var mı kontrol et
+                    pools = await IPPoolService.get_pools(
+                        db,
+                        interface_name=import_data.interface_name,
+                        is_active=True
+                    )
+
+                    if pools:
+                        pool = pools[0]
+                        # IP allocation oluştur
+                        from app.models.ip_pool import IPAllocation
+                        allocation = IPAllocation(
+                            pool_id=pool.id,
+                            ip_address=first_ip,
+                            peer_id=str(import_data.peer_id),
+                            peer_public_key=public_key,
+                            peer_name=peer.get('comment') or peer.get('name'),
+                            status='allocated'
+                        )
+                        db.add(allocation)
+                        logger.info(f"✅ IP allocation oluşturuldu: {first_ip}")
+            except Exception as pool_error:
+                logger.warning(f"⚠️ IP allocation oluşturulamadı (devam ediliyor): {pool_error}")
+
+        await db.commit()
+
+        # Template kullanım sayısını artır (background task'te)
+        if import_data.template_id and template_data:
+            try:
+                from datetime import datetime
+                template_data.usage_count = (template_data.usage_count or 0) + 1
+                template_data.last_used_at = datetime.utcnow()
+                await db.commit()
+                logger.info(f"✅ Template usage count artırıldı: {template_data.name} → {template_data.usage_count}")
+            except Exception as template_error:
+                logger.error(f"❌ Template usage count güncellenemedi: {template_error}")
+                # Hata olsa bile devam et
+
+        # Log kaydı
+        await create_log(
+            db,
+            current_user.username,
+            "peer_imported",
+            details=f"Peer ID: {import_data.peer_id}, Interface: {import_data.interface_name}",
+            ip_address="127.0.0.1"
+        )
+
+        # Bildirim gönder
+        peer_name = peer.get('comment') or peer.get('name') or str(import_data.peer_id)[:16]
+        background_tasks.add_task(
+            send_peer_notification_background,
+            user_id=current_user.id,
+            peer_name=peer_name,
+            interface=import_data.interface_name,
+            action="imported"
+        )
+
+        logger.info(f"✅ Peer başarıyla import edildi: peer_id={import_data.peer_id}, interface={import_data.interface_name}")
+
+        return {
+            "success": True,
+            "message": "Peer başarıyla import edildi",
+            "peer_id": import_data.peer_id,
+            "public_key": public_key
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        import traceback
+        error_trace = traceback.format_exc()
+        logger.error(f"❌ Peer import hatası: {e}")
+        logger.error(f"❌ Full traceback:\n{error_trace}")
+        await db.rollback()
+        raise HTTPException(status_code=500, detail=f"Peer import edilemedi: {str(e)}")
 
 
 @router.get("/peer/{peer_id}/logs")
