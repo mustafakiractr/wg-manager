@@ -169,7 +169,7 @@ async def login(
         pending_token_data = {
             "sub": user.username,
             "type": "pending_2fa",
-            "exp": datetime.utcnow() + timedelta(minutes=5)  # 5 dakika geçerli
+            "exp": utcnow() + timedelta(minutes=5)  # 5 dakika geçerli
         }
         pending_token = jwt.encode(
             pending_token_data,
@@ -194,9 +194,6 @@ async def login(
         remember_me=False,  # TODO: Frontend'den remember_me parametresi alınabilir
         refresh_token=refresh_token
     )
-
-    # Log kaydı
-    await create_log(db, user.username, "user_login", ip_address=client_ip)
 
     # Activity log: Başarılı giriş
     await log_auth(db, request, "login", f"Kullanıcı '{user.username}' başarıyla giriş yaptı", user, 'success')
@@ -310,9 +307,7 @@ async def verify_two_factor_login(
         refresh_token=refresh_token
     )
 
-    # Log kaydı
-    log_action = "user_login_backup_code" if used_backup else "user_login_2fa"
-    await create_log(db, user.username, log_action, ip_address=client_ip)
+    # Activity log: 2FA ile başarılı giriş (log_auth ile halledilecek)
 
     return TokenResponse(
         access_token=access_token,

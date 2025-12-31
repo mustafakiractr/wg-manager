@@ -103,9 +103,22 @@ api.interceptors.response.use(
           originalRequest.headers = originalRequest.headers || {};
           originalRequest.headers.Authorization = `Bearer ${accessToken}`;
           return api(originalRequest);
+        } else {
+          // Refresh başarısız - logout ve login sayfasına yönlendir
+          console.warn("Token refresh failed - logging out");
+          useAuthStore.getState().logout();
+          if (typeof window !== "undefined") {
+            window.location.href = "/login";
+          }
         }
       } catch (refreshErr) {
-        if (isDev) console.error("Token refreshEAUTH refresh error:", refreshErr);
+        if (isDev) console.error("Token refresh error:", refreshErr);
+        // Refresh hatası - logout ve login sayfasına yönlendir
+        console.warn("Token refresh exception - logging out");
+        useAuthStore.getState().logout();
+        if (typeof window !== "undefined") {
+          window.location.href = "/login";
+        }
       }
     }
 

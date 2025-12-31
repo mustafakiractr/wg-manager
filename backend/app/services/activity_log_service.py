@@ -7,6 +7,7 @@ from sqlalchemy import select, desc, and_
 from app.models.activity_log import ActivityLog
 from typing import Optional, List, Dict, Any
 from datetime import datetime, timedelta
+from app.utils.datetime_helper import utcnow
 import logging
 import json
 
@@ -222,7 +223,7 @@ class ActivityLogService:
             List[Dict]: Son aktiviteler
         """
         try:
-            start_date = datetime.utcnow() - timedelta(hours=hours)
+            start_date = utcnow() - timedelta(hours=hours)
 
             query = (
                 select(ActivityLog)
@@ -256,7 +257,7 @@ class ActivityLogService:
             int: Silinen kayıt sayısı
         """
         try:
-            cutoff_date = datetime.utcnow() - timedelta(days=days)
+            cutoff_date = utcnow() - timedelta(days=days)
 
             query = select(ActivityLog).where(ActivityLog.created_at < cutoff_date)
             result = await db.execute(query)

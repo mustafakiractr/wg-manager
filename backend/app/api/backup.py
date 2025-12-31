@@ -15,6 +15,7 @@ from app.services.backup_service import backup_service
 from sqlalchemy.ext.asyncio import AsyncSession
 import logging
 from datetime import datetime
+from app.utils.datetime_helper import utcnow
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -41,7 +42,7 @@ async def backup_wireguard_config(
 
         # Her interface için peer'ları al
         backup_data = {
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": utcnow().isoformat(),
             "version": "1.0",
             "interfaces": []
         }

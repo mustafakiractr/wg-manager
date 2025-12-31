@@ -7,6 +7,7 @@ from sqlalchemy import select, and_, or_, desc
 from app.models.peer_template import PeerTemplate
 from typing import Optional, List, Dict, Any
 from datetime import datetime
+from app.utils.datetime_helper import utcnow
 import logging
 
 logger = logging.getLogger(__name__)
@@ -186,7 +187,7 @@ class PeerTemplateService:
         template = await PeerTemplateService.get_template(db, template_id)
         if template:
             template.usage_count = (template.usage_count or 0) + 1
-            template.last_used_at = datetime.utcnow()
+            template.last_used_at = utcnow()
             # Commit get_db() dependency'sinde yapılacak
 
     @staticmethod

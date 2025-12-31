@@ -14,6 +14,7 @@ import logging
 import json
 import ipaddress
 from datetime import datetime
+from app.utils.datetime_helper import utcnow
 
 logger = logging.getLogger(__name__)
 
@@ -259,7 +260,7 @@ class SyncService:
                 group_name="Imported",  # MikroTik'ten import edildi
                 group_color="#3B82F6",  # Mavi
                 tags="mikrotik-sync",
-                notes=f"MikroTik'ten import edildi: {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')} UTC"
+                notes=f"MikroTik'ten import edildi: {utcnow().strftime('%Y-%m-%d %H:%M:%S')} UTC"
             )
             db.add(peer_metadata)
 
@@ -393,7 +394,7 @@ class SyncService:
                 db.add(status)
 
             status.initial_sync_completed = True
-            status.last_sync_at = datetime.utcnow()
+            status.last_sync_at = utcnow()
             status.synced_interface_count = interface_count
             status.synced_peer_count = peer_count
             status.sync_errors = json.dumps(errors, ensure_ascii=False) if errors else None

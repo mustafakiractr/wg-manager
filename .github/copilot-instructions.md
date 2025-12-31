@@ -294,7 +294,7 @@ Göçleri çalıştır: `alembic upgrade head` (gerekirse)
 - RouterOS API binary protokolü etrafında async wrapper
 - Metodlar: `add_interface()`, `add_peer()`, `get_peers()`, `remove_peer()`
 - Hata işleme: Geçici hatalar için yeniden deneme mantığı, zarif bozulma
-- Örnek: [backend/app/mikrotik/connection.py](backend/app/mikrotik/connection.py)
+- Örnek: [backend/app/mikrotik/connection.py](../backend/app/mikrotik/connection.py)
 
 ### Dış Bağımlılıklar
 
@@ -319,16 +319,16 @@ Göçleri çalıştır: `alembic upgrade head` (gerekirse)
 
 | Dosya | Amaç |
 |-------|-------|
-| [backend/app/main.py](backend/app/main.py) | Uygulama başlangıcı, lifespan hook'ları, middleware kurulumu |
-| [backend/app/api/wireguard.py](backend/app/api/wireguard.py) | WireGuard interface & peer endpoint'leri (2800+ satır, ana özellik) |
-| [backend/app/config.py](backend/app/config.py) | Pydantic ayarları, env var doğrulaması |
-| [backend/app/mikrotik/connection.py](backend/app/mikrotik/connection.py) | MikroTik bağlantı yöneticisi |
-| [backend/app/websocket/connection_manager.py](backend/app/websocket/connection_manager.py) | WebSocket yayın mantığı |
-| [frontend/src/store/authStore.js](frontend/src/store/authStore.js) | Auth state için tek gerçeklik kaynağı |
-| [frontend/src/services/api.js](frontend/src/services/api.js) | Interceptor'lı Axios istemcisi |
-| [frontend/src/App.jsx](frontend/src/App.jsx) | Rota tanımları, protected routes |
-| [backend/.env.example](backend/.env.example) | Gerekli env var template'i |
-| [PROJECT_GUIDE.md](PROJECT_GUIDE.md) | Türkçe kapsamlı dokümantasyon |
+| [backend/app/main.py](../backend/app/main.py) | Uygulama başlangıcı, lifespan hook'ları, middleware kurulumu |
+| [backend/app/api/wireguard.py](../backend/app/api/wireguard.py) | WireGuard interface & peer endpoint'leri (2800+ satır, ana özellik) |
+| [backend/app/config.py](../backend/app/config.py) | Pydantic ayarları, env var doğrulaması |
+| [backend/app/mikrotik/connection.py](../backend/app/mikrotik/connection.py) | MikroTik bağlantı yöneticisi |
+| [backend/app/websocket/connection_manager.py](../backend/app/websocket/connection_manager.py) | WebSocket yayın mantığı |
+| [frontend/src/store/authStore.js](../frontend/src/store/authStore.js) | Auth state için tek gerçeklik kaynağı |
+| [frontend/src/services/api.js](../frontend/src/services/api.js) | Interceptor'lı Axios istemcisi |
+| [frontend/src/App.jsx](../frontend/src/App.jsx) | Rota tanımları, protected routes |
+| [backend/.env.example](../backend/.env.example) | Gerekli env var template'i |
+| [PROJECT_GUIDE.md](../PROJECT_GUIDE.md) | Türkçe kapsamlı dokümantasyon |
 
 ## Değişiklik Yapmadan Önce Kontrol Etmeli Olduğunuz Alanlar
 
@@ -339,4 +339,4 @@ Kritik bölümleri değiştirmeden önce şunları anla:
 - **API kontratı**: Breaking changes frontend'i etkiler
 - **WebSocket protokolü**: Mesaj format değişiklikleri gerçek zamanlı özellik kırar
 
-Önemli değişiklikler için [PROJECT_GUIDE.md](PROJECT_GUIDE.md) dosyasındaki güvenlik, dağıtım ve test bölümlerine bakın.
+Önemli değişiklikler için [PROJECT_GUIDE.md](../PROJECT_GUIDE.md) dosyasındaki güvenlik, dağıtım ve test bölümlerine bakın.

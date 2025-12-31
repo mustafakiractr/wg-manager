@@ -4,6 +4,7 @@ Bildirim oluşturma ve yönetimi için servis
 """
 import logging
 from datetime import datetime
+from app.utils.datetime_helper import utcnow
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, update, delete
 from app.models.notification import Notification
@@ -119,7 +120,7 @@ class NotificationService:
             stmt = (
                 update(Notification)
                 .where(Notification.id == notification_id)
-                .values(read=True, read_at=datetime.utcnow())
+                .values(read=True, read_at=utcnow())
             )
             await db.execute(stmt)
             await db.commit()
@@ -138,7 +139,7 @@ class NotificationService:
             stmt = (
                 update(Notification)
                 .where(Notification.user_id == user_id, Notification.read == False)
-                .values(read=True, read_at=datetime.utcnow())
+                .values(read=True, read_at=utcnow())
             )
             await db.execute(stmt)
             await db.commit()

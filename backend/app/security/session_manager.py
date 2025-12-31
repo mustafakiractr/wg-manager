@@ -9,6 +9,7 @@ from sqlalchemy import select, update, delete, and_
 from app.models.session import Session
 from app.models.user import User
 from app.config import settings
+from app.utils.datetime_helper import utcnow, utc_timestamp
 import secrets
 import hashlib
 from user_agents import parse
@@ -23,7 +24,7 @@ def generate_session_token() -> str:
     """
     # 32 byte random + timestamp
     random_part = secrets.token_urlsafe(32)
-    timestamp = str(datetime.utcnow().timestamp())
+    timestamp = str(utcnow().timestamp())
     combined = f"{random_part}_{timestamp}"
 
     # SHA256 hash
@@ -95,9 +96,9 @@ async def create_session(
 
     # Expiration time
     if remember_me:
-        expires_at = datetime.utcnow() + timedelta(days=settings.SESSION_REMEMBER_ME_DAYS)
+        expires_at = utcnow() + timedelta(days=settings.SESSION_REMEMBER_ME_DAYS)
     else:
-        expires_at = datetime.utcnow() + timedelta(minutes=settings.SESSION_EXPIRE_MINUTES)
+        expires_at = utcnow() + timedelta(minutes=settings.SESSION_EXPIRE_MINUTES)
 
     # Session oluştur
     new_session = Session(
@@ -156,7 +157,7 @@ async def update_session_activity(db: AsyncSession, session_id: int):
     await db.execute(
         update(Session)
         .where(Session.id == session_id)
-        .values(last_activity=datetime.utcnow())
+        .values(last_activity=utcnow())
     )
     await db.commit()
 
@@ -179,7 +180,7 @@ async def revoke_session(
         .where(Session.id == session_id)
         .values(
             is_active=False,
-            revoked_at=datetime.utcnow(),
+            revoked_at=utcnow(),
             revoked_reason=reason
         )
     )
@@ -209,7 +210,7 @@ async def revoke_all_user_sessions(
     await db.execute(
         query.values(
             is_active=False,
-            revoked_at=datetime.utcnow(),
+            revoked_at=utcnow(),
             revoked_reason=reason
         )
     )
@@ -233,7 +234,7 @@ async def get_active_sessions(db: AsyncSession, user_id: int) -> List[Session]:
             and_(
                 Session.user_id == user_id,
                 Session.is_active == True,
-                Session.expires_at > datetime.utcnow()
+                Session.expires_at > utcnow()
             )
         )
         .order_by(Session.last_activity.desc())
@@ -256,13 +257,13 @@ async def cleanup_old_sessions(db: AsyncSession, user_id: int):
         .where(
             and_(
                 Session.user_id == user_id,
-                Session.expires_at <= datetime.utcnow(),
+                Session.expires_at <= utcnow(),
                 Session.is_active == True
             )
         )
         .values(
             is_active=False,
-            revoked_at=datetime.utcnow(),
+            revoked_at=utcnow(),
             revoked_reason="expired"
         )
     )
@@ -290,13 +291,13 @@ async def cleanup_all_expired_sessions(db: AsyncSession):
         update(Session)
         .where(
             and_(
-                Session.expires_at <= datetime.utcnow(),
+                Session.expires_at <= utcnow(),
                 Session.is_active == True
             )
         )
         .values(
             is_active=False,
-            revoked_at=datetime.utcnow(),
+            revoked_at=utcnow(),
             revoked_reason="expired"
         )
     )

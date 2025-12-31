@@ -10,7 +10,7 @@ from app.security.auth import get_current_user
 from app.models.user import User
 from app.models.peer_key import PeerKey
 from app.database.database import get_db
-from app.services.log_service import create_log
+# from app.services.log_service import create_log  # [REMOVED] Greenlet conflict
 from app.services.notification_service import (
     notify_peer_created,
     notify_peer_deleted,
@@ -22,6 +22,7 @@ from app.services.peer_handshake_service import track_peer_status, get_peer_logs
 from app.utils.qrcode_generator import generate_qrcode
 from sqlalchemy.ext.asyncio import AsyncSession
 from datetime import timezone, timedelta
+from app.utils.datetime_helper import utcnow
 from app.websocket.connection_manager import manager as ws_manager
 import subprocess
 import base64
@@ -122,7 +123,7 @@ async def update_template_usage_background(template_id: int):
                 .where(PeerTemplate.id == template_id)
                 .values(
                     usage_count=PeerTemplate.usage_count + 1,
-                    last_used_at=datetime.utcnow()
+                    last_used_at=utcnow()
                 )
             )
             await db.execute(stmt)
@@ -466,14 +467,14 @@ async def add_interface(
                 logger.warning(f"IP adresi eklenemedi: {ip_error}")
                 # IP adresi eklenemese bile interface oluşturuldu, devam et
 
-        # Log kaydı
-        await create_log(
-            db,
-            current_user.username,
-            "interface_added",
-            details=f"Interface: {interface_data.name}, Port: {interface.get('listen-port')}",
-            ip_address="127.0.0.1"
-        )
+        # [REMOVED] Log kaydı - greenlet conflict
+        # await create_log(
+        #     db,
+        #     current_user.username,
+        #     "interface_added",
+        #     details=f"Interface: {interface_data.name}, Port: {interface.get('listen-port')}",
+        #     ip_address="127.0.0.1"
+        # )
         
         return {
             "success": True,
@@ -510,14 +511,14 @@ async def update_interface(
         
         interface = await mikrotik_conn.update_wireguard_interface(name, **kwargs)
         
-        # Log kaydı
-        await create_log(
-            db,
-            current_user.username,
-            "interface_updated",
-            details=f"Interface: {name}",
-            ip_address="127.0.0.1"
-        )
+        # [REMOVED] Log kaydı - greenlet conflict
+        # await create_log(
+        #     db,
+        #     current_user.username,
+        #     "interface_updated",
+        #     details=f"Interface: {name}",
+        #     ip_address="127.0.0.1"
+        # )
         
         return {
             "success": True,
@@ -543,14 +544,14 @@ async def delete_interface(
     try:
         await mikrotik_conn.delete_wireguard_interface(name)
         
-        # Log kaydı
-        await create_log(
-            db,
-            current_user.username,
-            "interface_deleted",
-            details=f"Interface: {name}",
-            ip_address="127.0.0.1"
-        )
+        # [REMOVED] Log kaydı - greenlet conflict
+        # await create_log(
+        #     db,
+        #     current_user.username,
+        #     "interface_deleted",
+        #     details=f"Interface: {name}",
+        #     ip_address="127.0.0.1"
+        # )
         
         return {
             "success": True,
@@ -603,15 +604,15 @@ async def toggle_interface(
     try:
         await mikrotik_conn.toggle_interface(name, enable)
 
-        # Log kaydı
-        action = f"interface_{'enabled' if enable else 'disabled'}"
-        await create_log(
-            db,
-            current_user.username,
-            action,
-            details=f"Interface: {name}",
-            ip_address="127.0.0.1"
-        )
+        # [REMOVED] Log kaydı - greenlet conflict
+        # action = f"interface_{'enabled' if enable else 'disabled'}"
+        # await create_log(
+        #     db,
+        #     current_user.username,
+        #     action,
+        #     details=f"Interface: {name}",
+        #     ip_address="127.0.0.1"
+        # )
 
         # Bildirim gönder - hata olursa devam et
         try:
@@ -1052,10 +1053,15 @@ async def add_peer(
             
             private_key_normalized = peer_data.private_key.strip()
 
-            # Client AllowedIPs değerini al (kullanıcının girdiği endpoint_allowed_address)
-            client_allowed_ips = peer_data.endpoint_allowed_address or "0.0.0.0/0, ::/0"
-            if client_allowed_ips:
-                client_allowed_ips = client_allowed_ips.strip()
+            # Client AllowedIPs değerini al
+            # Kullanıcının girdiği endpoint_allowed_address değerini client config için de kullan
+            # Eğer kullanıcı subnet girmediyse varsayılan olarak 0.0.0.0/0 kullan
+            client_allowed_ips = "0.0.0.0/0, ::/0"  # Varsayılan
+            if peer_data.endpoint_allowed_address and peer_data.endpoint_allowed_address.strip():
+                client_allowed_ips = peer_data.endpoint_allowed_address.strip()
+                logger.info(f"🔍 Client AllowedIPs kullanıcı tarafından belirlendi: {client_allowed_ips}")
+            else:
+                logger.info(f"🔍 Client AllowedIPs varsayılan kullanılıyor: {client_allowed_ips}")
 
             logger.info(f"🔍 Private key kaydediliyor: Peer ID={peer_id}, Public Key={public_key_normalized[:30]}... (uzunluk: {len(public_key_normalized)}), Private Key uzunluk={len(private_key_normalized)}, Client AllowedIPs={client_allowed_ips}")
             logger.info(f"🔍 Peer objesi: {peer}")
@@ -1203,21 +1209,20 @@ async def add_peer(
                 # Route ekleme hatası peer eklemeyi engellemez
                 logger.error(f"❌ Endpoint subnet route ekleme hatası: {e}")
 
-        # Log kaydı - hata olursa devam et (peer ekleme başarılı)
-        try:
-            await create_log(
-                db,
-                current_user.username,
-                "peer_added",
-                details=f"Interface: {peer_data.interface}, Public Key: {public_key_normalized[:20]}...",
-                ip_address="127.0.0.1"
-            )
-        except Exception as log_error:
-            # Log kaydı başarısız olsa bile peer ekleme başarılı olduğu için devam et
-            logger.warning(f"⚠️ Log kaydı yapılamadı (peer ekleme başarılı): {log_error}")
-            # Database locked hatası için özel log
-            if "locked" in str(log_error).lower() or "database" in str(log_error).lower():
-                logger.warning("⚠️ Veritabanı kilitli, log kaydı atlandı. Peer başarıyla eklendi.")
+        # [REMOVED] Log kaydı - greenlet conflict nedeniyle kaldırıldı
+        # ActivityLogger kullanılıyor (background tasks üzerinden)
+        # try:
+        #     await create_log(
+        #         db,
+        #         current_user.username,
+        #         "peer_added",
+        #         details=f"Interface: {peer_data.interface}, Public Key: {public_key_normalized[:20]}...",
+        #         ip_address="127.0.0.1"
+        #     )
+        # except Exception as log_error:
+        #     logger.warning(f"⚠️ Log kaydı yapılamadı (peer ekleme başarılı): {log_error}")
+        #     if "locked" in str(log_error).lower() or "database" in str(log_error).lower():
+        #         logger.warning("⚠️ Veritabanı kilitli, log kaydı atlandı. Peer başarıyla eklendi.")
 
         # IP Pool tracking - Manuel IP için de allocation kaydı oluştur
         # Eğer "auto" kullanılmadıysa ama IP bir pool'a aitse, onu track et
@@ -1573,14 +1578,14 @@ async def update_peer(
                 logger.error(f"❌ Veritabanı güncellenemedi: {e}")
                 # Hata olsa bile MikroTik güncellemesi başarılı olduğu için devam et
 
-        # Log kaydı
-        await create_log(
-            db,
-            current_user.username,
-            "peer_updated",
-            details=f"Peer ID: {peer_id}",
-            ip_address="127.0.0.1"
-        )
+        # [REMOVED] Log kaydı - greenlet conflict
+        # await create_log(
+        #     db,
+        #     current_user.username,
+        #     "peer_updated",
+        #     details=f"Peer ID: {peer_id}",
+        #     ip_address="127.0.0.1"
+        # )
 
         return {
             "success": True,
@@ -1623,15 +1628,15 @@ async def toggle_peer(
         
         logger.info(f"Peer güncelleme sonucu: {peer}")
         
-        # Log kaydı
-        action = f"peer_{'enabled' if enable else 'disabled'}"
-        await create_log(
-            db,
-            current_user.username,
-            action,
-            details=f"Peer ID: {peer_id}, Interface: {interface}",
-            ip_address="127.0.0.1"
-        )
+        # [REMOVED] Log kaydı - greenlet conflict
+        # action = f"peer_{'enabled' if enable else 'disabled'}"
+        # await create_log(
+        #     db,
+        #     current_user.username,
+        #     action,
+        #     details=f"Peer ID: {peer_id}, Interface: {interface}",
+        #     ip_address="127.0.0.1"
+        # )
         
         return {
             "success": True,
@@ -1759,14 +1764,14 @@ async def delete_peer(
             logger.warning(f"⚠️ PeerMetadata silme hatası (peer silme başarılı): {metadata_error}")
             await db.rollback()
         
-        # Log kaydı
-        await create_log(
-            db,
-            current_user.username,
-            "peer_deleted",
-            details=f"Peer ID: {peer_id}, Interface: {interface}",
-            ip_address="127.0.0.1"
-        )
+        # [REMOVED] Log kaydı - greenlet conflict
+        # await create_log(
+        #     db,
+        #     current_user.username,
+        #     "peer_deleted",
+        #     details=f"Peer ID: {peer_id}, Interface: {interface}",
+        #     ip_address="127.0.0.1"
+        # )
 
         # Bildirim gönder - arka planda (bağımsız DB session ile)
         # Silinen peer'ın ismini belirle
@@ -1996,21 +2001,21 @@ async def import_peer_from_mikrotik(
             try:
                 from datetime import datetime
                 template_data.usage_count = (template_data.usage_count or 0) + 1
-                template_data.last_used_at = datetime.utcnow()
+                template_data.last_used_at = utcnow()
                 await db.commit()
                 logger.info(f"✅ Template usage count artırıldı: {template_data.name} → {template_data.usage_count}")
             except Exception as template_error:
                 logger.error(f"❌ Template usage count güncellenemedi: {template_error}")
                 # Hata olsa bile devam et
 
-        # Log kaydı
-        await create_log(
-            db,
-            current_user.username,
-            "peer_imported",
-            details=f"Peer ID: {import_data.peer_id}, Interface: {import_data.interface_name}",
-            ip_address="127.0.0.1"
-        )
+        # [REMOVED] Log kaydı - greenlet conflict
+        # await create_log(
+        #     db,
+        #     current_user.username,
+        #     "peer_imported",
+        #     details=f"Peer ID: {import_data.peer_id}, Interface: {import_data.interface_name}",
+        #     ip_address="127.0.0.1"
+        # )
 
         # Bildirim gönder
         peer_name = peer.get('comment') or peer.get('name') or str(import_data.peer_id)[:16]
@@ -2944,25 +2949,26 @@ async def bulk_enable_peers(
                 results["success"].append(peer_id)
                 logger.info(f"✅ Peer aktif edildi: {peer_id}")
                 
-                # Log kaydı oluştur
-                await create_log(
-                    db=db,
-                    action="enable_peer",
-                    user=current_user.username,
-                    details=f"Peer {peer_id} aktif edildi (bulk operation)",
-                    success=True
-                )
+                # [REMOVED] Log kaydı - greenlet conflict
+                # await create_log(
+                #     db=db,
+                #     action="enable_peer",
+                #     user=current_user.username,
+                #     details=f"Peer {peer_id} aktif edildi (bulk operation)",
+                #     success=True
+                # )
             except Exception as e:
                 logger.error(f"❌ Peer aktif edilemedi: {peer_id}, Hata: {e}")
                 results["failed"].append({"peer_id": peer_id, "error": str(e)})
                 
-                await create_log(
-                    db=db,
-                    action="enable_peer",
-                    user=current_user.username,
-                    details=f"Peer {peer_id} aktif edilemedi: {str(e)}",
-                    success=False
-                )
+                # [REMOVED] Log kaydı - greenlet conflict
+                # await create_log(
+                #     db=db,
+                #     action="enable_peer",
+                #     user=current_user.username,
+                #     details=f"Peer {peer_id} aktif edilemedi: {str(e)}",
+                #     success=False
+                # )
         
         success_count = len(results["success"])
         failed_count = len(results["failed"])
@@ -3013,25 +3019,26 @@ async def bulk_disable_peers(
                 results["success"].append(peer_id)
                 logger.info(f"✅ Peer pasif edildi: {peer_id}")
                 
-                # Log kaydı oluştur
-                await create_log(
-                    db=db,
-                    action="disable_peer",
-                    user=current_user.username,
-                    details=f"Peer {peer_id} pasif edildi (bulk operation)",
-                    success=True
-                )
+                # [REMOVED] Log kaydı - greenlet conflict
+                # await create_log(
+                #     db=db,
+                #     action="disable_peer",
+                #     user=current_user.username,
+                #     details=f"Peer {peer_id} pasif edildi (bulk operation)",
+                #     success=True
+                # )
             except Exception as e:
                 logger.error(f"❌ Peer pasif edilemedi: {peer_id}, Hata: {e}")
                 results["failed"].append({"peer_id": peer_id, "error": str(e)})
                 
-                await create_log(
-                    db=db,
-                    action="disable_peer",
-                    user=current_user.username,
-                    details=f"Peer {peer_id} pasif edilemedi: {str(e)}",
-                    success=False
-                )
+                # [REMOVED] Log kaydı - greenlet conflict
+                # await create_log(
+                #     db=db,
+                #     action="disable_peer",
+                #     user=current_user.username,
+                #     details=f"Peer {peer_id} pasif edilemedi: {str(e)}",
+                #     success=False
+                # )
         
         success_count = len(results["success"])
         failed_count = len(results["failed"])
@@ -3082,25 +3089,26 @@ async def bulk_delete_peers(
                 results["success"].append(peer_id)
                 logger.info(f"✅ Peer silindi: {peer_id}")
                 
-                # Log kaydı oluştur
-                await create_log(
-                    db=db,
-                    action="delete_peer",
-                    user=current_user.username,
-                    details=f"Peer {peer_id} silindi (bulk operation)",
-                    success=True
-                )
+                # [REMOVED] Log kaydı - greenlet conflict
+                # await create_log(
+                #     db=db,
+                #     action="delete_peer",
+                #     user=current_user.username,
+                #     details=f"Peer {peer_id} silindi (bulk operation)",
+                #     success=True
+                # )
             except Exception as e:
                 logger.error(f"❌ Peer silinemedi: {peer_id}, Hata: {e}")
                 results["failed"].append({"peer_id": peer_id, "error": str(e)})
                 
-                await create_log(
-                    db=db,
-                    action="delete_peer",
-                    user=current_user.username,
-                    details=f"Peer {peer_id} silinemedi: {str(e)}",
-                    success=False
-                )
+                # [REMOVED] Log kaydı - greenlet conflict
+                # await create_log(
+                #     db=db,
+                #     action="delete_peer",
+                #     user=current_user.username,
+                #     details=f"Peer {peer_id} silinemedi: {str(e)}",
+                #     success=False
+                # )
         
         success_count = len(results["success"])
         failed_count = len(results["failed"])

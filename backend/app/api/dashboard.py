@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, and_, desc
 from datetime import datetime, timedelta
+from app.utils.datetime_helper import utcnow
 from typing import Dict, Any, List
 import logging
 
@@ -99,7 +100,7 @@ async def get_dashboard_stats(
         }
 
         # Aktivite istatistikleri (son 24 saat)
-        twenty_four_hours_ago = datetime.utcnow() - timedelta(hours=24)
+        twenty_four_hours_ago = utcnow() - timedelta(hours=24)
         result = await db.execute(
             select(func.count(ActivityLog.id)).where(
                 ActivityLog.created_at >= twenty_four_hours_ago

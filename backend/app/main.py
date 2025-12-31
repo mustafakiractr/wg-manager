@@ -150,6 +150,18 @@ app = FastAPI(
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
+# Health check endpoint
+@app.get("/health", tags=["Health"])
+async def health_check():
+    """
+    Uygulama sağlık durumu kontrolü
+    """
+    return {
+        "status": "healthy",
+        "version": "1.0.0",
+        "environment": settings.ENVIRONMENT
+    }
+
 # Validation error handler - Detaylı hata mesajları için
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: Request, exc: RequestValidationError):

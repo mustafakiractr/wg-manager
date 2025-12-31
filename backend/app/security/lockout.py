@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import update
 from app.models.user import User
 from app.config import settings
+from app.utils.datetime_helper import utcnow
 
 
 def is_account_locked(user: User) -> Tuple[bool, Optional[datetime]]:
@@ -24,7 +25,7 @@ def is_account_locked(user: User) -> Tuple[bool, Optional[datetime]]:
         return False, None
 
     # Lock süresi doldu mu?
-    now = datetime.utcnow()
+    now = utcnow()
     if user.locked_until > now:
         return True, user.locked_until
 
@@ -44,7 +45,7 @@ async def record_failed_login(db: AsyncSession, user: User) -> Tuple[bool, Optio
     Returns:
         Tuple (is_now_locked, locked_until)
     """
-    now = datetime.utcnow()
+    now = utcnow()
 
     # Başarısız deneme sayısını artır
     new_attempts = user.failed_login_attempts + 1
@@ -134,7 +135,7 @@ def get_remaining_lockout_time(user: User) -> Optional[int]:
     if not user.locked_until:
         return None
 
-    now = datetime.utcnow()
+    now = utcnow()
     if user.locked_until <= now:
         return None
 
