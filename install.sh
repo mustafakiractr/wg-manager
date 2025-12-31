@@ -218,7 +218,7 @@ echo ""
 print_step "Gerekli sistem paketleri yükleniyor..."
 
 if [ "$OS_ID" = "ubuntu" ] || [ "$OS_ID" = "debian" ]; then
-    REQUIRED_PACKAGES="build-essential libssl-dev libffi-dev python3-dev python3-venv curl wget git sqlite3"
+    REQUIRED_PACKAGES="build-essential libssl-dev libffi-dev python3-dev python3-venv curl wget git sqlite3 libpq-dev"
 
     for package in $REQUIRED_PACKAGES; do
         if ! dpkg -l | grep -q "^ii  $package"; then
@@ -228,14 +228,91 @@ if [ "$OS_ID" = "ubuntu" ] || [ "$OS_ID" = "debian" ]; then
     done
 elif [ "$OS_ID" = "centos" ] || [ "$OS_ID" = "rhel" ]; then
     yum groupinstall -y -q "Development Tools"
-    yum install -y -q openssl-devel libffi-devel python3-devel curl wget git sqlite
+    yum install -y -q openssl-devel libffi-devel python3-devel curl wget git sqlite postgresql-devel
 fi
 
 print_success "Sistem paketleri yüklendi"
 echo ""
 
 #############################################
-# 5. Backend Kurulumu
+# 5. PostgreSQL Kurulumu ve Yapılandırma
+#############################################
+
+print_step "PostgreSQL kontrolü ve kurulumu..."
+
+if check_command psql; then
+    print_success "PostgreSQL zaten kurulu"
+else
+    print_step "PostgreSQL yükleniyor (PostgreSQL 15+)..."
+    if [ "$OS_ID" = "ubuntu" ] || [ "$OS_ID" = "debian" ]; then
+        # PostgreSQL official repository ekle
+        apt-get install -y -qq postgresql-common
+        /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y 2>/dev/null || true
+        apt-get update -qq
+        apt-get install -y -qq postgresql postgresql-contrib
+        print_success "PostgreSQL yüklendi"
+    elif [ "$OS_ID" = "centos" ] || [ "$OS_ID" = "rhel" ]; then
+        yum install -y -q postgresql-server postgresql-contrib
+        postgresql-setup initdb
+        print_success "PostgreSQL yüklendi"
+    fi
+fi
+
+# PostgreSQL servisini başlat
+if ! systemctl is-active --quiet postgresql; then
+    print_step "PostgreSQL servisi başlatılıyor..."
+    systemctl enable postgresql
+    systemctl start postgresql
+    sleep 2
+    print_success "PostgreSQL servisi başlatıldı"
+fi
+
+# Database ve kullanıcı oluştur
+print_step "PostgreSQL database ve kullanıcı oluşturuluyor..."
+
+# Database zaten var mı kontrol et
+DB_EXISTS=$(su - postgres -c "psql -tAc \"SELECT 1 FROM pg_database WHERE datname='wg_manager';\"" 2>/dev/null || echo "")
+
+if [ "$DB_EXISTS" = "1" ]; then
+    print_success "Database wg_manager zaten mevcut"
+else
+    # Kullanıcı oluştur
+    su - postgres -c "psql -c \"CREATE USER wg_user WITH PASSWORD 'wg_secure_pass_2025';\"" 2>/dev/null || print_warning "User zaten mevcut olabilir"
+    
+    # Database oluştur
+    su - postgres -c "createdb -O wg_user wg_manager" 2>/dev/null || print_warning "Database zaten mevcut olabilir"
+    
+    # İzinleri ayarla
+    su - postgres -c "psql -c \"GRANT ALL PRIVILEGES ON DATABASE wg_manager TO wg_user;\"" 2>/dev/null
+    
+    print_success "Database wg_manager ve kullanıcı wg_user oluşturuldu"
+fi
+
+# pg_hba.conf için local authentication ayarla (eğer henüz ayarlanmadıysa)
+PG_HBA_CONF=$(su - postgres -c "psql -tAc \"SHOW hba_file;\"" 2>/dev/null | tr -d '[:space:]')
+
+if [ -f "$PG_HBA_CONF" ]; then
+    # local için md5 authentication ekle (eğer yoksa)
+    if ! grep -q "local.*wg_manager.*wg_user.*md5" "$PG_HBA_CONF"; then
+        # Backup al
+        cp "$PG_HBA_CONF" "${PG_HBA_CONF}.backup.$(date +%Y%m%d_%H%M%S)"
+        
+        # wg_manager için local md5 authentication ekle (en üste)
+        sed -i '1i# WireGuard Manager Database Authentication' "$PG_HBA_CONF"
+        sed -i '2ilocal   wg_manager      wg_user                                 md5' "$PG_HBA_CONF"
+        
+        # PostgreSQL'i reload et
+        systemctl reload postgresql
+        print_success "PostgreSQL authentication yapılandırıldı"
+    else
+        print_success "PostgreSQL authentication zaten yapılandırılmış"
+    fi
+fi
+
+echo ""
+
+#############################################
+# 6. Backend Kurulumu
 #############################################
 
 print_step "Backend kurulumu başlatılıyor..."
@@ -325,7 +402,7 @@ cd "$INSTALL_DIR"
 echo ""
 
 #############################################
-# 6. Frontend Kurulumu
+# 7. Frontend Kurulumu
 #############################################
 
 print_step "Frontend kurulumu başlatılıyor..."
@@ -362,7 +439,7 @@ cd "$INSTALL_DIR"
 echo ""
 
 #############################################
-# 7. Çalıştırma Scriptlerini Hazırla
+# 8. Çalıştırma Scriptlerini Hazırla
 #############################################
 
 print_step "Çalıştırma scriptleri hazırlanıyor..."
@@ -376,7 +453,7 @@ print_success "Çalıştırma scriptleri hazır"
 echo ""
 
 #############################################
-# 8. Systemd Servis Dosyaları (Opsiyonel)
+# 9. Systemd Servis Dosyaları (Opsiyonel)
 #############################################
 
 if [ ! -f "/.dockerenv" ] && [ -d "/etc/systemd/system" ]; then
@@ -446,7 +523,7 @@ fi
 echo ""
 
 #############################################
-# 9. Güvenlik Kontrolleri
+# 10. Güvenlik Kontrolleri
 #############################################
 
 print_step "Güvenlik kontrolleri yapılıyor..."
@@ -469,7 +546,7 @@ fi
 echo ""
 
 #############################################
-# 10. Kurulum Tamamlandı
+# 11. Kurulum Tamamlandı
 #############################################
 
 echo -e "${GREEN}"

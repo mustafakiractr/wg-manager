@@ -76,7 +76,7 @@ Kapsamlı dokümantasyon için lütfen şu dosyalara bakın:
 **Backend:**
 - FastAPI (Python 3.9+)
 - SQLAlchemy (async ORM)
-- PostgreSQL / SQLite
+- PostgreSQL (production varsayılan) / SQLite (geliştirme)
 - JWT Kimlik Doğrulama
 
 **Frontend:**

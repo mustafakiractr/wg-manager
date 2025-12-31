@@ -107,6 +107,14 @@ sed -i "s|CORS_ORIGINS=.*|CORS_ORIGINS=\"$CORS_ORIGINS\"|" "$ENV_FILE"
 sed -i "s|RATE_LIMIT_PER_MINUTE=.*|RATE_LIMIT_PER_MINUTE=$RATE_LIMIT_PER_MINUTE|" "$ENV_FILE"
 sed -i "s|RATE_LIMIT_LOGIN=.*|RATE_LIMIT_LOGIN=$RATE_LIMIT_LOGIN|" "$ENV_FILE"
 
+# PostgreSQL DATABASE_URL ayarla (Production-ready)
+sed -i "s|DATABASE_URL=.*|DATABASE_URL=\"postgresql+asyncpg://wg_user:wg_secure_pass_2025@localhost/wg_manager\"|" "$ENV_FILE"
+
+# SQLite satırını yorum satırı yap (eski satır varsa)
+if grep -q "^DATABASE_URL=.*sqlite" "$ENV_FILE"; then
+    sed -i 's|^\(DATABASE_URL=.*sqlite.*\)|# \1  # SQLite (geliştirme için)|' "$ENV_FILE"
+fi
+
 echo ""
 echo -e "${GREEN}╔════════════════════════════════════════════╗${NC}"
 echo -e "${GREEN}║     ✅ Yapılandırma Tamamlandı! ✅        ║${NC}"
