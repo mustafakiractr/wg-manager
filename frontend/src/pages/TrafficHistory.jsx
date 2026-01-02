@@ -2,7 +2,7 @@
  * Trafik Geçmişi sayfası
  * Trafik kullanım verilerini grafik olarak gösterir
  */
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import {
   getHourlyTraffic,
   getDailyTraffic,
@@ -52,6 +52,20 @@ function TrafficHistory() {
   const [trafficData, setTrafficData] = useState([])
   const [summary, setSummary] = useState(null)
   const [limit] = useState(100) // Pagination için limit (backend default ile uyumlu)
+  const chartRef = useRef(null) // Chart instance referansı
+
+  // Component unmount olduğunda chart'ı temizle
+  useEffect(() => {
+    return () => {
+      if (chartRef.current) {
+        try {
+          chartRef.current.destroy()
+        } catch (e) {
+          // Chart zaten destroy edilmiş olabilir, sessizce yoksay
+        }
+      }
+    }
+  }, [])
 
   // Default tarih filtrelerini ayarla (performans için)
   useEffect(() => {
@@ -96,6 +110,12 @@ function TrafficHistory() {
   // İlk yükleme
   useEffect(() => {
     loadTrafficData()
+    
+    // Cleanup fonksiyonu - component unmount olduğunda
+    return () => {
+      setTrafficData([])
+      setSummary(null)
+    }
   }, [periodType, startDate, endDate])
 
   const loadTrafficData = async () => {
@@ -380,7 +400,12 @@ function TrafficHistory() {
           </div>
         ) : (
           <div className="h-96">
-            <Line data={chartData} options={chartOptions} />
+            <Line 
+              ref={chartRef}
+              data={chartData} 
+              options={chartOptions}
+              key={`chart-${periodType}-${trafficData.length}`}
+            />
           </div>
         )}
       </div>
