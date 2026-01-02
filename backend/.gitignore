@@ -107,3 +107,7 @@ wg*.zip
 # ============ Test files (Opsiyonel - kaldırılabilir) ============
 test_*.py
 test_*.sh
+
+# ============ Sensitive Files (Ekstra Güvenlik) ============
+.encryption_key
+*.db.backup*
