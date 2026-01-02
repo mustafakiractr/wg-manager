@@ -3,7 +3,7 @@ Backup/Restore API endpoints
 WireGuard konfigürasyon, database ve full system backup/restore
 """
 from fastapi import APIRouter, Depends, HTTPException
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, FileResponse
 from pydantic import BaseModel
 from typing import List, Dict, Any, Optional
 from app.mikrotik.connection import mikrotik_conn
@@ -16,6 +16,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 import logging
 from datetime import datetime
 from app.utils.datetime_helper import utcnow
+import os
+import zipfile
+import tempfile
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -505,4 +508,91 @@ async def delete_backup(
             details=f"Backup silme hatası: {str(e)}"
         )
 
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/backup/download/{backup_name:path}")
+async def download_backup(
+    backup_name: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Backup dosyasını indir
+    
+    Args:
+        backup_name: İndirilecek backup dosya/klasör adı
+    """
+    try:
+        logger.info(f"📥 Backup indirme: {backup_name}, Kullanıcı={current_user.username}")
+        
+        backup_dir = os.path.join(os.path.dirname(__file__), "../..", "backups")
+        backup_path = os.path.join(backup_dir, backup_name)
+        
+        # Güvenlik kontrolü - path traversal önleme
+        if not os.path.abspath(backup_path).startswith(os.path.abspath(backup_dir)):
+            raise HTTPException(status_code=403, detail="Geçersiz backup yolu")
+        
+        # Dosya mı klasör mü kontrol et
+        if os.path.isfile(backup_path):
+            # Tek dosya ise direkt indir
+            await create_log(
+                db=db,
+                username=current_user.username,
+                action="download_backup",
+                details=f"Backup indirildi: {backup_name}"
+            )
+            
+            return FileResponse(
+                path=backup_path,
+                filename=backup_name,
+                media_type='application/octet-stream'
+            )
+            
+        elif os.path.isdir(backup_path):
+            # Klasör ise zip olarak indir
+            # Geçici zip dosyası oluştur
+            temp_zip = tempfile.NamedTemporaryFile(delete=False, suffix='.zip')
+            temp_zip.close()
+            
+            try:
+                # Klasörü zip'le
+                with zipfile.ZipFile(temp_zip.name, 'w', zipfile.ZIP_DEFLATED) as zipf:
+                    for root, dirs, files in os.walk(backup_path):
+                        for file in files:
+                            file_path = os.path.join(root, file)
+                            arcname = os.path.relpath(file_path, backup_path)
+                            zipf.write(file_path, arcname)
+                
+                await create_log(
+                    db=db,
+                    username=current_user.username,
+                    action="download_backup",
+                    details=f"Backup indirildi (zip): {backup_name}"
+                )
+                
+                # Zip dosyasını döndür
+                zip_filename = f"{backup_name}.zip"
+                
+                # FileResponse oluştur
+                response = FileResponse(
+                    path=temp_zip.name,
+                    filename=zip_filename,
+                    media_type='application/zip'
+                )
+                
+                return response
+                
+            except Exception as zip_error:
+                # Hata durumunda geçici dosyayı temizle
+                if os.path.exists(temp_zip.name):
+                    os.unlink(temp_zip.name)
+                raise zip_error
+        else:
+            raise HTTPException(status_code=404, detail="Backup bulunamadı")
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Backup indirme hatası: {e}")
         raise HTTPException(status_code=500, detail=str(e))

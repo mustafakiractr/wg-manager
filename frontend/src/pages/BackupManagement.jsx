@@ -127,6 +127,42 @@ export default function BackupManagement() {
     }
   };
 
+  const handleDownloadBackup = async (backup) => {
+    try {
+      const backupName = backup.filename || backup.dirname;
+      
+      toast.info('Backup indiriliyor...');
+
+      // API'den dosyayı indir
+      const response = await api.get(`/backup/download/${encodeURIComponent(backupName)}`, {
+        responseType: 'blob' // Binary data olarak al
+      });
+
+      // Blob oluştur ve indir
+      const blob = new Blob([response.data]);
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      
+      // Dosya adını belirle
+      let filename = backupName;
+      if (backup.backup_type === 'full' && !backupName.endsWith('.zip')) {
+        filename = `${backupName}.zip`;
+      }
+      
+      link.setAttribute('download', filename);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+
+      toast.success('Backup dosyası indirildi');
+    } catch (error) {
+      console.error('Error downloading backup:', error);
+      toast.error(error.response?.data?.detail || 'Backup indirilemedi');
+    }
+  };
+
   const formatBytes = (bytes) => {
     if (!bytes) return '0 B';
     const k = 1024;
@@ -345,6 +381,13 @@ export default function BackupManagement() {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                       <div className="flex items-center justify-end gap-2">
+                        <button
+                          onClick={() => handleDownloadBackup(backup)}
+                          className="text-green-600 hover:text-green-900 dark:text-green-400 dark:hover:text-green-300 p-2 rounded hover:bg-green-50 dark:hover:bg-green-900/20 transition-colors"
+                          title="İndir"
+                        >
+                          <Download className="w-4 h-4" />
+                        </button>
                         <button
                           onClick={() => {
                             setSelectedBackup(backup);
