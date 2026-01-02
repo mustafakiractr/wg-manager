@@ -124,6 +124,8 @@ class BackupService:
                     raise FileNotFoundError(f"Database dosyası bulunamadı: {self.db_path}")
 
                 shutil.copy2(self.db_path, backup_path)
+                # Güvenlik: Backup dosyasını sadece owner okuyabilir
+                os.chmod(backup_path, 0o600)
             
             # Metadata dosyası
             metadata_name = f"db_backup_{timestamp}.json"
@@ -200,12 +202,16 @@ class BackupService:
                 db_backup_path = backup_dir / "database.db"
                 if self.db_path and self.db_path.exists():
                     shutil.copy2(self.db_path, db_backup_path)
+                    # Güvenlik: Backup dosyasını sadece owner okuyabilir
+                    os.chmod(db_backup_path, 0o600)
 
             # .env dosyası backup (hassas bilgiler içerir!)
             env_path = Path(__file__).parent.parent.parent / ".env"
             if env_path.exists():
                 env_backup_path = backup_dir / "env.backup"
                 shutil.copy2(env_path, env_backup_path)
+                # Güvenlik: .env backup dosyasını sadece owner okuyabilir
+                os.chmod(env_backup_path, 0o600)
 
             # Metadata
             metadata = {

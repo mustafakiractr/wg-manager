@@ -67,8 +67,8 @@ async def lifespan(app: FastAPI):
                         if mikrotik_conn.connection:
                             try:
                                 await mikrotik_conn.disconnect()
-                            except:
-                                pass
+                            except Exception as e:
+                                logger.debug(f"Mevcut bağlantı kapatılırken hata (göz ardı edildi): {e}")
                         
                         # Yeni bağlantı kur
                         connected = await mikrotik_conn.connect()

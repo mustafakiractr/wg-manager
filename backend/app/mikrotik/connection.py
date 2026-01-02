@@ -42,32 +42,19 @@ class MikroTikConnection:
             loop = asyncio.get_event_loop()
             
             def create_connection():
-                # Plaintext login kullan (bazı MikroTik versiyonlarında gerekli)
-                # Önce normal login dene, başarısız olursa plaintext login dene
-                try:
-                    pool = RouterOsApiPool(
-                        self.host,
-                        username=self.username,
-                        password=self.password,
-                        port=self.port,
-                        use_ssl=self.use_tls,
-                        plaintext_login=False  # Önce normal login dene
-                    )
-                    api = pool.get_api()
-                    return pool, api
-                except Exception as e:
-                    # Normal login başarısız olursa plaintext login dene
-                    logger.warning(f"Normal login başarısız, plaintext login deneniyor: {e}")
-                    pool = RouterOsApiPool(
-                        self.host,
-                        username=self.username,
-                        password=self.password,
-                        port=self.port,
-                        use_ssl=self.use_tls,
-                        plaintext_login=True  # Plaintext login dene
-                    )
-                    api = pool.get_api()
-                    return pool, api
+                # Güvenli kimlik doğrulama - plaintext fallback kullanılmıyor
+                # TLS kullanımı önerilir (use_ssl=True)
+                pool = RouterOsApiPool(
+                    self.host,
+                    username=self.username,
+                    password=self.password,
+                    port=self.port,
+                    use_ssl=self.use_tls,
+                    plaintext_login=False  # Güvenlik: Plaintext login devre dışı
+                )
+                api = pool.get_api()
+                logger.info(f"MikroTik bağlantısı kuruldu (TLS: {self.use_tls})")
+                return pool, api
             
             self.connection, self.api = await loop.run_in_executor(None, create_connection)
             logger.info(f"MikroTik router'a bağlanıldı: {self.host}:{self.port}")
@@ -117,8 +104,8 @@ class MikroTikConnection:
                 logger.warning(f"MikroTik bağlantısı kopmuş, yeniden bağlanılıyor: {e}")
                 try:
                     await self.disconnect()
-                except:
-                    pass
+                except Exception as disconnect_error:
+                    logger.debug(f"Disconnect hatası (göz ardı edildi): {disconnect_error}")
                 self.connection = None
                 self.api = None
         
@@ -1001,8 +988,8 @@ class MikroTikConnection:
                 if port:
                     try:
                         used_ports.append(int(port))
-                    except:
-                        pass
+                    except (ValueError, TypeError) as e:
+                        logger.debug(f"Port değeri parse edilemedi: {port}, Hata: {e}")
             
             # Kullanılmayan bir port bul
             while default_port in used_ports:
@@ -1031,10 +1018,10 @@ class MikroTikConnection:
                 )
                 public_key = pub_result.stdout.strip()
                 params["public-key"] = public_key
-            except:
+            except (FileNotFoundError, subprocess.CalledProcessError, Exception) as e:
                 # wg komutu yoksa veya hata olursa, private key'i direkt kullan
                 # MikroTik otomatik olarak public key'i oluşturacak
-                logger.warning("Public key oluşturulamadı, MikroTik otomatik oluşturacak")
+                logger.warning(f"Public key oluşturulamadı ({type(e).__name__}), MikroTik otomatik oluşturacak")
         else:
             # Private key belirtilmemişse, MikroTik otomatik oluşturacak
             logger.info("Private key belirtilmedi, MikroTik otomatik oluşturacak")

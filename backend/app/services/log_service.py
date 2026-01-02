@@ -62,14 +62,14 @@ async def create_log(
                 # Rollback yap ve tekrar dene
                 try:
                     await db.rollback()
-                except:
-                    pass
+                except Exception as rollback_error:
+                    logger.debug(f"Rollback hatası (göz ardı edildi): {rollback_error}")
             else:
                 logger.error(f"Log kaydı başarısız (timeout): {action} - {username}")
                 try:
                     await db.rollback()
-                except:
-                    pass
+                except Exception as rollback_error:
+                    logger.debug(f"Rollback hatası (göz ardı edildi): {rollback_error}")
                 return None
         except Exception as e:
             error_msg = str(e)
@@ -82,22 +82,22 @@ async def create_log(
                     # Rollback yap ve tekrar dene
                     try:
                         await db.rollback()
-                    except:
-                        pass
+                    except Exception as rollback_error:
+                        logger.debug(f"Rollback hatası (göz ardı edildi): {rollback_error}")
                 else:
                     logger.error(f"Log kaydı başarısız (database locked): {action} - {username}")
                     try:
                         await db.rollback()
-                    except:
-                        pass
+                    except Exception as rollback_error:
+                        logger.debug(f"Rollback hatası (göz ardı edildi): {rollback_error}")
                     return None
             else:
                 # Diğer hatalar için log yaz ve None döndür
                 logger.error(f"Log kaydı hatası: {error_msg} - {action} - {username}")
                 try:
                     await db.rollback()
-                except:
-                    pass
+                except Exception as rollback_error:
+                    logger.debug(f"Rollback hatası (göz ardı edildi): {rollback_error}")
                 return None
     
     return None

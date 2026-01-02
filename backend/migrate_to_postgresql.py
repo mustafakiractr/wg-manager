@@ -78,7 +78,8 @@ async def migrate_table(sqlite_engine, pg_engine, table_name):
                             try:
                                 # ISO format datetime parse et
                                 row_dict[key] = datetime.fromisoformat(value.replace(' ', 'T'))
-                            except:
+                            except (ValueError, AttributeError, Exception) as e:
+                                print(f"  ⚠️  Datetime parse hatası: {value}, Hata: {e}")
                                 row_dict[key] = None
                 
                 data.append(row_dict)

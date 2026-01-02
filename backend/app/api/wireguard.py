@@ -10,7 +10,7 @@ from app.security.auth import get_current_user
 from app.models.user import User
 from app.models.peer_key import PeerKey
 from app.database.database import get_db
-# from app.services.log_service import create_log  # [REMOVED] Greenlet conflict
+from app.services.log_service import create_log  # Greenlet conflict çözüldü - background task ile kullan
 from app.services.notification_service import (
     notify_peer_created,
     notify_peer_deleted,
@@ -99,6 +99,36 @@ async def send_peer_notification_background(user_id: int, peer_name: str, interf
     except Exception as e:
         # Bildirim hatası uygulamayı etkilememeli
         logger.error(f"⚠️ Bildirim gönderilemedi (peer {action} başarılı): {e}")
+        import traceback
+        logger.debug(traceback.format_exc())
+
+
+async def create_activity_log_background(username: str, action: str, details: str = None, ip_address: str = None):
+    """
+    Arka planda activity log oluştur (bağımsız DB session ile)
+    Greenlet conflict'i önlemek için background task olarak çalıştırılır
+
+    Args:
+        username: Kullanıcı adı
+        action: İşlem türü (peer_added, peer_deleted, vb.)
+        details: Detaylı bilgi
+        ip_address: İstemci IP adresi
+    """
+    try:
+        from app.database.database import AsyncSessionLocal
+
+        async with AsyncSessionLocal() as db:
+            await create_log(
+                db=db,
+                username=username,
+                action=action,
+                details=details,
+                ip_address=ip_address
+            )
+            logger.debug(f"✅ Activity log oluşturuldu: {action} - {username}")
+    except Exception as e:
+        # Log hatası uygulamayı etkilememeli
+        logger.error(f"⚠️ Activity log oluşturulamadı (işlem başarılı): {e}")
         import traceback
         logger.debug(traceback.format_exc())
 
@@ -1313,6 +1343,16 @@ async def add_peer(
             )
             logger.info(f"📊 Template kullanım istatistiği güncellenecek - Template ID: {peer_data.template_id}")
 
+        # Activity log oluştur (arka planda)
+        background_tasks.add_task(
+            create_activity_log_background,
+            username=current_user.username,
+            action="peer_added",
+            details=f"Interface: {peer_data.interface}, Peer: {peer_name}, IP: {peer_data.allowed_address}",
+            ip_address=request.client.host if request and request.client else None
+        )
+        logger.debug(f"📝 Activity log arka planda oluşturulacak - peer_added")
+
         return {
             "success": True,
             "message": "Peer başarıyla eklendi",
@@ -2256,7 +2296,8 @@ async def get_peer_private_key(
         import urllib.parse
         try:
             decoded_peer_id = urllib.parse.unquote(peer_id)
-        except:
+        except (ValueError, TypeError, Exception) as e:
+            logger.debug(f"URL decode hatası: {peer_id}, Hata: {e}")
             decoded_peer_id = peer_id
         
         logger.info(f"🔍 Private key aranıyor: Peer ID={peer_id} (decoded: {decoded_peer_id}), Interface={interface}")
@@ -2337,7 +2378,8 @@ async def get_peer_qrcode(
         import urllib.parse
         try:
             decoded_peer_id = urllib.parse.unquote(peer_id)
-        except:
+        except (ValueError, TypeError, Exception) as e:
+            logger.debug(f"URL decode hatası: {peer_id}, Hata: {e}")
             decoded_peer_id = peer_id
         
         # Peer ID varyantları oluştur (*A, A, *4, 4 gibi formatlar için)
@@ -2716,7 +2758,8 @@ async def get_peer_config(
             if "%" in peer_id:
                 import urllib.parse
                 decoded_peer_id = urllib.parse.unquote(peer_id)
-        except:
+        except (ValueError, TypeError, Exception) as e:
+            logger.debug(f"URL decode hatası: {peer_id}, Hata: {e}")
             decoded_peer_id = peer_id
         
         logger.debug(f"Aranan peer ID: {peer_id} (decoded: {decoded_peer_id})")
