@@ -739,6 +739,7 @@ async def get_peers(
 async def add_peer(
     peer_data: PeerAddRequest,
     background_tasks: BackgroundTasks,
+    request: Request,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ) -> Dict[str, Any]:
