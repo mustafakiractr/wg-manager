@@ -28,10 +28,13 @@ export default function BackupManagement() {
   // Modal states
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showRestoreModal, setShowRestoreModal] = useState(false);
+  const [showUploadModal, setShowUploadModal] = useState(false);
   const [selectedBackup, setSelectedBackup] = useState(null);
   const [createType, setCreateType] = useState('database');
   const [description, setDescription] = useState('');
   const [createBeforeRestore, setCreateBeforeRestore] = useState(true);
+  const [uploadFile, setUploadFile] = useState(null);
+  const [uploading, setUploading] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -163,6 +166,56 @@ export default function BackupManagement() {
     }
   };
 
+  const handleUploadBackup = async () => {
+    if (!uploadFile) {
+      toast.error('Lütfen bir dosya seçin');
+      return;
+    }
+
+    // Dosya türü kontrolü
+    const allowedTypes = ['.sql', '.zip'];
+    const fileExt = uploadFile.name.substring(uploadFile.name.lastIndexOf('.')).toLowerCase();
+    if (!allowedTypes.includes(fileExt)) {
+      toast.error('Sadece .sql ve .zip dosyaları yüklenebilir');
+      return;
+    }
+
+    // Boyut kontrolü (500MB)
+    const maxSize = 500 * 1024 * 1024;
+    if (uploadFile.size > maxSize) {
+      toast.error('Dosya çok büyük (maksimum 500MB)');
+      return;
+    }
+
+    try {
+      setUploading(true);
+      toast.info('Backup dosyası yükleniyor...');
+
+      const formData = new FormData();
+      formData.append('file', uploadFile);
+
+      const response = await api.post('/backup/upload', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+        onUploadProgress: (progressEvent) => {
+          const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+          console.log(`Upload progress: ${percentCompleted}%`);
+        },
+      });
+
+      toast.success(`Backup başarıyla yüklendi: ${response.data.filename}`);
+      setShowUploadModal(false);
+      setUploadFile(null);
+      await loadData();
+    } catch (error) {
+      console.error('Upload error:', error);
+      toast.error(error.response?.data?.detail || 'Backup yüklenemedi');
+    } finally {
+      setUploading(false);
+    }
+  };
+
   const formatBytes = (bytes) => {
     if (!bytes) return '0 B';
     const k = 1024;
@@ -211,6 +264,13 @@ export default function BackupManagement() {
           >
             <RefreshCw className="w-4 h-4 mr-2" />
             Yenile
+          </button>
+          <button
+            onClick={() => setShowUploadModal(true)}
+            className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg flex items-center transition-colors"
+          >
+            <Upload className="w-4 h-4 mr-2" />
+            Backup Yükle
           </button>
           <button
             onClick={() => setShowCreateModal(true)}
@@ -589,6 +649,82 @@ export default function BackupManagement() {
                     <>
                       <Upload className="w-4 h-4 mr-2" />
                       Geri Yükle
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Upload Backup Modal */}
+      {showUploadModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full mx-4">
+            <div className="p-6">
+              <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-4">
+                Backup Dosyası Yükle
+              </h3>
+
+              <div className="space-y-4">
+                <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+                  <div className="flex">
+                    <Info className="w-5 h-5 text-blue-600 dark:text-blue-400 mr-3 flex-shrink-0 mt-0.5" />
+                    <div>
+                      <p className="text-sm font-medium text-blue-800 dark:text-blue-200 mb-1">
+                        Desteklenen dosya tipleri
+                      </p>
+                      <p className="text-sm text-blue-700 dark:text-blue-300">
+                        • Database Backup: .sql (maksimum 500MB)
+                      </p>
+                      <p className="text-sm text-blue-700 dark:text-blue-300">
+                        • Full Backup: .zip (maksimum 500MB)
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Dosya Seç
+                  </label>
+                  <input
+                    type="file"
+                    accept=".sql,.zip"
+                    onChange={(e) => setUploadFile(e.target.files[0])}
+                    className="block w-full text-sm text-gray-900 dark:text-gray-300 border border-gray-300 dark:border-gray-600 rounded-lg cursor-pointer bg-gray-50 dark:bg-gray-700 focus:outline-none"
+                  />
+                  {uploadFile && (
+                    <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
+                      Seçilen dosya: <span className="font-medium">{uploadFile.name}</span> ({formatBytes(uploadFile.size)})
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              <div className="flex gap-3 mt-6">
+                <button
+                  onClick={() => {
+                    setShowUploadModal(false);
+                    setUploadFile(null);
+                  }}
+                  className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                  disabled={uploading}
+                >
+                  İptal
+                </button>
+                <button
+                  onClick={handleUploadBackup}
+                  disabled={uploading || !uploadFile}
+                  className="flex-1 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg flex items-center justify-center transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {uploading ? (
+                    <RefreshCw className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <>
+                      <Upload className="w-4 h-4 mr-2" />
+                      Yükle
                     </>
                   )}
                 </button>

@@ -2,7 +2,7 @@
 Backup/Restore API endpoints
 WireGuard konfigürasyon, database ve full system backup/restore
 """
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, File, UploadFile
 from fastapi.responses import JSONResponse, FileResponse
 from pydantic import BaseModel
 from typing import List, Dict, Any, Optional
@@ -19,6 +19,7 @@ from app.utils.datetime_helper import utcnow
 import os
 import zipfile
 import tempfile
+import shutil
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
