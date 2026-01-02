@@ -1,62 +1,109 @@
-# Python
+# ====================================
+# WireGuard Manager - .gitignore
+# ====================================
+
+# ============ Python Cache (GEREKSIZ) ============
 __pycache__/
 *.py[cod]
 *$py.class
 *.so
 .Python
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.coverage
+htmlcov/
 
-# Virtual Environment
+# ============ Logs (GEREKSIZ) ============
+*.log
+*.log.*
+logs/
+backend/logs/
+frontend/logs/
+backend_output.log
+frontend.log
+backend.log
+
+# ============ Virtual Environment ============
 venv/
 env/
 ENV/
 
-# Environment variables
+# ============ Node / Frontend ============
+node_modules/
+dist/
+build/
+.cache/
+.vite/
+*.local
+package-lock.json
+
+# ============ Environment Variables ============
 .env
 .env.local
-.env.*.local
+.env.production
+.env.development
+*.env
 
-# Database files
+# ============ Database ============
 *.db
-*.db-journal
 *.sqlite
 *.sqlite3
+router_manager.db
 
-# Logs
-*.log
-logs/
-
-# Backup files
-*_backup_*.db
-*.bak
+# ============ Backups (Opsiyonel) ============
 backups/
-
-# Security sensitive files
-.encryption_key
-*.key
-*.pem
-secrets/
-
-# IDE
-.vscode/
-.idea/
+*.backup
+*.bak
+*.old
+*~
 *.swp
 *.swo
-*~
 
-# OS
+# ============ IDE ============
+.vscode/
+.idea/
+*.sublime-*
 .DS_Store
 Thumbs.db
 
-# Test coverage
-.coverage
-htmlcov/
-.pytest_cache/
+# ============ Archives ============
+archive/
+*.zip
+*.tar.gz
+*.rar
+*.7z
+*.sha256
 
-# Distribution
-dist/
-build/
-*.egg-info/
+# ============ Temporary ============
+tmp/
+temp/
+*.tmp
+.cache
 
-# Log rotation
-*.log.*
-*.log.*.gz
+# ============ Static Files (User Uploads) ============
+backend/static/avatars/*
+!backend/static/avatars/.gitkeep
+
+# ============ Certificates ============
+*.pem
+*.key
+*.crt
+*.cert
+
+# ============ OS ============
+.AppleDouble
+.LSOverride
+ehthumbs.db
+Desktop.ini
+
+# ============ Claude Code ============
+.claude/
+
+# ============ WireGuard specific ============
+*.conf.bak
+wg*.zip
+
+# ============ Test files (Opsiyonel - kaldırılabilir) ============
+test_*.py
+test_*.sh
