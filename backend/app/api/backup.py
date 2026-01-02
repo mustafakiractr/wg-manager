@@ -512,6 +512,88 @@ async def delete_backup(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.post("/backup/upload")
+async def upload_backup(
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Backup dosyasını yükle
+    Desteklenen formatlar: .json, .zip
+    
+    Args:
+        file: Yüklenecek backup dosyası
+    """
+    try:
+        logger.info(f"📤 Backup yükleme: {file.filename}, Kullanıcı={current_user.username}")
+        
+        # Dosya uzantısı kontrolü
+        allowed_extensions = ['.json', '.zip']
+        file_ext = os.path.splitext(file.filename)[1].lower()
+        
+        if file_ext not in allowed_extensions:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Desteklenmeyen dosya formatı. İzin verilen: {', '.join(allowed_extensions)}"
+            )
+        
+        # Dosya boyutu kontrolü (500MB)
+        max_size = 500 * 1024 * 1024  # 500MB
+        file_content = await file.read()
+        
+        if len(file_content) > max_size:
+            raise HTTPException(status_code=400, detail="Dosya çok büyük (maksimum 500MB)")
+        
+        # Backup dizinini kontrol et/oluştur
+        backup_dir = os.path.join(os.path.dirname(__file__), "../..", "backups")
+        os.makedirs(backup_dir, exist_ok=True)
+        
+        # Benzersiz dosya adı oluştur (timestamp ile)
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        base_name = os.path.splitext(file.filename)[0]
+        new_filename = f"{base_name}_{timestamp}{file_ext}"
+        file_path = os.path.join(backup_dir, new_filename)
+        
+        # Dosyayı kaydet
+        with open(file_path, 'wb') as f:
+            f.write(file_content)
+        
+        logger.info(f"✅ Backup dosyası kaydedildi: {new_filename} ({len(file_content)} bytes)")
+        
+        # Log kaydı oluştur
+        await create_log(
+            db=db,
+            username=current_user.username,
+            action="upload_backup",
+            details=f"Backup yüklendi: {new_filename} ({len(file_content)} bytes)"
+        )
+        
+        return {
+            "success": True,
+            "message": "Backup başarıyla yüklendi",
+            "filename": new_filename,
+            "size": len(file_content),
+            "path": os.path.join("backups", new_filename)
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Backup yükleme hatası: {e}")
+        import traceback
+        logger.error(traceback.format_exc())
+        
+        await create_log(
+            db=db,
+            username=current_user.username,
+            action="upload_backup_error",
+            details=f"Backup yükleme hatası: {str(e)}"
+        )
+        
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.get("/backup/download/{backup_name:path}")
 async def download_backup(
     backup_name: str,
