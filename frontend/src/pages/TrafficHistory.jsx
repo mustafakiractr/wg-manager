@@ -2,7 +2,7 @@
  * Trafik Geçmişi sayfası
  * Trafik kullanım verilerini grafik olarak gösterir
  */
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import {
   getHourlyTraffic,
   getDailyTraffic,
@@ -21,7 +21,7 @@ import {
   Legend,
   Filler,
 } from 'chart.js'
-import { Line, Bar } from 'react-chartjs-2'
+import TrafficChart from '../components/TrafficChart'
 import {
   TrendingUp,
   TrendingDown,
@@ -52,20 +52,7 @@ function TrafficHistory() {
   const [trafficData, setTrafficData] = useState([])
   const [summary, setSummary] = useState(null)
   const [limit] = useState(100) // Pagination için limit (backend default ile uyumlu)
-  const chartRef = useRef(null) // Chart instance referansı
-
-  // Component unmount olduğunda chart'ı temizle
-  useEffect(() => {
-    return () => {
-      if (chartRef.current) {
-        try {
-          chartRef.current.destroy()
-        } catch (e) {
-          // Chart zaten destroy edilmiş olabilir, sessizce yoksay
-        }
-      }
-    }
-  }, [])
+  const [chartKey, setChartKey] = useState(0) // Chart'ı force remount için
 
   // Default tarih filtrelerini ayarla (performans için)
   useEffect(() => {
@@ -110,12 +97,6 @@ function TrafficHistory() {
   // İlk yükleme
   useEffect(() => {
     loadTrafficData()
-    
-    // Cleanup fonksiyonu - component unmount olduğunda
-    return () => {
-      setTrafficData([])
-      setSummary(null)
-    }
   }, [periodType, startDate, endDate])
 
   const loadTrafficData = async () => {
@@ -145,6 +126,8 @@ function TrafficHistory() {
         const sortedData = [...response.data].reverse()
         setTrafficData(sortedData)
         setSummary(response.summary)
+        // Chart'ı force remount et (DOM cleanup sorununu önler)
+        setChartKey(prev => prev + 1)
       }
     } catch (error) {
       console.error('Trafik verisi yüklenemedi:', error)
@@ -399,14 +382,11 @@ function TrafficHistory() {
             <p className="text-sm mt-2">Trafik verileri periyodik olarak kaydedilecek</p>
           </div>
         ) : (
-          <div className="h-96">
-            <Line 
-              ref={chartRef}
-              data={chartData} 
-              options={chartOptions}
-              key={`chart-${periodType}-${trafficData.length}`}
-            />
-          </div>
+          <TrafficChart 
+            key={chartKey}
+            data={chartData} 
+            options={chartOptions}
+          />
         )}
       </div>
 
