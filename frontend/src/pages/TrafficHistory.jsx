@@ -125,7 +125,23 @@ function TrafficHistory() {
         // Verileri ters sırala (en eski en başta)
         const sortedData = [...response.data].reverse()
         setTrafficData(sortedData)
-        setSummary(response.summary)
+        
+        // Summary değerlerini Number'a çevir (toFixed için)
+        if (response.summary) {
+          const normalizedSummary = {
+            ...response.summary,
+            total_rx_mb: Number(response.summary.total_rx_mb) || 0,
+            total_tx_mb: Number(response.summary.total_tx_mb) || 0,
+            total_traffic_mb: Number(response.summary.total_traffic_mb) || 0,
+            avg_rx_mb: Number(response.summary.avg_rx_mb) || 0,
+            avg_tx_mb: Number(response.summary.avg_tx_mb) || 0,
+            record_count: Number(response.summary.record_count) || 0
+          }
+          setSummary(normalizedSummary)
+        } else {
+          setSummary(null)
+        }
+        
         // Chart'ı force remount et (DOM cleanup sorununu önler)
         setChartKey(prev => prev + 1)
       }
@@ -324,7 +340,7 @@ function TrafficHistory() {
               <div>
                 <p className="text-sm text-gray-600 dark:text-gray-400">Toplam İndirme</p>
                 <p className="text-2xl font-bold text-blue-600 dark:text-blue-400 mt-1">
-                  {summary.total_rx_mb.toFixed(2)} MB
+                  {(summary.total_rx_mb || 0).toFixed(2)} MB
                 </p>
               </div>
               <Download className="w-8 h-8 text-blue-600 dark:text-blue-400" />
@@ -336,7 +352,7 @@ function TrafficHistory() {
               <div>
                 <p className="text-sm text-gray-600 dark:text-gray-400">Toplam Yükleme</p>
                 <p className="text-2xl font-bold text-green-600 dark:text-green-400 mt-1">
-                  {summary.total_tx_mb.toFixed(2)} MB
+                  {(summary.total_tx_mb || 0).toFixed(2)} MB
                 </p>
               </div>
               <Upload className="w-8 h-8 text-green-600 dark:text-green-400" />
@@ -348,7 +364,7 @@ function TrafficHistory() {
               <div>
                 <p className="text-sm text-gray-600 dark:text-gray-400">Ortalama İndirme</p>
                 <p className="text-2xl font-bold text-purple-600 dark:text-purple-400 mt-1">
-                  {(summary.avg_rx_bytes / (1024 * 1024)).toFixed(2)} MB
+                  {((Number(summary.avg_rx_bytes) || 0) / (1024 * 1024)).toFixed(2)} MB
                 </p>
               </div>
               <TrendingUp className="w-8 h-8 text-purple-600 dark:text-purple-400" />
@@ -360,7 +376,7 @@ function TrafficHistory() {
               <div>
                 <p className="text-sm text-gray-600 dark:text-gray-400">Kayıt Sayısı</p>
                 <p className="text-2xl font-bold text-orange-600 dark:text-orange-400 mt-1">
-                  {summary.record_count}
+                  {summary.record_count || 0}
                 </p>
               </div>
               <Calendar className="w-8 h-8 text-orange-600 dark:text-orange-400" />

@@ -27,16 +27,8 @@ const TrafficChart = memo(({ data, options }) => {
     }
   }, [])
 
-  // Data değiştiğinde mevcut chart'ı temizle
-  useEffect(() => {
-    if (chartRef.current && chartRef.current.destroy) {
-      try {
-        chartRef.current.destroy()
-      } catch (e) {
-        // Ignore
-      }
-    }
-  }, [data])
+  // NOT: Data değişiminde cleanup yapma - DOM conflict yaratıyor
+  // Key prop değişimi zaten yeni instance oluşturacak
 
   return (
     <div ref={containerRef} className="h-96 relative">
