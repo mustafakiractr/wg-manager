@@ -42,19 +42,34 @@ class MikroTikConnection:
             loop = asyncio.get_event_loop()
             
             def create_connection():
-                # Güvenli kimlik doğrulama - plaintext fallback kullanılmıyor
-                # TLS kullanımı önerilir (use_ssl=True)
-                pool = RouterOsApiPool(
-                    self.host,
-                    username=self.username,
-                    password=self.password,
-                    port=self.port,
-                    use_ssl=self.use_tls,
-                    plaintext_login=False  # Güvenlik: Plaintext login devre dışı
-                )
-                api = pool.get_api()
-                logger.info(f"MikroTik bağlantısı kuruldu (TLS: {self.use_tls})")
-                return pool, api
+                # RouterOS eski versiyonları plaintext login gerektirebilir
+                # Önce normal login dene, başarısız olursa plaintext kullan
+                try:
+                    pool = RouterOsApiPool(
+                        self.host,
+                        username=self.username,
+                        password=self.password,
+                        port=self.port,
+                        use_ssl=self.use_tls,
+                        plaintext_login=False
+                    )
+                    api = pool.get_api()
+                    logger.info(f"MikroTik bağlantısı kuruldu (normal login, TLS: {self.use_tls})")
+                    return pool, api
+                except Exception as e:
+                    # Normal login başarısız, plaintext dene
+                    logger.warning(f"Normal login başarısız, plaintext login deneniyor: {e}")
+                    pool = RouterOsApiPool(
+                        self.host,
+                        username=self.username,
+                        password=self.password,
+                        port=self.port,
+                        use_ssl=self.use_tls,
+                        plaintext_login=True  # Eski RouterOS için
+                    )
+                    api = pool.get_api()
+                    logger.info(f"MikroTik bağlantısı kuruldu (plaintext login, TLS: {self.use_tls})")
+                    return pool, api
             
             self.connection, self.api = await loop.run_in_executor(None, create_connection)
             logger.info(f"MikroTik router'a bağlanıldı: {self.host}:{self.port}")
