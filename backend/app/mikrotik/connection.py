@@ -51,8 +51,7 @@ class MikroTikConnection:
                         password=self.password,
                         port=self.port,
                         use_ssl=self.use_tls,
-                        plaintext_login=False,  # Önce normal login dene
-                        socket_timeout=60  # 60 saniye socket timeout (yavaş bağlantılar için)
+                        plaintext_login=False  # Önce normal login dene
                     )
                     api = pool.get_api()
                     return pool, api
@@ -65,8 +64,7 @@ class MikroTikConnection:
                         password=self.password,
                         port=self.port,
                         use_ssl=self.use_tls,
-                        plaintext_login=True,  # Plaintext login dene
-                        socket_timeout=60  # 60 saniye socket timeout (yavaş bağlantılar için)
+                        plaintext_login=True  # Plaintext login dene
                     )
                     api = pool.get_api()
                     return pool, api

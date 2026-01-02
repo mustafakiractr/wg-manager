@@ -77,8 +77,8 @@ class SyncService:
         try:
             logger.info("🔄 MikroTik WireGuard senkronizasyonu başlatılıyor...")
 
-            # MikroTik bağlantısını kontrol et
-            if not mikrotik_conn.is_connected:
+            # MikroTik bağlantısını kontrol et (connection ve api objelerini kontrol et)
+            if not (mikrotik_conn.connection is not None and mikrotik_conn.api is not None):
                 error_msg = "MikroTik bağlantısı yok, sync yapılamıyor"
                 logger.error(error_msg)
                 errors.append(error_msg)
