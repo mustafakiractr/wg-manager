@@ -51,7 +51,8 @@ class MikroTikConnection:
                         password=self.password,
                         port=self.port,
                         use_ssl=self.use_tls,
-                        plaintext_login=False  # Önce normal login dene
+                        plaintext_login=False,  # Önce normal login dene
+                        socket_timeout=10  # 10 saniye socket timeout (daha hızlı hata tespiti)
                     )
                     api = pool.get_api()
                     return pool, api
@@ -64,7 +65,8 @@ class MikroTikConnection:
                         password=self.password,
                         port=self.port,
                         use_ssl=self.use_tls,
-                        plaintext_login=True  # Plaintext login dene
+                        plaintext_login=True,  # Plaintext login dene
+                        socket_timeout=10  # 10 saniye socket timeout
                     )
                     api = pool.get_api()
                     return pool, api
@@ -140,7 +142,7 @@ class MikroTikConnection:
             Komut sonucu (liste veya dict)
         """
         max_retries = 3  # Maksimum 3 deneme
-        retry_delay = 1  # Her deneme arasında 1 saniye bekle
+        retry_delay = 0.5  # Her deneme arasında 0.5 saniye bekle (daha hızlı recovery)
         
         for attempt in range(max_retries):
             try:
@@ -415,9 +417,9 @@ class MikroTikConnection:
             logger.warning(f"IP adresleri alınamadı: {e}")
             # Hata olsa bile devam et, sadece IP adresleri olmadan
 
-        # Cache'le (30 saniye) - sadece cache kullanılıyorsa
+        # Cache'le (60 saniye) - sadece cache kullanılıyorsa
         if use_cache:
-            mikrotik_cache.set(cache_key, normalized_interfaces, ttl=30)
+            mikrotik_cache.set(cache_key, normalized_interfaces, ttl=60)
 
         return normalized_interfaces
     
@@ -531,9 +533,9 @@ class MikroTikConnection:
                 if 'current-endpoint-port' in peer:
                     logger.debug(f"current-endpoint-port: {peer['current-endpoint-port']}")
         
-        # Cache'le (30 saniye) - sadece cache kullanılıyorsa
+        # Cache'le (60 saniye) - sadece cache kullanılıyorsa
         if use_cache:
-            mikrotik_cache.set(cache_key, normalized_peers, ttl=30)
+            mikrotik_cache.set(cache_key, normalized_peers, ttl=60)
         
         return normalized_peers
     

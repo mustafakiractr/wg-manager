@@ -18,12 +18,12 @@ class SimpleCache:
     Thread-safe ve async-safe
     """
 
-    def __init__(self, default_ttl: int = 25, max_size: int = 1000):
+    def __init__(self, default_ttl: int = 55, max_size: int = 1000):
         """
         Cache oluştur
 
         Args:
-            default_ttl: Varsayılan cache süresi (saniye) - Auto-refresh 30s, cache 25s
+            default_ttl: Varsayılan cache süresi (saniye) - 55s (daha az API çağrısı için)
             max_size: Maksimum cache boyutu (LRU eviction için)
         """
         self._cache: Dict[str, Dict[str, Any]] = {}
