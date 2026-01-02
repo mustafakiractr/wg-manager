@@ -458,7 +458,7 @@ class BackupService:
             Silme sonucu
         """
         try:
-            # Database backup mı?
+            # SQLite database backup mı?
             if backup_name.endswith('.db'):
                 backup_path = self.backup_dir / backup_name
                 metadata_name = backup_name.replace('.db', '.json')
@@ -469,7 +469,20 @@ class BackupService:
                 if metadata_path.exists():
                     metadata_path.unlink()
 
-                logger.info(f"🗑️ Database backup silindi: {backup_name}")
+                logger.info(f"🗑️ SQLite backup silindi: {backup_name}")
+
+            # PostgreSQL database backup mı?
+            elif backup_name.endswith('.sql'):
+                backup_path = self.backup_dir / backup_name
+                metadata_name = backup_name.replace('.sql', '.json')
+                metadata_path = self.backup_dir / metadata_name
+
+                if backup_path.exists():
+                    backup_path.unlink()
+                if metadata_path.exists():
+                    metadata_path.unlink()
+
+                logger.info(f"🗑️ PostgreSQL backup silindi: {backup_name}")
 
             # Full backup mı?
             else:
