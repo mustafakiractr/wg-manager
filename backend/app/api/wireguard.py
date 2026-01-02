@@ -253,6 +253,7 @@ class PeerUpdateRequest(BaseModel):
     persistent_keepalive: Optional[str] = None
     disabled: Optional[bool] = None
     interface: Optional[str] = None  # Interface adı (allowed_address birleştirme için gerekli)
+    private_key: Optional[str] = None  # Peer'ın private key'i (QR kod ve config için)
 
 
 class PeerImportRequest(BaseModel):
@@ -1559,21 +1560,29 @@ async def update_peer(
             except Exception as e:
                 logger.error(f"❌ Route ekleme genel hatası: {e}")
 
-        # Veritabanını güncelle (allowed_address değiştiyse)
-        if "allowed-address" in kwargs:
+        # Veritabanını güncelle (allowed_address veya private_key değiştiyse)
+        if "allowed-address" in kwargs or peer_data.private_key:
             from app.models.peer_key import PeerKey
             from sqlalchemy import select, update
 
             try:
-                # Peer'ı veritabanında bul ve güncelle
-                stmt = (
-                    update(PeerKey)
-                    .where(PeerKey.peer_id == peer_id)
-                    .values(client_allowed_ips=kwargs["allowed-address"])
-                )
-                await db.execute(stmt)
-                await db.commit()
-                logger.info(f"✅ Veritabanı güncellendi - Peer ID: {peer_id}, Allowed IPs: {kwargs['allowed-address']}")
+                # Güncellenecek alanları belirle
+                update_values = {}
+                if "allowed-address" in kwargs:
+                    update_values['client_allowed_ips'] = kwargs["allowed-address"]
+                if peer_data.private_key and peer_data.private_key.strip():
+                    update_values['private_key'] = peer_data.private_key.strip()
+                
+                if update_values:
+                    # Peer'ı veritabanında bul ve güncelle
+                    stmt = (
+                        update(PeerKey)
+                        .where(PeerKey.peer_id == peer_id)
+                        .values(**update_values)
+                    )
+                    await db.execute(stmt)
+                    await db.commit()
+                    logger.info(f"✅ Veritabanı güncellendi - Peer ID: {peer_id}, Güncellenen alanlar: {list(update_values.keys())}")
             except Exception as e:
                 logger.error(f"❌ Veritabanı güncellenemedi: {e}")
                 # Hata olsa bile MikroTik güncellemesi başarılı olduğu için devam et
@@ -2220,6 +2229,88 @@ async def get_peer_logs_endpoint(
         import traceback
         logger.error(traceback.format_exc())
         raise HTTPException(status_code=500, detail=f"Peer logları alınamadı: {str(e)}")
+
+
+@router.get("/peer/{peer_id}/private-key")
+async def get_peer_private_key(
+    peer_id: str,
+    interface: str = Query(..., description="Interface adı"),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+) -> Dict[str, Any]:
+    """
+    Peer'ın private key'ini database'den döndürür
+    Peer düzenlerken kullanılır
+    
+    Args:
+        peer_id: MikroTik peer ID
+        interface: Interface adı
+    
+    Returns:
+        Private key bilgisi
+    """
+    try:
+        from sqlalchemy import select
+        
+        # Peer ID'yi normalize et (URL decode)
+        import urllib.parse
+        try:
+            decoded_peer_id = urllib.parse.unquote(peer_id)
+        except:
+            decoded_peer_id = peer_id
+        
+        logger.info(f"🔍 Private key aranıyor: Peer ID={peer_id} (decoded: {decoded_peer_id}), Interface={interface}")
+        
+        # Database'den private key'i al
+        # Önce peer_id ile dene
+        result = await db.execute(
+            select(PeerKey).where(PeerKey.peer_id == str(decoded_peer_id))
+        )
+        peer_key_record = result.scalar_one_or_none()
+        
+        # Eğer bulunamadıysa ve ID yıldız (*) ile başlıyorsa, normalize edilmiş ID ile dene
+        if not peer_key_record and str(decoded_peer_id).startswith("*"):
+            normalized_id = str(decoded_peer_id)[1:]
+            logger.info(f"🔍 Normalize edilmiş ID ile deneniyor: '{normalized_id}'")
+            result = await db.execute(
+                select(PeerKey).where(PeerKey.peer_id == normalized_id)
+            )
+            peer_key_record = result.scalar_one_or_none()
+        
+        # Eğer hala bulunamadıysa ve ID yıldız ile BAŞLAMIYOR ise, başına * ekleyerek dene
+        if not peer_key_record and not str(decoded_peer_id).startswith("*"):
+            with_asterisk_id = "*" + str(decoded_peer_id)
+            logger.info(f"🔍 Yıldız eklenerek deneniyor: '{with_asterisk_id}'")
+            result = await db.execute(
+                select(PeerKey).where(PeerKey.peer_id == with_asterisk_id)
+            )
+            peer_key_record = result.scalar_one_or_none()
+        
+        if peer_key_record:
+            logger.info(f"✅ Private key bulundu: Peer ID={peer_id}")
+            return {
+                "success": True,
+                "private_key": peer_key_record.private_key,
+                "peer_id": peer_key_record.peer_id,
+                "interface_name": peer_key_record.interface_name
+            }
+        else:
+            logger.info(f"ℹ️ Private key bulunamadı: Peer ID={peer_id}")
+            return {
+                "success": False,
+                "message": "Private key database'de bulunamadı",
+                "private_key": None
+            }
+    
+    except Exception as e:
+        logger.error(f"❌ Private key alınamadı: {e}")
+        import traceback
+        logger.error(traceback.format_exc())
+        return {
+            "success": False,
+            "message": str(e),
+            "private_key": None
+        }
 
 
 @router.get("/peer/{peer_id}/qrcode")

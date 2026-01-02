@@ -940,7 +940,20 @@ function WireGuardInterfaceDetail() {
         disabled: freshPeer.disabled || false,
         name: freshPeer.name || '',
         template_id: currentTemplateId,  // Template ID'yi ekle
+        private_key: '',  // Private key başlangıçta boş, kullanıcı isterse dolduracak
       }
+      
+      // Database'den private key'i al (eğer kayıtlıysa)
+      try {
+        const peerKeyResponse = await api.get(`/wg/peer/${peerId}/private-key?interface=${interfaceName}`)
+        if (peerKeyResponse.data && peerKeyResponse.data.private_key) {
+          editData.private_key = peerKeyResponse.data.private_key
+          console.log('✅ Private key database\'den alındı')
+        }
+      } catch (error) {
+        console.log('ℹ️ Private key database\'de bulunamadı (yeni peer için normal)')
+      }
+      
       console.log('🔍 Normalize edilmiş editData:', editData)
       console.log('🔍 Parsed allowed IPs:', ips)
       setEditingPeer(editData)
@@ -982,11 +995,13 @@ function WireGuardInterfaceDetail() {
         persistent_keepalive: editingPeer.persistent_keepalive,
         disabled: editingPeer.disabled,
         interface: interfaceName,  // Interface adını gönder (allowed_address birleştirme için)
+        private_key: editingPeer.private_key || undefined,  // Private key varsa gönder
       }
       console.log('📤 Peer güncelleme - Peer ID:', peerId)
       console.log('📤 Peer güncelleme - Interface:', interfaceName)
       console.log('📤 Peer güncelleme - Allowed IPs:', allowedIPs)
       console.log('📤 Peer güncelleme - Combined allowed_address:', combinedAllowedAddress)
+      console.log('📤 Peer güncelleme - Private key:', editingPeer.private_key ? 'VAR' : 'YOK')
       console.log('📤 Peer güncelleme - Gönderilen data:', updateData)
 
       await updatePeer(peerId, updateData)
@@ -2352,6 +2367,23 @@ function WireGuardInterfaceDetail() {
                   }
                   className="input"
                 />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Private Key
+                </label>
+                <input
+                  type="text"
+                  value={editingPeer.private_key || ''}
+                  onChange={(e) =>
+                    setEditingPeer({ ...editingPeer, private_key: e.target.value })
+                  }
+                  className="input font-mono text-sm"
+                  placeholder="Peer'ın private key'i (opsiyonel)"
+                />
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                  🔑 QR kod ve config dosyası için gereklidir. Boş bırakırsanız değişmez.
+                </p>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
