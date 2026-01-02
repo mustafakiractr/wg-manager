@@ -496,6 +496,23 @@ class MikroTikConnection:
                 elif endpoint_addr:
                     normalized_peer['endpoint'] = endpoint_addr
 
+            # Disabled alanını normalize et (boolean'a çevir)
+            # MikroTik'ten "true"/"false" string veya true/false boolean olarak gelebilir
+            disabled_value = normalized_peer.get('disabled')
+            if disabled_value is not None:
+                if isinstance(disabled_value, str):
+                    # String ise "true" veya "false" kontrolü yap
+                    normalized_peer['disabled'] = disabled_value.lower() in ('true', 'yes', '1')
+                elif isinstance(disabled_value, bool):
+                    # Boolean ise olduğu gibi kullan
+                    normalized_peer['disabled'] = disabled_value
+                else:
+                    # Diğer tipler için boolean'a çevir
+                    normalized_peer['disabled'] = bool(disabled_value)
+            else:
+                # disabled None ise varsayılan olarak False (aktif)
+                normalized_peer['disabled'] = False
+
             normalized_peers.append(normalized_peer)
         
         # Peer verilerini logla (debug için)

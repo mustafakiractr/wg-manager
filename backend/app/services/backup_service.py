@@ -5,10 +5,12 @@ Database ve configuration backup/restore işlemleri
 import os
 import shutil
 import json
+import subprocess
 from datetime import datetime
 from pathlib import Path
 from typing import List, Dict, Any, Optional
 import logging
+from app.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -29,11 +31,50 @@ class BackupService:
         self.backup_dir = Path(backup_dir)
         self.backup_dir.mkdir(parents=True, exist_ok=True)
 
-        # Database path
-        self.db_path = Path(__file__).parent.parent.parent / "router_manager.db"
+        # Database path ve type'ı belirle
+        database_url = settings.DATABASE_URL
+        self.is_postgresql = database_url.startswith("postgresql")
+        
+        if self.is_postgresql:
+            # PostgreSQL kullanılıyor
+            self.db_type = "postgresql"
+            # PostgreSQL connection bilgilerini parse et
+            # postgresql+asyncpg://user:pass@host/dbname
+            import re
+            match = re.match(r'postgresql(?:\+\w+)?://([^:]+):([^@]+)@([^/]+)/(\w+)', database_url)
+            if match:
+                self.pg_user = match.group(1)
+                self.pg_password = match.group(2)
+                self.pg_host = match.group(3)
+                self.pg_database = match.group(4)
+            else:
+                logger.warning(f"PostgreSQL URL parse edilemedi: {database_url}")
+                self.pg_user = "postgres"
+                self.pg_database = "wg_manager"
+                self.pg_host = "localhost"
+                self.pg_password = ""
+            self.db_path = None
+        else:
+            # SQLite kullanılıyor
+            self.db_type = "sqlite"
+            self.db_path = Path(__file__).parent.parent.parent / "router_manager.db"
+            
+            # Eğer SQLite dosyası yoksa ama database_url'de belirtilmişse, onu kullan
+            if not self.db_path.exists():
+                # sqlite:///./router_manager.db formatından dosya yolunu al
+                if database_url.startswith("sqlite"):
+                    db_file = database_url.replace("sqlite:///", "").replace("./", "")
+                    potential_path = Path(__file__).parent.parent.parent / db_file
+                    if potential_path.exists():
+                        self.db_path = potential_path
 
         logger.info(f"📁 Backup dizini: {self.backup_dir}")
-        logger.info(f"💾 Database path: {self.db_path}")
+        logger.info(f"💾 Database tipi: {self.db_type}")
+        if self.db_type == "sqlite":
+            logger.info(f"💾 Database path: {self.db_path}")
+            logger.info(f"💾 Database exists: {self.db_path.exists() if self.db_path else False}")
+        else:
+            logger.info(f"💾 PostgreSQL database: {self.pg_database} @ {self.pg_host}")
 
     def create_database_backup(self, description: str = "") -> Dict[str, Any]:
         """
@@ -47,28 +88,57 @@ class BackupService:
         """
         try:
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            backup_name = f"db_backup_{timestamp}.db"
-            backup_path = self.backup_dir / backup_name
+            
+            if self.db_type == "postgresql":
+                # PostgreSQL için pg_dump kullan
+                backup_name = f"db_backup_{timestamp}.sql"
+                backup_path = self.backup_dir / backup_name
+                
+                # pg_dump komutu
+                env = os.environ.copy()
+                env['PGPASSWORD'] = self.pg_password
+                
+                cmd = [
+                    'pg_dump',
+                    '-h', self.pg_host,
+                    '-U', self.pg_user,
+                    '-d', self.pg_database,
+                    '-f', str(backup_path),
+                    '--no-owner',
+                    '--no-acl'
+                ]
+                
+                logger.info(f"🔄 PostgreSQL backup başlatılıyor: {self.pg_database}")
+                result = subprocess.run(cmd, env=env, capture_output=True, text=True)
+                
+                if result.returncode != 0:
+                    raise Exception(f"pg_dump hatası: {result.stderr}")
+                    
+            else:
+                # SQLite için dosya kopyalama
+                backup_name = f"db_backup_{timestamp}.db"
+                backup_path = self.backup_dir / backup_name
+                
+                # Database dosyasını kopyala
+                if not self.db_path or not self.db_path.exists():
+                    raise FileNotFoundError(f"Database dosyası bulunamadı: {self.db_path}")
 
+                shutil.copy2(self.db_path, backup_path)
+            
             # Metadata dosyası
             metadata_name = f"db_backup_{timestamp}.json"
             metadata_path = self.backup_dir / metadata_name
-
-            # Database dosyasını kopyala
-            if not self.db_path.exists():
-                raise FileNotFoundError(f"Database dosyası bulunamadı: {self.db_path}")
-
-            shutil.copy2(self.db_path, backup_path)
 
             # Metadata oluştur
             metadata = {
                 "timestamp": timestamp,
                 "datetime": datetime.now().isoformat(),
                 "type": "database",
+                "db_type": self.db_type,
                 "description": description,
                 "filename": backup_name,
                 "size": backup_path.stat().st_size,
-                "db_path": str(self.db_path)
+                "db_path": str(self.db_path) if self.db_type == "sqlite" else f"{self.pg_database}@{self.pg_host}"
             }
 
             with open(metadata_path, 'w') as f:
@@ -104,9 +174,32 @@ class BackupService:
             backup_dir.mkdir(parents=True, exist_ok=True)
 
             # Database backup
-            db_backup_path = backup_dir / "database.db"
-            if self.db_path.exists():
-                shutil.copy2(self.db_path, db_backup_path)
+            if self.db_type == "postgresql":
+                # PostgreSQL için SQL dump
+                db_backup_path = backup_dir / "database.sql"
+                env = os.environ.copy()
+                env['PGPASSWORD'] = self.pg_password
+                
+                cmd = [
+                    'pg_dump',
+                    '-h', self.pg_host,
+                    '-U', self.pg_user,
+                    '-d', self.pg_database,
+                    '-f', str(db_backup_path),
+                    '--no-owner',
+                    '--no-acl'
+                ]
+                
+                logger.info(f"🔄 PostgreSQL full backup başlatılıyor: {self.pg_database}")
+                result = subprocess.run(cmd, env=env, capture_output=True, text=True)
+                
+                if result.returncode != 0:
+                    logger.warning(f"⚠️ pg_dump hatası (devam ediliyor): {result.stderr}")
+            else:
+                # SQLite için dosya kopyalama
+                db_backup_path = backup_dir / "database.db"
+                if self.db_path and self.db_path.exists():
+                    shutil.copy2(self.db_path, db_backup_path)
 
             # .env dosyası backup (hassas bilgiler içerir!)
             env_path = Path(__file__).parent.parent.parent / ".env"
@@ -208,7 +301,7 @@ class BackupService:
 
             # Mevcut database'i yedekle
             pre_restore_backup = None
-            if create_backup_before and self.db_path.exists():
+            if create_backup_before:
                 logger.info("📦 Restore öncesi mevcut database yedekleniyor...")
                 pre_restore_backup = self.create_database_backup(
                     description=f"Pre-restore backup before restoring {backup_name}"
@@ -216,7 +309,42 @@ class BackupService:
 
             # Database'i geri yükle
             logger.info(f"♻️ Database geri yükleniyor: {backup_name}")
-            shutil.copy2(backup_path, self.db_path)
+            
+            if self.db_type == "postgresql":
+                # PostgreSQL için psql ile restore
+                env = os.environ.copy()
+                env['PGPASSWORD'] = self.pg_password
+                
+                # Önce database'i temizle (drop all tables)
+                drop_cmd = [
+                    'psql',
+                    '-h', self.pg_host,
+                    '-U', self.pg_user,
+                    '-d', self.pg_database,
+                    '-c', 'DROP SCHEMA public CASCADE; CREATE SCHEMA public;'
+                ]
+                
+                logger.info("🗑️ Mevcut tablolar temizleniyor...")
+                subprocess.run(drop_cmd, env=env, capture_output=True, text=True)
+                
+                # Backup'ı geri yükle
+                restore_cmd = [
+                    'psql',
+                    '-h', self.pg_host,
+                    '-U', self.pg_user,
+                    '-d', self.pg_database,
+                    '-f', str(backup_path)
+                ]
+                
+                result = subprocess.run(restore_cmd, env=env, capture_output=True, text=True)
+                
+                if result.returncode != 0:
+                    raise Exception(f"psql restore hatası: {result.stderr}")
+            else:
+                # SQLite için dosya kopyalama
+                if not self.db_path:
+                    raise Exception("SQLite database path bulunamadı")
+                shutil.copy2(backup_path, self.db_path)
 
             logger.info(f"✅ Database başarıyla geri yüklendi")
 
@@ -256,10 +384,42 @@ class BackupService:
                 )
 
             # Database'i geri yükle
-            db_backup_path = backup_path / "database.db"
-            if db_backup_path.exists():
-                logger.info(f"♻️ Database geri yükleniyor...")
-                shutil.copy2(db_backup_path, self.db_path)
+            if self.db_type == "postgresql":
+                db_backup_path = backup_path / "database.sql"
+                if db_backup_path.exists():
+                    logger.info(f"♻️ PostgreSQL database geri yükleniyor...")
+                    
+                    env = os.environ.copy()
+                    env['PGPASSWORD'] = self.pg_password
+                    
+                    # Önce database'i temizle
+                    drop_cmd = [
+                        'psql',
+                        '-h', self.pg_host,
+                        '-U', self.pg_user,
+                        '-d', self.pg_database,
+                        '-c', 'DROP SCHEMA public CASCADE; CREATE SCHEMA public;'
+                    ]
+                    subprocess.run(drop_cmd, env=env, capture_output=True, text=True)
+                    
+                    # Backup'ı geri yükle
+                    restore_cmd = [
+                        'psql',
+                        '-h', self.pg_host,
+                        '-U', self.pg_user,
+                        '-d', self.pg_database,
+                        '-f', str(db_backup_path)
+                    ]
+                    result = subprocess.run(restore_cmd, env=env, capture_output=True, text=True)
+                    
+                    if result.returncode != 0:
+                        raise Exception(f"psql restore hatası: {result.stderr}")
+            else:
+                # SQLite için dosya kopyalama
+                db_backup_path = backup_path / "database.db"
+                if db_backup_path.exists() and self.db_path:
+                    logger.info(f"♻️ SQLite database geri yükleniyor...")
+                    shutil.copy2(db_backup_path, self.db_path)
 
             # .env dosyasını geri yükle (DİKKAT: Hassas işlem!)
             env_backup_path = backup_path / "env.backup"

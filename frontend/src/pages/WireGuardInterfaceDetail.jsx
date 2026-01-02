@@ -911,6 +911,16 @@ function WireGuardInterfaceDetail() {
       console.log('✅ Fresh peer verisi alındı:', freshPeer)
       console.log('🔍 Fresh allowed-address:', freshPeer['allowed-address'])
 
+      // Peer'ın mevcut template'ini al (database'den)
+      let currentTemplateId = null
+      try {
+        const templateResponse = await api.get(`/wg/peer/${peerId}/template?interface=${interfaceName}`)
+        currentTemplateId = templateResponse.data?.template_id || null
+        console.log('📋 Peer template bilgisi:', currentTemplateId)
+      } catch (templateErr) {
+        console.log('⚠️ Peer template bilgisi alınamadı (normal, import edilmiş peer olabilir):', templateErr)
+      }
+
       // Allowed address'leri parse et
       const allowedAddressStr = freshPeer['allowed-address'] || ''
       const ips = allowedAddressStr
@@ -929,6 +939,7 @@ function WireGuardInterfaceDetail() {
         comment: freshPeer.comment || '',
         disabled: freshPeer.disabled || false,
         name: freshPeer.name || '',
+        template_id: currentTemplateId,  // Template ID'yi ekle
       }
       console.log('🔍 Normalize edilmiş editData:', editData)
       console.log('🔍 Parsed allowed IPs:', ips)
@@ -979,6 +990,30 @@ function WireGuardInterfaceDetail() {
       console.log('📤 Peer güncelleme - Gönderilen data:', updateData)
 
       await updatePeer(peerId, updateData)
+
+      // Template güncelleme (eğer değiştiyse)
+      try {
+        const templateId = editingPeer.template_id || null
+        console.log('📋 Template güncelleniyor:', templateId, 'Tip:', typeof templateId)
+        
+        // Query string oluştur - null ise boş string gönder
+        const queryParams = new URLSearchParams({
+          interface: interfaceName,
+        })
+        
+        // template_id null değilse ekle
+        if (templateId !== null) {
+          queryParams.append('template_id', templateId.toString())
+        }
+        
+        console.log('📋 Template update URL:', `/wg/peer/${peerId}/update-template?${queryParams.toString()}`)
+        await api.post(`/wg/peer/${peerId}/update-template?${queryParams.toString()}`)
+        console.log('✅ Template başarıyla güncellendi')
+      } catch (templateError) {
+        console.error('❌ Template güncellenemedi:', templateError)
+        // Template hatası peer güncellemesini engellemez, sadece uyarı göster
+        alert('⚠️ Peer güncellendi ancak template güncellenemedi: ' + (templateError.response?.data?.detail || 'Bilinmeyen hata'))
+      }
 
       console.log('✅ Peer başarıyla güncellendi')
       setEditingPeer(null)
@@ -2338,6 +2373,31 @@ function WireGuardInterfaceDetail() {
                   NAT arkasındaki client'lar için önerilir (örn: 25s)
                 </p>
               </div>
+              {/* Template Seçimi */}
+              {availableTemplates.length > 0 && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Şablon
+                  </label>
+                  <select
+                    value={editingPeer.template_id || ''}
+                    onChange={(e) =>
+                      setEditingPeer({ ...editingPeer, template_id: e.target.value ? parseInt(e.target.value) : null })
+                    }
+                    className="input"
+                  >
+                    <option value="">Şablon seçmeyin</option>
+                    {availableTemplates.map((template) => (
+                      <option key={template.id} value={template.id}>
+                        {template.name}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                    Peer için şablon seçebilir veya mevcut şablonu kaldırabilirsiniz
+                  </p>
+                </div>
+              )}
               <div>
                 <label className="flex items-center gap-2">
                   <input

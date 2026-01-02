@@ -174,6 +174,16 @@ if check_command node; then
     NODE_VERSION=$(node --version | cut -d'v' -f2)
     if version_ge "$NODE_VERSION" "$NODE_MIN_VERSION"; then
         print_success "Node.js v$NODE_VERSION mevcut"
+        
+        # npm kontrolü - Node.js kurulu olsa bile npm olmayabilir
+        if ! check_command npm; then
+            print_warning "Node.js mevcut ama npm bulunamadı, düzeltiliyor..."
+            if [ "$OS_ID" = "ubuntu" ] || [ "$OS_ID" = "debian" ]; then
+                curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
+                apt-get install -y -qq nodejs
+                print_success "npm düzeltildi"
+            fi
+        fi
     else
         print_warning "Node.js v$NODE_VERSION çok eski, güncelleniyor..."
         # Eski Node.js'i kaldır ve yeni yükle
@@ -201,10 +211,44 @@ else
     fi
 fi
 
-# npm kontrolü
+# npm kontrolü ve kurulumu
 if ! check_command npm; then
-    print_error "npm yüklenemedi!"
-    exit 1
+    print_warning "npm bulunamadı, yeniden yükleniyor..."
+    
+    if [ "$OS_ID" = "ubuntu" ] || [ "$OS_ID" = "debian" ]; then
+        # Node'u tamamen kaldır ve nodesource'tan yeniden yükle
+        print_step "Node.js ve npm yeniden yükleniyor..."
+        apt-get remove -y -qq nodejs npm || true
+        apt-get autoremove -y -qq || true
+        
+        # nodesource repository ekle ve yükle
+        curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
+        apt-get install -y -qq nodejs
+        
+        # npm kontrolü
+        if check_command npm; then
+            print_success "Node.js ve npm başarıyla yüklendi"
+        else
+            print_error "npm hala yüklenemedi! Manuel kurulum gerekiyor:"
+            echo ""
+            echo "Çalıştırın:"
+            echo "  curl -fsSL https://deb.nodesource.com/setup_20.x | bash -"
+            echo "  apt install -y nodejs"
+            exit 1
+        fi
+    elif [ "$OS_ID" = "centos" ] || [ "$OS_ID" = "rhel" ]; then
+        # Node'u tamamen kaldır ve nodesource'tan yeniden yükle
+        yum remove -y -q nodejs npm || true
+        curl -fsSL https://rpm.nodesource.com/setup_20.x | bash -
+        yum install -y -q nodejs
+    else
+        print_error "npm otomatik yüklenemedi!"
+        echo ""
+        echo "Manuel olarak Node.js ve npm yükleyin:"
+        echo "  curl -fsSL https://deb.nodesource.com/setup_20.x | bash -"
+        echo "  apt install -y nodejs"
+        exit 1
+    fi
 fi
 
 print_success "npm $(npm --version) mevcut"
@@ -417,13 +461,31 @@ cd "$FRONTEND_DIR"
 # Node modüllerini yükle
 print_step "Frontend bağımlılıkları yükleniyor (bu biraz zaman alabilir)..."
 if [ -f "package.json" ]; then
+    # npm kontrolü (bir kez daha)
+    if ! check_command npm; then
+        print_error "npm bulunamadı!"
+        echo ""
+        echo "npm'i yüklemek için:"
+        echo "  curl -fsSL https://deb.nodesource.com/setup_20.x | sudo bash -"
+        echo "  sudo apt install -y nodejs"
+        exit 1
+    fi
+    
     # npm cache temizle
     npm cache clean --force 2>/dev/null || true
 
     # Bağımlılıkları yükle
-    npm install
-
-    print_success "Frontend bağımlılıkları yüklendi"
+    if npm install; then
+        print_success "Frontend bağımlılıkları yüklendi"
+    else
+        print_error "Frontend bağımlılıkları yüklenemedi!"
+        echo ""
+        echo "Hata ayıklama:"
+        echo "  cd $FRONTEND_DIR"
+        echo "  rm -rf node_modules package-lock.json"
+        echo "  npm install --verbose"
+        exit 1
+    fi
 else
     print_error "package.json bulunamadı!"
     exit 1

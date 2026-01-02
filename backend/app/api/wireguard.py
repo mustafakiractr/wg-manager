@@ -1729,27 +1729,35 @@ async def delete_peer(
             if result.rowcount > 0:
                 await db.commit()
                 logger.info(f"✅ Private key silindi: Peer ID={peer_id}")
-
-                # Template usage count'u düşür
-                if template_id_to_decrement:
-                    try:
-                        from app.models.peer_template import PeerTemplate
-                        template_result = await db.execute(
-                            select(PeerTemplate).where(PeerTemplate.id == template_id_to_decrement)
-                        )
-                        template = template_result.scalar_one_or_none()
-                        if template and template.usage_count > 0:
-                            template.usage_count -= 1
-                            await db.commit()
-                            logger.info(f"✅ Template usage count düşürüldü - Template ID: {template_id_to_decrement}, Yeni count: {template.usage_count}")
-                        else:
-                            logger.warning(f"⚠️ Template bulunamadı veya usage_count zaten 0 - Template ID: {template_id_to_decrement}")
-                    except Exception as template_error:
-                        logger.error(f"❌ Template usage count düşürülemedi: {template_error}")
-                        await db.rollback()
         except Exception as key_error:
             logger.warning(f"⚠️ Private key silme hatası (peer silme başarılı): {key_error}")
             await db.rollback()
+        
+        # Template usage count'u düşür (ayrı transaction - hata olursa peer silme başarılı sayılır)
+        if template_id_to_decrement:
+            try:
+                from app.models.peer_template import PeerTemplate
+                from app.database.database import AsyncSessionLocal
+                
+                # Bağımsız DB session kullan (rollback sorunu olmasın)
+                async with AsyncSessionLocal() as template_db:
+                    template_result = await template_db.execute(
+                        select(PeerTemplate).where(PeerTemplate.id == template_id_to_decrement)
+                    )
+                    template = template_result.scalar_one_or_none()
+                    if template and template.usage_count > 0:
+                        template.usage_count -= 1
+                        await template_db.commit()
+                        logger.info(f"✅ Template usage count düşürüldü - Template ID: {template_id_to_decrement}, Yeni count: {template.usage_count}")
+                    else:
+                        if template:
+                            logger.warning(f"⚠️ Template usage_count zaten 0 - Template ID: {template_id_to_decrement}")
+                        else:
+                            logger.warning(f"⚠️ Template bulunamadı - Template ID: {template_id_to_decrement}")
+            except Exception as template_error:
+                logger.error(f"❌ Template usage count düşürülemedi (peer silme başarılı): {template_error}")
+                import traceback
+                logger.debug(traceback.format_exc())
 
         # PeerMetadata kayıtlarını sil (varsa)
         try:
@@ -1902,6 +1910,7 @@ async def import_peer_from_mikrotik(
         # Yeni kayıt oluştur
         # Allowed IPs'yi al
         allowed_address = peer.get('allowed-address') or peer.get('allowed_address') or ""
+        logger.info(f"🔍 Import: allowed_address değeri = '{allowed_address}' (uzunluk: {len(allowed_address)})")
 
         # Endpoint bilgilerini al (önce template'ten, yoksa MikroTik'ten)
         endpoint_address = peer.get('current-endpoint-address') or peer.get('endpoint-address')
@@ -1995,6 +2004,81 @@ async def import_peer_from_mikrotik(
                 logger.warning(f"⚠️ IP allocation oluşturulamadı (devam ediliyor): {pool_error}")
 
         await db.commit()
+
+        # Route ekleme - allowed_address'teki subnet'ler için IP route oluştur
+        # (Panel'den eklenen peer'larla aynı davranış)
+        logger.info(f"🔍 Import: Route ekleme bloğu başlıyor - allowed_address='{allowed_address}'")
+        if allowed_address:
+            logger.info(f"✅ Import: allowed_address DOLU, route ekleme devam ediyor")
+            try:
+                import ipaddress
+
+                # Allowed address'lerden subnet'leri filtrele
+                addresses = [addr.strip() for addr in allowed_address.split(",")]
+                endpoint_subnets = []
+
+                for addr in addresses:
+                    # IP adresi mi kontrol et (IPv4 veya IPv6)
+                    ip_pattern = r'^(\d{1,3}\.){3}\d{1,3}(\/\d+)?$|^([0-9a-fA-F]{0,4}:){2,7}[0-9a-fA-F]{0,4}(\/\d+)?$'
+                    if re.match(ip_pattern, addr):
+                        # Subnet mi (/32 olmayanlar)
+                        if '/' in addr and not addr.endswith('/32'):
+                            endpoint_subnets.append(addr)
+                            logger.info(f"🆕 Import: Endpoint subnet tespit edildi: {addr}")
+
+                if endpoint_subnets:
+                    # MikroTik'teki mevcut interface subnet'lerini al
+                    existing_subnets = await mikrotik_conn.get_interface_subnets()
+                    logger.info(f"📋 Import: MikroTik'te mevcut subnet'ler: {existing_subnets}")
+
+                    # Gateway olarak allowed_address'in ilk /32 IP'sini kullan
+                    gateway_ip = None
+                    for addr in addresses:
+                        addr = addr.strip()
+                        if '/' in addr and addr.endswith('/32'):
+                            gateway_ip = addr.split('/')[0]
+                            logger.info(f"🌐 Import: Gateway IP belirlendi: {gateway_ip}")
+                            break
+                    
+                    # /32 bulunamadıysa ilk IP'yi kullan
+                    if not gateway_ip and addresses:
+                        first_ip = addresses[0].strip()
+                        gateway_ip = first_ip.split('/')[0] if '/' in first_ip else first_ip
+                        logger.info(f"🌐 Import: Gateway IP (fallback): {gateway_ip}")
+
+                    if gateway_ip:
+                        # Peer açıklamasını belirle
+                        peer_description = peer.get('comment') or peer.get('name') or "Imported peer"
+
+                        # Her subnet için route ekle
+                        for subnet in endpoint_subnets:
+                            try:
+                                # Subnet'i normalize et
+                                subnet_network = ipaddress.ip_network(subnet, strict=False)
+                                subnet_normalized = str(subnet_network)
+
+                                # MikroTik'te zaten var mı kontrol et
+                                if subnet_normalized in existing_subnets:
+                                    logger.info(f"⏭️ Import: Subnet zaten tanımlı, route eklenmiyor: {subnet_normalized}")
+                                    continue
+
+                                logger.info(f"🛣️ Import: IP route ekleniyor: {subnet} via {gateway_ip}")
+                                await mikrotik_conn.add_ip_route(
+                                    dst_address=subnet,
+                                    gateway=gateway_ip,
+                                    comment=f"{peer_description} for WireGuard peer {import_data.interface_name}"
+                                )
+                                logger.info(f"✅ Import: IP route eklendi: {subnet} via {gateway_ip}")
+                            except Exception as route_error:
+                                # Route ekleme hatası import'u engellemez
+                                logger.error(f"❌ Import: IP route eklenemedi ({subnet} via {gateway_ip}): {route_error}")
+                    else:
+                        logger.warning(f"⚠️ Import: Gateway IP bulunamadı, route'lar eklenemedi")
+            except Exception as e:
+                # Route ekleme hatası import'u engellemez
+                logger.error(f"❌ Import: Route ekleme genel hatası: {e}")
+        else:
+            logger.warning(f"⚠️ Import: allowed_address BOŞ, route eklenmedi!")
 
         # Template kullanım sayısını artır (background task'te)
         if import_data.template_id and template_data:
@@ -3187,3 +3271,188 @@ async def sync_wireguard_from_mikrotik(
         import traceback
         logger.debug(traceback.format_exc())
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/peer/{peer_id}/template")
+async def get_peer_template(
+    peer_id: str,
+    interface: str = Query(..., description="Interface adı"),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+) -> Dict[str, Any]:
+    """
+    Peer'ın mevcut template'ini getirir
+    
+    Args:
+        peer_id: MikroTik peer ID
+        interface: Interface adı
+    
+    Returns:
+        Template bilgisi veya None
+    """
+    try:
+        # Önce peer'ın public key'ini al
+        peers = await mikrotik_conn.get_wireguard_peers(interface, use_cache=False)
+        peer = None
+        
+        for p in peers:
+            p_id = p.get('.id') or p.get('id')
+            if str(p_id) == str(peer_id) or str(p_id).lstrip('*') == str(peer_id).lstrip('*'):
+                peer = p
+                break
+        
+        if not peer:
+            return {"template_id": None, "message": "Peer bulunamadı"}
+        
+        public_key = peer.get('public-key') or peer.get('public_key')
+        if not public_key:
+            return {"template_id": None, "message": "Public key bulunamadı"}
+        
+        public_key = str(public_key).strip()
+        
+        # Database'den template bilgisini al
+        result = await db.execute(
+            select(PeerKey).where(PeerKey.public_key == public_key)
+        )
+        peer_key_record = result.scalar_one_or_none()
+        
+        if peer_key_record:
+            return {
+                "template_id": peer_key_record.template_id,
+                "peer_id": peer_key_record.peer_id,
+                "interface_name": peer_key_record.interface_name
+            }
+        else:
+            return {"template_id": None, "message": "PeerKey kaydı bulunamadı"}
+    
+    except Exception as e:
+        logger.error(f"❌ Peer template bilgisi alınamadı: {e}")
+        return {"template_id": None, "error": str(e)}
+
+
+@router.post("/peer/{peer_id}/update-template")
+async def update_peer_template(
+    peer_id: str,
+    interface: str = Query(..., description="Interface adı"),
+    template_id: Optional[int] = Query(None, description="Template ID (None = template kaldır)"),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+) -> Dict[str, Any]:
+    """
+    Peer'ın template'ini günceller
+    İlk kurulumda import edilen peer'lar için sonradan template eklenebilir/değiştirilebilir
+    
+    Args:
+        peer_id: MikroTik peer ID
+        interface: Interface adı
+        template_id: Template ID (None ise template kaldırılır)
+    
+    Returns:
+        Güncellenmiş peer bilgisi
+    """
+    logger.info(f"📝 Peer template güncelleme: peer_id={peer_id}, interface={interface}, template_id={template_id}")
+    
+    try:
+        from sqlalchemy import update
+        
+        # Önce peer'ın public key'ini al (database'de güncellemek için)
+        peers = await mikrotik_conn.get_wireguard_peers(interface, use_cache=False)
+        peer = None
+        
+        for p in peers:
+            p_id = p.get('.id') or p.get('id')
+            if str(p_id) == str(peer_id) or str(p_id).lstrip('*') == str(peer_id).lstrip('*'):
+                peer = p
+                break
+        
+        if not peer:
+            raise HTTPException(status_code=404, detail=f"Peer bulunamadı: {peer_id}")
+        
+        public_key = peer.get('public-key') or peer.get('public_key')
+        if not public_key:
+            raise HTTPException(status_code=400, detail="Peer public key bulunamadı")
+        
+        public_key = str(public_key).strip()
+        
+        # Önce mevcut template ID'yi al (usage count düşürmek için)
+        old_template_id = None
+        existing_peer_key = await db.execute(
+            select(PeerKey).where(PeerKey.public_key == public_key)
+        )
+        existing_record = existing_peer_key.scalar_one_or_none()
+        if existing_record:
+            old_template_id = existing_record.template_id
+            logger.info(f"🔍 Mevcut template ID: {old_template_id}, Yeni template ID: {template_id}")
+        
+        # Database'de güncelle
+        stmt = (
+            update(PeerKey)
+            .where(PeerKey.public_key == public_key)
+            .values(template_id=template_id)
+        )
+        result = await db.execute(stmt)
+        await db.commit()
+        
+        if result.rowcount == 0:
+            # Peer key kaydı yoksa oluştur (import edilmiş ama key kaydı olmayan peer'lar için)
+            logger.warning(f"⚠️ Peer key kaydı yok, oluşturuluyor: {peer_id}")
+            new_peer_key = PeerKey(
+                peer_id=str(peer_id),
+                interface_name=interface,
+                public_key=public_key,
+                private_key=None,  # İlk kurulumda private key yoktur
+                template_id=template_id
+            )
+            db.add(new_peer_key)
+            await db.commit()
+            logger.info(f"✅ Peer key kaydı oluşturuldu: {peer_id}")
+        else:
+            logger.info(f"✅ Template güncellendi: {peer_id} -> template_id={template_id}")
+        
+        # Template usage count'ları güncelle
+        try:
+            from app.models.peer_template import PeerTemplate
+            from sqlalchemy import select as sql_select
+            
+            # ESKİ template'in usage count'unu düşür (eğer varsa ve None değilse)
+            if old_template_id and old_template_id != template_id:
+                old_template_result = await db.execute(
+                    sql_select(PeerTemplate).where(PeerTemplate.id == old_template_id)
+                )
+                old_template = old_template_result.scalar_one_or_none()
+                if old_template and old_template.usage_count > 0:
+                    old_template.usage_count -= 1
+                    await db.commit()
+                    logger.info(f"📉 Eski template usage count düşürüldü: {old_template.name} -> {old_template.usage_count}")
+            
+            # YENİ template'in usage count'unu artır (eğer None değilse ve eskiden farklıysa)
+            if template_id and template_id != old_template_id:
+                new_template_result = await db.execute(
+                    sql_select(PeerTemplate).where(PeerTemplate.id == template_id)
+                )
+                new_template = new_template_result.scalar_one_or_none()
+                if new_template:
+                    new_template.usage_count = (new_template.usage_count or 0) + 1
+                    new_template.last_used_at = utcnow()
+                    await db.commit()
+                    logger.info(f"📈 Yeni template usage count artırıldı: {new_template.name} -> {new_template.usage_count}")
+                else:
+                    logger.warning(f"⚠️ Yeni template bulunamadı: {template_id}")
+        except Exception as template_error:
+            logger.error(f"❌ Template usage count güncellenemedi: {template_error}")
+            # Hata olsa bile devam et
+        
+        return {
+            "success": True,
+            "message": "Peer template başarıyla güncellendi",
+            "peer_id": peer_id,
+            "template_id": template_id
+        }
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Peer template güncellenemedi: {e}")
+        import traceback
+        logger.error(traceback.format_exc())
+        raise HTTPException(status_code=500, detail=f"Peer template güncellenemedi: {str(e)}")
