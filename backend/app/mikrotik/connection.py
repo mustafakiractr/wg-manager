@@ -52,7 +52,7 @@ class MikroTikConnection:
                         port=self.port,
                         use_ssl=self.use_tls,
                         plaintext_login=False,  # Önce normal login dene
-                        socket_timeout=10  # 10 saniye socket timeout (daha hızlı hata tespiti)
+                        socket_timeout=60  # 60 saniye socket timeout (yavaş bağlantılar için)
                     )
                     api = pool.get_api()
                     return pool, api
@@ -66,7 +66,7 @@ class MikroTikConnection:
                         port=self.port,
                         use_ssl=self.use_tls,
                         plaintext_login=True,  # Plaintext login dene
-                        socket_timeout=10  # 10 saniye socket timeout
+                        socket_timeout=60  # 60 saniye socket timeout (yavaş bağlantılar için)
                     )
                     api = pool.get_api()
                     return pool, api
@@ -142,7 +142,7 @@ class MikroTikConnection:
             Komut sonucu (liste veya dict)
         """
         max_retries = 3  # Maksimum 3 deneme
-        retry_delay = 0.5  # Her deneme arasında 0.5 saniye bekle (daha hızlı recovery)
+        retry_delay = 1.0  # Her deneme arasında 1 saniye bekle (stabil)
         
         for attempt in range(max_retries):
             try:
