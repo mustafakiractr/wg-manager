@@ -18,13 +18,19 @@ BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
 # Logo
-echo -e "${BLUE}"
-echo "╔════════════════════════════════════════════╗"
-echo "║  MikroTik WireGuard Yönetim Paneli        ║"
-echo "║  Otomatik Kurulum v2.0                     ║"
-echo "║  🚀 Tüm Bağımlılıkları Otomatik Yükler    ║"
-echo "╚════════════════════════════════════════════╝"
-echo -e "${NC}"
+echo -e "${BLUE}╔════════════════════════════════════════════╗"
+echo "║                                            ║"
+echo "║   ██╗  ██╗██╗██████╗  █████╗  ██████╗      ║"
+echo "║   ██║ ██╔╝██║██╔══██╗██╔══██╗██╔════╝      ║"
+echo "║   █████╔╝ ██║██████╔╝███████║██║           ║"
+echo "║   ██╔═██╗ ██║██╔══██╗██╔══██║██║           ║"
+echo "║   ██║  ██╗██║██║  ██║██║  ██║╚██████╗      ║"
+echo "║   ╚═╝  ╚═╝╚═╝╚═╝  ╚═╝╚═╝  ╚═╝ ╚═════╝      ║"
+echo "║                                            ║"
+echo "║      MikroTik WireGuard Panel Installer    ║"
+echo "║              by KIRAC                      ║"
+echo "╚════════════════════════════════════════════╝${NC}"
+
 
 # Root kontrolü
 if [ "$EUID" -ne 0 ]; then
