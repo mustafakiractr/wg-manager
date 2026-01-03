@@ -1946,33 +1946,47 @@ function WireGuardInterfaceDetail() {
               )}
             </div>
 
-            {/* Şablon Seçimi */}
-            {availableTemplates.length > 0 && (
-              <div className="mb-4 p-3 bg-purple-50 dark:bg-purple-900/10 border border-purple-200 dark:border-purple-800 rounded-lg">
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 flex items-center gap-2">
-                  <Layers className="w-4 h-4 text-purple-600" />
-                  Şablondan Oluştur (Opsiyonel)
-                </label>
-                <select
-                  value={selectedTemplate?.id || ''}
-                  onChange={(e) => handleTemplateSelect(e.target.value)}
-                  className="input"
-                >
-                  <option value="">Şablon kullanma</option>
-                  {availableTemplates.map((template) => (
-                    <option key={template.id} value={template.id}>
-                      {template.name} ({template.usage_count || 0} kullanım)
-                    </option>
-                  ))}
-                </select>
-                {selectedTemplate && (
-                  <p className="text-xs text-purple-600 dark:text-purple-400 mt-1 flex items-center gap-1">
-                    <CheckCircle className="w-3 h-3" />
-                    Şablon seçildi. Formu kontrol edip gerekirse düzenleyebilirsiniz.
+            {/* Şablon Seçimi - Her zaman göster */}
+            <div className="mb-4 p-3 bg-purple-50 dark:bg-purple-900/10 border border-purple-200 dark:border-purple-800 rounded-lg">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 flex items-center gap-2">
+                <Layers className="w-4 h-4 text-purple-600" />
+                Şablondan Oluştur (Opsiyonel)
+              </label>
+              {availableTemplates.length > 0 ? (
+                <>
+                  <select
+                    value={selectedTemplate?.id || ''}
+                    onChange={(e) => handleTemplateSelect(e.target.value)}
+                    className="input"
+                  >
+                    <option value="">Şablon kullanma</option>
+                    {availableTemplates.map((template) => (
+                      <option key={template.id} value={template.id}>
+                        {template.name} ({template.usage_count || 0} kullanım)
+                      </option>
+                    ))}
+                  </select>
+                  {selectedTemplate && (
+                    <p className="text-xs text-purple-600 dark:text-purple-400 mt-1 flex items-center gap-1">
+                      <CheckCircle className="w-3 h-3" />
+                      Şablon seçildi. Formu kontrol edip gerekirse düzenleyebilirsiniz.
+                    </p>
+                  )}
+                </>
+              ) : (
+                <>
+                  <select
+                    disabled
+                    className="input bg-gray-100 dark:bg-gray-700 cursor-not-allowed opacity-60"
+                  >
+                    <option>Henüz şablon oluşturulmamış</option>
+                  </select>
+                  <p className="text-xs text-purple-600 dark:text-purple-400 mt-1">
+                    💡 "Şablonlar" menüsünden yeni şablon oluşturabilirsiniz
                   </p>
-                )}
-              </div>
-            )}
+                </>
+              )}
+            </div>
 
             <form onSubmit={bulkMode ? (e) => { e.preventDefault(); handleBulkAdd(); } : handleAddPeer} className="space-y-4">
               {/* Ad */}
@@ -2405,31 +2419,45 @@ function WireGuardInterfaceDetail() {
                   NAT arkasındaki client'lar için önerilir (örn: 25s)
                 </p>
               </div>
-              {/* Template Seçimi */}
-              {availableTemplates.length > 0 && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Şablon
-                  </label>
-                  <select
-                    value={editingPeer.template_id || ''}
-                    onChange={(e) =>
-                      setEditingPeer({ ...editingPeer, template_id: e.target.value ? parseInt(e.target.value) : null })
-                    }
-                    className="input"
-                  >
-                    <option value="">Şablon seçmeyin</option>
-                    {availableTemplates.map((template) => (
-                      <option key={template.id} value={template.id}>
-                        {template.name}
-                      </option>
-                    ))}
-                  </select>
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                    Peer için şablon seçebilir veya mevcut şablonu kaldırabilirsiniz
-                  </p>
-                </div>
-              )}
+              {/* Template Seçimi - Her zaman göster, template olmaması durumunda bilgilendirici mesaj */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Şablon
+                </label>
+                {availableTemplates.length > 0 ? (
+                  <>
+                    <select
+                      value={editingPeer.template_id || ''}
+                      onChange={(e) =>
+                        setEditingPeer({ ...editingPeer, template_id: e.target.value ? parseInt(e.target.value) : null })
+                      }
+                      className="input"
+                    >
+                      <option value="">Şablon seçmeyin</option>
+                      {availableTemplates.map((template) => (
+                        <option key={template.id} value={template.id}>
+                          {template.name}
+                        </option>
+                      ))}
+                    </select>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                      Peer için şablon seçebilir veya mevcut şablonu kaldırabilirsiniz
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <select
+                      disabled
+                      className="input bg-gray-100 dark:bg-gray-700 cursor-not-allowed opacity-60"
+                    >
+                      <option>Henüz şablon oluşturulmamış</option>
+                    </select>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                      💡 "Şablonlar" sayfasından yeni şablon oluşturabilirsiniz
+                    </p>
+                  </>
+                )}
+              </div>
               <div>
                 <label className="flex items-center gap-2">
                   <input
@@ -2642,27 +2670,43 @@ function WireGuardInterfaceDetail() {
                   </p>
                 </div>
 
-                {/* Template seçimi */}
+                {/* Template seçimi - Her zaman göster */}
                 <div className="mb-4">
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                     Peer Şablonu (Opsiyonel)
                   </label>
-                  <select
-                    value={importSelectedTemplate}
-                    onChange={(e) => setImportSelectedTemplate(e.target.value)}
-                    className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500"
-                  >
-                    <option value="">Şablon kullanma</option>
-                    {availableTemplates.map((template) => (
-                      <option key={template.id} value={template.id}>
-                        {template.name}
-                        {template.endpoint_address && ` (${template.endpoint_address})`}
-                      </option>
-                    ))}
-                  </select>
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                    Şablon seçerek endpoint, DNS ve diğer ayarları otomatik doldurabilirsiniz.
-                  </p>
+                  {availableTemplates.length > 0 ? (
+                    <>
+                      <select
+                        value={importSelectedTemplate}
+                        onChange={(e) => setImportSelectedTemplate(e.target.value)}
+                        className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500"
+                      >
+                        <option value="">Şablon kullanma</option>
+                        {availableTemplates.map((template) => (
+                          <option key={template.id} value={template.id}>
+                            {template.name}
+                            {template.endpoint_address && ` (${template.endpoint_address})`}
+                          </option>
+                        ))}
+                      </select>
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                        Şablon seçerek endpoint, DNS ve diğer ayarları otomatik doldurabilirsiniz.
+                      </p>
+                    </>
+                  ) : (
+                    <>
+                      <select
+                        disabled
+                        className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 cursor-not-allowed opacity-60"
+                      >
+                        <option>Henüz şablon oluşturulmamış</option>
+                      </select>
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                        💡 "Şablonlar" sayfasından yeni şablon oluşturabilir ve gelecekte peer'lara otomatik ayar uygulayabilirsiniz.
+                      </p>
+                    </>
+                  )}
 
                   {/* Template preview */}
                   {importSelectedTemplate && (() => {
