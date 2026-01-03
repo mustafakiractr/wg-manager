@@ -109,6 +109,26 @@ function WireGuardInterfaceDetail() {
   const [selectedTemplate, setSelectedTemplate] = useState(null) // Seçili şablon
 
   // Verileri yükle - useCallback ile optimize edildi
+  // Peer data normalize fonksiyonu - Memoize edildi (performans)
+  const normalizePeerData = useCallback((peer) => {
+    const peerId = peer['.id'] || peer.id || peer['*1'] || `peer-${Date.now()}-${Math.random()}`
+    
+    let disabled = peer.disabled
+    if (disabled === undefined || disabled === null) {
+      disabled = false
+    } else if (typeof disabled === 'string') {
+      disabled = disabled.toLowerCase() === 'true'
+    } else {
+      disabled = Boolean(disabled)
+    }
+    
+    return {
+      ...peer,
+      '.id': peerId,
+      disabled: disabled
+    }
+  }, [])
+
   const loadData = useCallback(async (showLoading = true) => {
     try {
       if (showLoading) {
@@ -119,43 +139,21 @@ function WireGuardInterfaceDetail() {
         getPeers(interfaceName),
       ])
       setInterfaceData(ifaceRes.data)
-      // Peer'ları yüklerken .id alanını kontrol et
-      const peersData = (peersRes.data || []).map(peer => {
-        // Peer ID'yi kontrol et ve varsayılan değer ekle
-        const peerId = peer['.id'] || peer.id || peer['*1'] || `peer-${Date.now()}-${Math.random()}`
-        
-        // MikroTik'ten gelen disabled değerini normalize et
-        // "true"/"false" string, true/false boolean, veya undefined olabilir
-        let disabled = peer.disabled
-        if (disabled === undefined || disabled === null) {
-          disabled = false  // Varsayılan olarak aktif
-        } else if (typeof disabled === 'string') {
-          disabled = disabled.toLowerCase() === 'true'
-        } else if (typeof disabled === 'boolean') {
-          disabled = disabled
-        } else {
-          disabled = Boolean(disabled)
-        }
-        
-        return {
-          ...peer,
-          '.id': peerId, // Emin olmak için tekrar set et
-          disabled: disabled  // Normalize edilmiş değer
-        }
-      })
+      
+      // Peer data'yı normalize et - Optimize edildi
+      const peersData = (peersRes.data || []).map(normalizePeerData)
       setPeers(peersData)
     } catch (error) {
       console.error('Veri yükleme hatası:', error)
-      // Network Error için özel mesaj
       if (error.code === 'ERR_NETWORK' || error.message === 'Network Error' || error.message.includes('Network')) {
-        console.warn('⚠️ Network hatası - Veri yüklenemedi. Sayfa yenilenecek.')
+        console.warn('⚠️ Network hatası - Veri yüklenemedi.')
       }
     } finally {
       if (showLoading) {
         setLoading(false)
       }
     }
-  }, [interfaceName])
+  }, [interfaceName, normalizePeerData])
 
   // Şablonları yükle
   const loadTemplates = async () => {
@@ -171,8 +169,8 @@ function WireGuardInterfaceDetail() {
   useEffect(() => {
     loadData() // İlk yükleme
     
-    // Auto-refresh interval'ını 30 saniyeye çıkardık (performans için)
-    // Sadece sayfa görünürken refresh yap (performans optimizasyonu)
+    // Auto-refresh 60 saniyeye çıkarıldı (performans optimizasyonu)
+    // Sadece sayfa görünürken refresh yap
     let interval = null
     
     const handleVisibilityChange = () => {
@@ -186,7 +184,7 @@ function WireGuardInterfaceDetail() {
         // Sayfa görünür hale geldiğinde interval'ı başlat
         if (!interval) {
           loadData(false) // Hemen bir kez yükle (loading gösterme)
-          interval = setInterval(() => loadData(false), 30000) // 30 saniyede bir refresh (loading gösterme)
+          interval = setInterval(() => loadData(false), 60000) // 60 saniyede bir refresh
         }
       }
     }
@@ -194,8 +192,8 @@ function WireGuardInterfaceDetail() {
     // Sayfa görünürlük değişikliğini dinle
     document.addEventListener('visibilitychange', handleVisibilityChange)
     
-    // İlk interval'ı başlat
-    interval = setInterval(() => loadData(false), 30000) // 30 saniyede bir refresh (loading gösterme)
+    // İlk interval'ı başlat - 60 saniye
+    interval = setInterval(() => loadData(false), 60000)
     
     return () => {
       if (interval) {
