@@ -57,8 +57,23 @@ echo "Veritabanı Yapılandırması"
 echo "============================================"
 echo ""
 
+# Script'in çalıştırıldığı dizini tespit et
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+BACKEND_DIR="$SCRIPT_DIR/backend"
+
+# Backend dizininin var olduğunu kontrol et
+if [ ! -d "$BACKEND_DIR" ]; then
+    echo "❌ HATA: Backend dizini bulunamadı: $BACKEND_DIR"
+    echo "   Script'i proje ana dizininde çalıştırın (örn: /opt/wg-manager/ veya /root/wg/)"
+    exit 1
+fi
+
+echo "📁 Kurulum dizini: $SCRIPT_DIR"
+echo "📁 Backend dizini: $BACKEND_DIR"
+echo ""
+
 # .env dosyasından mevcut ayarları oku (varsa)
-ENV_FILE="/root/wg/backend/.env"
+ENV_FILE="$BACKEND_DIR/.env"
 if [ -f "$ENV_FILE" ]; then
     echo "📄 Mevcut .env dosyası bulundu, ayarlar okunuyor..."
     
@@ -136,7 +151,14 @@ echo ""
 
 if [ ! -f "$ENV_FILE" ]; then
     echo "📝 .env dosyası oluşturuluyor..."
-    cp /root/wg/backend/.env.example "$ENV_FILE"
+    
+    # .env.example dosyasını kontrol et
+    if [ -f "$BACKEND_DIR/.env.example" ]; then
+        cp "$BACKEND_DIR/.env.example" "$ENV_FILE"
+    else
+        echo "⚠️  .env.example bulunamadı, yeni .env dosyası oluşturuluyor..."
+        touch "$ENV_FILE"
+    fi
 fi
 
 # DATABASE_URL'i güncelle
@@ -152,7 +174,19 @@ else
     echo "DATABASE_URL=\"$NEW_DB_URL\"" >> "$ENV_FILE"
 fi
 
-echo "✅ .env dosyası güncellendi"
+# .env dosyasının doğru oluşturulduğunu kontrol et
+if [ ! -f "$ENV_FILE" ]; then
+    echo "❌ HATA: .env dosyası oluşturulamadı: $ENV_FILE"
+    exit 1
+fi
+
+if ! grep -q "DATABASE_URL=" "$ENV_FILE"; then
+    echo "❌ HATA: DATABASE_URL .env dosyasında bulunamadı"
+    exit 1
+fi
+
+echo "✅ .env dosyası güncellendi: $ENV_FILE"
+echo "✅ DATABASE_URL doğrulandı"
 echo ""
 
 # Veritabanı bağlantısını test et
@@ -181,7 +215,7 @@ echo "⚠️  Bu bilgileri güvenli bir yerde saklayın!"
 echo ""
 
 # Şifre bilgisini dosyaya kaydet
-CREDS_FILE="/root/wg/backend/postgresql_credentials.txt"
+CREDS_FILE="$BACKEND_DIR/postgresql_credentials.txt"
 cat > "$CREDS_FILE" << EOF
 PostgreSQL Bağlantı Bilgileri
 =============================
@@ -202,11 +236,12 @@ echo "Sonraki Adımlar"
 echo "============================================"
 echo ""
 echo "1. Veritabanı tablolarını oluşturun:"
-echo "   cd /root/wg/backend"
+echo "   cd $BACKEND_DIR"
 echo "   source venv/bin/activate"
 echo "   python init_db.py"
 echo ""
 echo "2. Backend'i başlatın:"
-echo "   bash /root/wg/start_backend.sh"
+echo "   cd $SCRIPT_DIR"
+echo "   bash start_backend.sh"
 echo ""
 echo "✅ PostgreSQL kurulumu tamamlandı!"

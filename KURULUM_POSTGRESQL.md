@@ -1,4 +1,4 @@
-# 🚀 Yeni Makineye Hızlı Kurulum
+# 🚀 Yeni Makineye Hızlı Kurulum - PostgreSQL
 
 ## PostgreSQL Şifre Hatası Çözümü
 
@@ -13,29 +13,45 @@ Bu, PostgreSQL kullanıcısı ve veritabanının henüz oluşturulmamış olmas�
 
 ## ⚡ Otomatik Kurulum (Önerilen)
 
-### Adım 1: PostgreSQL'i Kur ve Yapılandır
+### Adım 1: Kurulum Dizinine Gidin
+
+```bash
+# Eğer /opt/wg-manager/ dizinine kurulum yaptıysanız:
+cd /opt/wg-manager/
+
+# Eğer /root/wg/ dizinine kurulum yaptıysanız:
+cd /root/wg/
+
+# Veya kendi dizininiz:
+cd /path/to/your/installation/
+```
+
+### Adım 2: PostgreSQL'i Kur ve Yapılandır
 ```bash
 sudo bash setup_postgresql.sh
 ```
 
-Bu script:
+**Script otomatik olarak şunları yapar:**
 - ✅ PostgreSQL'i yükler (kurulu değilse)
 - ✅ `wg_user` kullanıcısını oluşturur
 - ✅ `wg_manager` veritabanını oluşturur
 - ✅ Güçlü şifre oluşturur
-- ✅ `.env` dosyasını otomatik günceller
-- ✅ Bağlantı bilgilerini `postgresql_credentials.txt` dosyasına kaydeder
+- ✅ `.env` dosyasını kurulum dizininde günceller
+- ✅ Bağlantı bilgilerini `backend/postgresql_credentials.txt` dosyasına kaydeder
 
-### Adım 2: Veritabanı Tablolarını Oluştur
+**Not:** Script, çalıştırıldığı dizini otomatik tespit eder. `/opt/wg-manager/` veya `/root/wg/` veya başka herhangi bir dizinde çalışır.
+
+### Adım 3: Veritabanı Tablolarını Oluştur
 ```bash
-cd /root/wg/backend
+cd backend
 source venv/bin/activate
 python init_db.py
 ```
 
-### Adım 3: Servisleri Başlat
+### Adım 4: Servisleri Başlat
 ```bash
-bash /root/wg/start_all.sh
+cd ..
+bash start_all.sh
 ```
 
 ---
