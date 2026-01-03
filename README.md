@@ -265,6 +265,37 @@ Detaylı API dokümantasyonu için [PROJECT_GUIDE.md](PROJECT_GUIDE.md#api-docum
 
 ---
 
+## 🗑️ Kaldırma (Uninstall)
+
+Sisteminizden WireGuard Manager'ı tamamen kaldırmak için:
+
+```bash
+cd /opt/wg-manager  # veya kurulum dizininiz
+sudo bash uninstall.sh
+```
+
+**Kaldırma scripti şunları yapar:**
+- ✅ Çalışan servisleri durdurur
+- ✅ Systemd service dosyalarını kaldırır
+- ✅ Virtual environment ve node_modules'ları siler
+- 🔒 Log dosyalarını silmeden önce sorar (güvenlik)
+- 🔒 Veritabanını silmeden önce sorar (veri kaybı uyarısı)
+- 🔒 Tüm proje dosyalarını silmeden önce onay ister
+
+**Güvenlik özellikleri:**
+- Her kritik işlem için onay ister
+- Veri kaybı riski olan işlemleri vurgular
+- "EVET" yazarak onaylamanız gerekir
+- İptal etmek için istediğiniz zaman Enter'a basabilirsiniz
+
+**Not:** PostgreSQL kullanıyorsanız, veritabanını manuel olarak kaldırmanız gerekebilir:
+```bash
+sudo -u postgres psql -c "DROP DATABASE wg_manager;"
+sudo -u postgres psql -c "DROP USER wg_user;"
+```
+
+---
+
 ## 🤝 Katkıda Bulunma
 
 1. Repository'yi fork edin
