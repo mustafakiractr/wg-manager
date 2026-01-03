@@ -47,20 +47,6 @@ sudo bash quick-start.sh
 sudo bash install.sh  # Python, Node.js, npm ve tüm bağımlılıkları otomatik yükler
 nano backend/.env     # MikroTik bağlantısını yapılandırın
 bash start_all.sh     # Servisleri başlatın
-### Kurulum
-
-```bash
-# Repository'yi klonlayın
-git clone https://github.com/mustafakiractr/wg-manager.git /opt/wg-manager
-cd /opt/wg-manager
-
-# SEÇENEK 1: Hızlı Başlangıç (Önerilen - Her şeyi otomatik yükler)
-sudo bash quick-start.sh
-
-# SEÇENEK 2: Manuel Kurulum
-sudo bash install.sh  # Python, Node.js, npm ve tüm bağımlılıkları otomatik yükler
-bash start_all.sh     # Servisleri başlatın
-```
 
 ### Kurulum Sonrası Yapılandırma
 
