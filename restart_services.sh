@@ -9,9 +9,13 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
+# Script directory detection
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+PROJECT_DIR="$SCRIPT_DIR"
+
 # Directories
-BACKEND_DIR="/root/wg/backend"
-FRONTEND_DIR="/root/wg/frontend"
+BACKEND_DIR="$PROJECT_DIR/backend"
+FRONTEND_DIR="$PROJECT_DIR/frontend"
 LOG_DIR="/tmp"
 
 # Log files

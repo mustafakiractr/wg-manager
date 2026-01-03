@@ -94,7 +94,8 @@ sudo -u postgres psql -d wg_manager -c "GRANT ALL ON SCHEMA public TO wg_user;"
 
 ### 4. .env Dosyasını Güncelle
 ```bash
-cd /root/wg/backend
+# Kurulum dizininize gidin (örnek: /opt/wg-manager veya /root/wg)
+cd /path/to/your/installation/backend
 nano .env
 ```
 
@@ -156,8 +157,9 @@ DATABASE_URL="sqlite:///./router_manager.db"
 
 2. **Dosya İzinleri:**
    ```bash
-   chmod 600 /root/wg/backend/.env
-   chmod 600 /root/wg/backend/postgresql_credentials.txt
+   # Kurulum dizininiz için (örnek: /opt/wg-manager veya /root/wg)
+   chmod 600 /path/to/your/installation/backend/.env
+   chmod 600 /path/to/your/installation/backend/postgresql_credentials.txt
    ```
 
 3. **Firewall Ayarları:** PostgreSQL'i sadece localhost'tan erişilebilir yapın.

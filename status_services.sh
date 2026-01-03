@@ -58,9 +58,15 @@ echo -e "${YELLOW}Logs:${NC}"
 echo -e "  ${BLUE}Backend:  /tmp/backend.log${NC}"
 echo -e "  ${BLUE}Frontend: /tmp/frontend.log${NC}"
 
+# Script directory detection (if not already set)
+if [ -z "$SCRIPT_DIR" ]; then
+    SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+    PROJECT_DIR="$SCRIPT_DIR"
+fi
+
 echo ""
 echo -e "${BLUE}========================================${NC}"
 echo -e "${BLUE}Commands:${NC}"
-echo -e "  ${GREEN}/root/wg/restart_services.sh${NC} - Restart both services"
-echo -e "  ${GREEN}/root/wg/rs${NC}                   - Quick restart shortcut"
+echo -e "  ${GREEN}$PROJECT_DIR/restart_services.sh${NC} - Restart both services"
+echo -e "  ${GREEN}$PROJECT_DIR/rs${NC}                   - Quick restart shortcut"
 echo -e "${BLUE}========================================${NC}"

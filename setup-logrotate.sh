@@ -3,6 +3,10 @@
 
 set -e
 
+# Script directory detection
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+PROJECT_DIR="$SCRIPT_DIR"
+
 echo "🔄 Log Rotation Kurulumu Başlıyor..."
 
 # logrotate kurulu mu kontrol et
@@ -13,7 +17,7 @@ fi
 
 # Konfigürasyon dosyasını kopyala
 echo "📝 Logrotate konfigürasyonu kopyalanıyor..."
-sudo cp /root/wg/backend/logrotate.conf /etc/logrotate.d/wireguard-manager
+sudo cp "$PROJECT_DIR/backend/logrotate.conf" /etc/logrotate.d/wireguard-manager
 sudo chmod 644 /etc/logrotate.d/wireguard-manager
 
 # Syntax kontrolü
@@ -26,4 +30,4 @@ echo "Manuel test için:"
 echo "  sudo logrotate -f /etc/logrotate.d/wireguard-manager"
 echo ""
 echo "Log dosyalarını görmek için:"
-echo "  ls -lah /root/wg/backend/logs/"
+echo "  ls -lah $PROJECT_DIR/backend/logs/"

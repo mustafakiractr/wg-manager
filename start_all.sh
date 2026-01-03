@@ -1,8 +1,12 @@
 #!/bin/bash
+# Script directory detection
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+PROJECT_DIR="$SCRIPT_DIR"
+
 echo "=== Router Manager Servisleri Başlatılıyor ==="
 
 # Backend başlat
-cd /root/wg/backend
+cd "$PROJECT_DIR/backend"
 if [ ! -d "venv" ]; then
     echo "Virtual environment oluşturuluyor..."
     python3 -m venv venv
@@ -26,7 +30,7 @@ BACKEND_PID=$!
 echo "Backend PID: $BACKEND_PID"
 
 # Frontend kontrolü
-cd /root/wg/frontend
+cd "$PROJECT_DIR/frontend"
 if command -v npm &> /dev/null; then
     if [ ! -d "node_modules" ]; then
         echo "Node modules yükleniyor..."
@@ -35,7 +39,7 @@ if command -v npm &> /dev/null; then
     echo "Frontend başlatılıyor (Port 5173)..."
     pkill -f "vite" 2>/dev/null
     sleep 1
-    nohup npm run dev > /root/wg/frontend.log 2>&1 &
+    nohup npm run dev > "$PROJECT_DIR/frontend.log" 2>&1 &
     FRONTEND_PID=$!
     echo "Frontend PID: $FRONTEND_PID"
 else
@@ -51,8 +55,8 @@ echo "Frontend: http://localhost:5173"
 echo "API Docs: http://localhost:8001/docs"
 echo ""
 echo "Log dosyaları:"
-echo "  Backend:  /root/wg/backend/backend_output.log"
-echo "  Frontend: /root/wg/frontend.log"
+echo "  Backend:  $PROJECT_DIR/backend/backend_output.log"
+echo "  Frontend: $PROJECT_DIR/frontend.log"
 echo ""
 echo "Servisleri durdurmak için:"
 echo "  pkill -f 'python.*run.py'"

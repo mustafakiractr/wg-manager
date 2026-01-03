@@ -159,8 +159,8 @@ ssh admin@192.168.1.1
 
 #### 3. API Response Time Testi
 ```bash
-# Backend loglarını kontrol et
-tail -f /root/wg/backend/logs/backend.log | grep "MikroTik API"
+# Backend loglarını kontrol et (kurulum dizininiz için path'i düzenleyin)
+tail -f /path/to/your/installation/backend/logs/backend.log | grep "MikroTik API"
 
 # Execute_command sürelerini gözlemle
 ```
@@ -220,16 +220,16 @@ print(f"Cache size: {mikrotik_cache.size()}")
 
 ### Backend Metrics
 ```bash
-# Log analizi
-grep "execute_command" /root/wg/backend/logs/backend.log | \
+# Log analizi (kurulum dizininiz için path'i düzenleyin)
+grep "execute_command" /path/to/your/installation/backend/logs/backend.log | \
   awk '{print $NF}' | \
   awk -F'ms' '{sum+=$1; count++} END {print "Avg:", sum/count, "ms"}'
 ```
 
 ### Cache Metrics
 ```bash
-# Cache hit/miss ratio
-grep -E "cache|Cache" /root/wg/backend/logs/backend.log | \
+# Cache hit/miss ratio (kurulum dizininiz için path'i düzenleyin)
+grep -E "cache|Cache" /path/to/your/installation/backend/logs/backend.log | \
   grep -c "cache'den alındı" && \
   grep -c "API'den çek"
 ```
