@@ -48,26 +48,19 @@ sudo bash install.sh  # Python, Node.js, npm ve tüm bağımlılıkları otomati
 nano backend/.env     # MikroTik bağlantısını yapılandırın
 bash start_all.sh     # Servisleri başlatın
 
-### Kurulum Sonrası Yapılandırma
-
-1. **Uygulamayı başlatın:**
-   ```bash
-   bash start_all.sh
-   ```
-
-2. **Tarayıcıdan panele giriş yapın:**
+1. **Tarayıcıdan panele giriş yapın:**
    ```
    URL: http://localhost:5173
    Kullanıcı Adı: admin
    Şifre: admin123
    ```
 
-3. **MikroTik bağlantı bilgilerini panel üzerinden girin:**
+2. **MikroTik bağlantı bilgilerini panel üzerinden girin:**
    - Ayarlar → MikroTik Bağlantı sayfasına gidin
    - Router IP adresi, port, kullanıcı adı ve şifreyi girin
    - Bağlantıyı test edin ve kaydedin
 
-4. **İlk girişten sonra varsayılan şifreyi hemen değiştirin!**
+3. **İlk girişten sonra varsayılan şifreyi hemen değiştirin!**
 
 **Not:** Artık MikroTik bağlantı ayarlarını `.env` dosyasından değil, **panel üzerinden** yapıyorsunuz. Bu, daha güvenli ve kullanıcı dostudur.
 
