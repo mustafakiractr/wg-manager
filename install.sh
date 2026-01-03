@@ -431,11 +431,32 @@ mkdir -p logs
 mkdir -p backups
 print_success "Log ve backup dizinleri hazır"
 
+# .env'de DATABASE_URL kontrolü - PostgreSQL mu SQLite mi?
+DB_TYPE=$(grep "^DATABASE_URL=" .env | grep -o "postgresql\|sqlite" | head -1)
+
+if [ "$DB_TYPE" = "postgresql" ]; then
+    print_step "PostgreSQL yapılandırması tespit edildi"
+    print_warning "⚠️  PostgreSQL kullanıyorsanız setup_postgresql.sh scriptini çalıştırmalısınız!"
+    echo ""
+    echo "  Şimdi çalıştırmak için:"
+    echo "  ${YELLOW}cd $INSTALL_DIR && sudo bash setup_postgresql.sh${NC}"
+    echo ""
+    echo "  Veya manuel kurulum için KURULUM_POSTGRESQL.md dosyasını okuyun"
+    echo ""
+fi
+
 # Database oluştur ve varsayılan kullanıcıyı ekle
 print_step "Veritabanı başlatılıyor ve varsayılan kullanıcı oluşturuluyor..."
 if [ -f "init_db.py" ]; then
-    python3 init_db.py || print_warning "Veritabanı başlatma uyarısı (devam ediliyor)"
-    print_success "Veritabanı hazır ve admin kullanıcısı oluşturuldu"
+    if [ "$DB_TYPE" = "sqlite" ] || [ -z "$DB_TYPE" ]; then
+        # SQLite için direkt çalıştır
+        python3 init_db.py || print_warning "Veritabanı başlatma uyarısı (devam ediliyor)"
+        print_success "Veritabanı hazır ve admin kullanıcısı oluşturuldu"
+    else
+        # PostgreSQL için uyarı ver
+        print_warning "PostgreSQL tespit edildi - önce setup_postgresql.sh çalıştırın!"
+        print_warning "Sonra: cd backend && source venv/bin/activate && python init_db.py"
+    fi
     echo ""
     print_success "📋 Varsayılan Giriş Bilgileri:"
     echo "  Kullanıcı Adı: ${GREEN}admin${NC}"
