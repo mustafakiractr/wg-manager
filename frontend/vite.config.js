@@ -3,13 +3,7 @@ import react from '@vitejs/plugin-react'
 
 export default defineConfig({
   plugins: [
-    react({
-      babel: {
-        plugins: [
-          process.env.NODE_ENV === 'production' && ['babel-plugin-transform-remove-console', { exclude: ['error', 'warn'] }],
-        ].filter(Boolean),
-      },
-    }),
+    react(),
   ],
 
   server: {
