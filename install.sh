@@ -27,8 +27,7 @@ echo "║   ██╔═██╗ ██║██╔══██╗██╔═�
 echo "║   ██║  ██╗██║██║  ██║██║  ██║╚██████╗      ║"
 echo "║   ╚═╝  ╚═╝╚═╝╚═╝  ╚═╝╚═╝  ╚═╝ ╚═════╝      ║"
 echo "║                                            ║"
-echo "║      MikroTik WireGuard Panel Installer    ║"
-echo "║              by KIRAC                      ║"
+echo "║     MikroTik WireGuard Panel Installer     ║"
 echo "╚════════════════════════════════════════════╝"
 
 
