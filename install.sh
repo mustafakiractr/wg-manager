@@ -29,7 +29,7 @@ echo "║   ╚═╝  ╚═╝╚═╝╚═╝  ╚═╝╚═╝  ╚═�
 echo "║                                            ║"
 echo "║      MikroTik WireGuard Panel Installer    ║"
 echo "║              by KIRAC                      ║"
-echo "╚════════════════════════════════════════════╝${NC}"
+echo "╚════════════════════════════════════════════╝"
 
 
 # Root kontrolü
