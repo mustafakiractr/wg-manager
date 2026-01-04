@@ -11,6 +11,17 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+# Telegram bildirimi için lazy import (circular import önleme)
+_telegram_service = None
+
+def get_telegram_service():
+    """Telegram service'i lazy import eder"""
+    global _telegram_service
+    if _telegram_service is None:
+        from app.services.telegram_notification_service import TelegramNotificationService
+        _telegram_service = TelegramNotificationService
+    return _telegram_service
+
 
 def parse_mikrotik_time(time_str: str) -> Optional[int]:
     """
@@ -170,6 +181,33 @@ async def track_peer_status(
             if is_real_status_change:
                 should_create_new = True
                 logger.info(f"Peer durum değişikliği tespit edildi: {peer_id} ({interface_name}) - {last_record.event_type} -> {'online' if current_is_online else 'offline'}")
+                
+                # Telegram bildirimi gönder (async, non-blocking)
+                try:
+                    TelegramService = get_telegram_service()
+                    if not current_is_online:
+                        # Peer offline oldu - peer_down bildirimi
+                        await TelegramService.send_critical_event(
+                            db=db,
+                            event_type="peer_down",
+                            title=f"🔴 Peer Bağlantısı Koptu",
+                            description=f"**{peer_name or peer_id}** bağlantısı kesildi",
+                            details=f"Interface: {interface_name}\nSon handshake: {last_handshake_value or 'never'}"
+                        )
+                        logger.info(f"Telegram bildirimi gönderildi: peer_down - {peer_id}")
+                    else:
+                        # Peer online oldu - peer_up bildirimi
+                        await TelegramService.send_critical_event(
+                            db=db,
+                            event_type="peer_up",
+                            title=f"🟢 Peer Yeniden Bağlandı",
+                            description=f"**{peer_name or peer_id}** tekrar bağlandı",
+                            details=f"Interface: {interface_name}\nHandshake: {last_handshake_value or 'yeni'}"
+                        )
+                        logger.info(f"Telegram bildirimi gönderildi: peer_up - {peer_id}")
+                except Exception as telegram_error:
+                    # Telegram hatası peer tracking'i etkilemez
+                    logger.error(f"Telegram bildirimi gönderilemedi: {telegram_error}")
             else:
                 # Gerçek durum değişikliği değil, sadece handshake gecikmesi
                 # Önceki durumu koru ve kaydı güncelle

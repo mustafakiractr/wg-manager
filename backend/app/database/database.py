@@ -16,10 +16,21 @@ if database_url.startswith("sqlite"):
     database_url = database_url.replace("sqlite:///", "sqlite+aiosqlite:///")
 
 # Async engine oluştur
+# Connection pooling optimization
+# - pool_size: Havuzda tutulacak minimum bağlantı sayısı
+# - max_overflow: Ekstra bağlantı sayısı (pool_size + max_overflow = maksimum)
+# - pool_pre_ping: Her bağlantıyı kullanmadan önce test et (stale connection kontrolü)
+# - pool_recycle: Bağlantıları 1 saatte bir yenile (3600s)
+# - pool_timeout: Bağlantı beklerken max timeout (30s)
 engine = create_async_engine(
     database_url,
     echo=False,  # SQL sorgularını logla (geliştirme için True yapılabilir)
-    future=True
+    future=True,
+    pool_size=10,  # Default 5 → 10'a çıkarıldı
+    max_overflow=20,  # Default 10 → 20'ye çıkarıldı (max 30 concurrent connection)
+    pool_pre_ping=True,  # Stale connection kontrolü
+    pool_recycle=3600,  # 1 saatte bir connection yenile
+    pool_timeout=30,  # 30 saniye bağlantı timeout
 )
 
 # Session factory
@@ -77,7 +88,8 @@ async def init_db():
         activity_log,
         peer_metadata,
         peer_template,
-        session
+        session,
+        telegram_settings
     )
 
     async with engine.begin() as conn:

@@ -9,6 +9,20 @@ from sqlalchemy import update
 from app.models.user import User
 from app.config import settings
 from app.utils.datetime_helper import utcnow
+import logging
+
+logger = logging.getLogger(__name__)
+
+# Telegram bildirimi için lazy import
+_telegram_service = None
+
+def get_telegram_service():
+    """Telegram service'i lazy import eder"""
+    global _telegram_service
+    if _telegram_service is None:
+        from app.services.telegram_notification_service import TelegramNotificationService
+        _telegram_service = TelegramNotificationService
+    return _telegram_service
 
 
 def is_account_locked(user: User) -> Tuple[bool, Optional[datetime]]:
@@ -65,6 +79,21 @@ async def record_failed_login(db: AsyncSession, user: User) -> Tuple[bool, Optio
             )
         )
         await db.commit()
+        
+        # Telegram bildirimi gönder (async, non-blocking)
+        try:
+            TelegramService = get_telegram_service()
+            await TelegramService.send_critical_event(
+                db=db,
+                event_type="login_failed",
+                title="🔒 Hesap Kilitlendi",
+                description=f"**{user.username}** hesabı çok fazla başarısız giriş denemesi nedeniyle kilitlendi",
+                details=f"Başarısız deneme sayısı: {new_attempts}\nKilitlenme süresi: {settings.ACCOUNT_LOCKOUT_DURATION_MINUTES} dakika\nKilit açılma zamanı: {locked_until.strftime('%Y-%m-%d %H:%M:%S')}"
+            )
+            logger.info(f"Telegram bildirimi gönderildi: login_failed - {user.username}")
+        except Exception as telegram_error:
+            # Telegram hatası lockout işlemini etkilemez
+            logger.error(f"Telegram bildirimi gönderilemedi: {telegram_error}")
 
         return True, locked_until
     else:

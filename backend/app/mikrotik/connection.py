@@ -9,8 +9,20 @@ from typing import Optional, List, Dict, Any
 from routeros_api import RouterOsApiPool
 from app.config import settings
 from app.utils.cache import mikrotik_cache
+from app.utils.redis_cache import get_cache, set_cache, invalidate_pattern
 
 logger = logging.getLogger(__name__)
+
+# Telegram bildirimi için lazy import (circular import önleme)
+_telegram_service = None
+
+def get_telegram_service():
+    """Telegram service'i lazy import eder"""
+    global _telegram_service
+    if _telegram_service is None:
+        from app.services.telegram_notification_service import TelegramNotificationService
+        _telegram_service = TelegramNotificationService
+    return _telegram_service
 
 
 class MikroTikConnection:
@@ -117,6 +129,24 @@ class MikroTikConnection:
             except Exception as e:
                 # Bağlantı kopmuş, yeniden bağlan
                 logger.warning(f"MikroTik bağlantısı kopmuş, yeniden bağlanılıyor: {e}")
+                
+                # Telegram bildirimi gönder (async, non-blocking)
+                try:
+                    from app.database.database import AsyncSessionLocal
+                    TelegramService = get_telegram_service()
+                    async with AsyncSessionLocal() as db:
+                        await TelegramService.send_critical_event(
+                            db=db,
+                            event_type="mikrotik_disconnect",
+                            title="⚠️ MikroTik Bağlantısı Koptu",
+                            description=f"Router bağlantısı kesildi",
+                            details=f"Host: {self.host}:{self.port}\nHata: {str(e)}"
+                        )
+                        logger.info(f"Telegram bildirimi gönderildi: mikrotik_disconnect")
+                except Exception as telegram_error:
+                    # Telegram hatası bağlantı işlemini etkilemez
+                    logger.error(f"Telegram bildirimi gönderilemedi: {telegram_error}")
+                
                 try:
                     await self.disconnect()
                 except Exception as disconnect_error:
@@ -321,7 +351,7 @@ class MikroTikConnection:
     async def get_wireguard_interfaces(self, use_cache: bool = True) -> List[Dict[str, Any]]:
         """
         Tüm WireGuard interface'lerini getirir
-        Cache'lenmiş versiyonu kullanır (10 saniye cache)
+        Redis cache kullanır (60 saniye TTL)
         
         Args:
             use_cache: Cache kullanılsın mı? (default: True)
@@ -331,14 +361,14 @@ class MikroTikConnection:
         """
         cache_key = "wireguard_interfaces"
         
-        # Cache'den kontrol et (eğer cache kullanılıyorsa)
+        # Redis cache'den kontrol et
         if use_cache:
-            cached_result = mikrotik_cache.get(cache_key)
+            cached_result = get_cache(cache_key)
             if cached_result is not None:
-                logger.debug("WireGuard interfaces cache'den alındı")
+                logger.debug("WireGuard interfaces Redis cache'den alındı")
                 return cached_result
         
-        # Cache'de yok veya cache kullanılmıyor, API'den çek
+        # Cache'de yok, API'den çek
         result = await self.execute_command("/interface/wireguard", "print")
         
         # Interface verilerini normalize et - key alanlarını düzelt
@@ -419,14 +449,14 @@ class MikroTikConnection:
 
         # Cache'le (60 saniye) - sadece cache kullanılıyorsa
         if use_cache:
-            mikrotik_cache.set(cache_key, normalized_interfaces, ttl=60)
+            set_cache(cache_key, normalized_interfaces, ttl=60)
 
         return normalized_interfaces
     
     async def get_wireguard_peers(self, interface: str, use_cache: bool = True) -> List[Dict[str, Any]]:
         """
         Belirli bir interface'e ait peer'ları getirir
-        Cache'lenmiş versiyonu kullanır (10 saniye cache)
+        Cache'lenmiş versiyonu kullanır (60 saniye cache)
         
         Args:
             interface: Interface adı
@@ -439,7 +469,7 @@ class MikroTikConnection:
         
         # Cache'den kontrol et (eğer cache kullanılıyorsa)
         if use_cache:
-            cached_result = mikrotik_cache.get(cache_key)
+            cached_result = get_cache(cache_key)
             if cached_result is not None:
                 logger.debug(f"WireGuard peers cache'den alındı: {interface}")
                 return cached_result
@@ -535,7 +565,7 @@ class MikroTikConnection:
         
         # Cache'le (60 saniye) - sadece cache kullanılıyorsa
         if use_cache:
-            mikrotik_cache.set(cache_key, normalized_peers, ttl=60)
+            set_cache(cache_key, normalized_peers, ttl=60)
         
         return normalized_peers
     
@@ -597,7 +627,7 @@ class MikroTikConnection:
         logger.info(f"🔍 MikroTik add command result: {result}, type: {type(result)}")
 
         # Peer eklendikten sonra cache'i temizle
-        mikrotik_cache.invalidate_pattern(f"wireguard_peers:{interface}")
+        invalidate_pattern(f"wireguard_peers:{interface}")
         mikrotik_cache.clear("wireguard_interfaces")
 
         # MikroTik add komutu boş liste döndürüyor, peer ID'yi almak için

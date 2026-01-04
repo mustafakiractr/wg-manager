@@ -24,6 +24,17 @@ import shutil
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
+# Telegram bildirimi için lazy import
+_telegram_service = None
+
+def get_telegram_service():
+    """Telegram service'i lazy import eder"""
+    global _telegram_service
+    if _telegram_service is None:
+        from app.services.telegram_notification_service import TelegramNotificationService
+        _telegram_service = TelegramNotificationService
+    return _telegram_service
+
 
 @router.get("/backup/wireguard")
 async def backup_wireguard_config(
@@ -112,6 +123,21 @@ async def backup_wireguard_config(
             details=f"Backup hatası: {str(e)}",
             success=False
         )
+        
+        # Telegram bildirimi gönder (async, non-blocking)
+        try:
+            TelegramService = get_telegram_service()
+            await TelegramService.send_critical_event(
+                db=db,
+                event_type="backup_failed",
+                title="💾 Yedekleme Başarısız",
+                description=f"WireGuard konfigürasyon yedeği alınamadı",
+                details=f"Kullanıcı: {current_user.username}\nHata: {str(e)}"
+            )
+            logger.info(f"Telegram bildirimi gönderildi: backup_failed")
+        except Exception as telegram_error:
+            # Telegram hatası log kaydını etkilemez
+            logger.error(f"Telegram bildirimi gönderilemedi: {telegram_error}")
 
         raise HTTPException(status_code=500, detail=str(e))
 

@@ -3,10 +3,12 @@
  * Profil bilgileri ve güvenlik ayarları
  */
 import { useState } from 'react'
-import { Settings as SettingsIcon, User, Shield, Smartphone } from 'lucide-react'
+import { Settings as SettingsIcon, User, Shield, Smartphone, Bell, MessageSquare } from 'lucide-react'
 import ProfileSettings from '../components/ProfileSettings'
 import TwoFactorSettings from '../components/TwoFactorSettings'
 import ActiveDevices from '../components/ActiveDevices'
+import TelegramSettings from '../components/TelegramSettings'
+import TelegramDashboard from '../components/TelegramDashboard'
 
 function Settings() {
   const [activeTab, setActiveTab] = useState('profile')
@@ -65,6 +67,32 @@ function Settings() {
             <Smartphone className="w-5 h-5 inline-block mr-2" />
             Cihazlar
           </button>
+          <button
+            onClick={() => setActiveTab('notifications')}
+            className={`
+              py-4 px-1 border-b-2 font-medium text-sm
+              ${activeTab === 'notifications'
+                ? 'border-primary-500 text-primary-600 dark:text-primary-400'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300'
+              }
+            `}
+          >
+            <Bell className="w-5 h-5 inline-block mr-2" />
+            Bildirimler
+          </button>
+          <button
+            onClick={() => setActiveTab('telegram-logs')}
+            className={`
+              py-4 px-1 border-b-2 font-medium text-sm
+              ${activeTab === 'telegram-logs'
+                ? 'border-primary-500 text-primary-600 dark:text-primary-400'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300'
+              }
+            `}
+          >
+            <MessageSquare className="w-5 h-5 inline-block mr-2" />
+            Telegram Geçmişi
+          </button>
         </nav>
       </div>
 
@@ -85,6 +113,18 @@ function Settings() {
         <div className={activeTab === 'devices' ? 'block' : 'hidden'}>
           <div className="space-y-6">
             <ActiveDevices />
+          </div>
+        </div>
+
+        <div className={activeTab === 'notifications' ? 'block' : 'hidden'}>
+          <div className="space-y-6">
+            <TelegramSettings />
+          </div>
+        </div>
+
+        <div className={activeTab === 'telegram-logs' ? 'block' : 'hidden'}>
+          <div className="space-y-6">
+            <TelegramDashboard />
           </div>
         </div>
       </div>

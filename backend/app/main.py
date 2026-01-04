@@ -4,22 +4,30 @@ Uygulama başlatma ve route tanımlamaları burada yapılır
 """
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 from fastapi.exceptions import RequestValidationError
 from contextlib import asynccontextmanager
 import logging
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
+from prometheus_client import Counter, Gauge, generate_latest, REGISTRY, CONTENT_TYPE_LATEST
 from app.database.database import init_db
-from app.api import auth, wireguard, logs, mikrotik, traffic, users, notifications, backup, two_factor, sessions, avatar, activity_logs, websocket, ip_pool, peer_metadata, peer_template, dashboard
+from app.api import auth, wireguard, logs, mikrotik, traffic, users, notifications, backup, two_factor, sessions, avatar, activity_logs, websocket, ip_pool, peer_metadata, peer_template, dashboard, telegram_settings, telegram_logs
 from app.utils.logger import setup_logger
 from app.utils.crypto import decrypt_password
+from app.utils.redis_cache import init_redis, get_cache_stats
 from app.config import settings
 
 # Logger kurulumu
 setup_logger()
 logger = logging.getLogger(__name__)
+
+# Prometheus metrics - module level
+wireguard_active_peers = Gauge('wireguard_active_peers', 'Number of active WireGuard peers')
+auth_login_attempts = Counter('auth_login_attempts_total', 'Total login attempts', ['status'])
+mikrotik_connection_status = Gauge('mikrotik_connection_status', 'MikroTik connection status (1=connected, 0=disconnected)')
+api_requests_total = Counter('api_requests_total', 'Total API requests', ['method', 'endpoint', 'status'])
 
 # Rate limiter kurulumu
 limiter = Limiter(
@@ -37,6 +45,12 @@ async def lifespan(app: FastAPI):
     # Başlangıçta veritabanını başlat
     logger.info("Veritabanı başlatılıyor...")
     await init_db()
+    
+    # Redis cache başlat
+    logger.info("Redis cache başlatılıyor...")
+    init_redis()
+    cache_stats = get_cache_stats()
+    logger.info(f"📊 Redis Cache Stats: {cache_stats}")
     
     # MikroTik ayarlarını veritabanından yükle
     try:
@@ -129,6 +143,16 @@ async def lifespan(app: FastAPI):
         logger.info("Trafik kayıt zamanlayıcısı başlatıldı")
     except Exception as e:
         logger.warning(f"Trafik kayıt zamanlayıcısı başlatılamadı: {e}")
+        import traceback
+        logger.debug(traceback.format_exc())
+    
+    # Peer monitoring zamanlayıcısını başlat
+    try:
+        from app.utils.peer_monitoring_scheduler import start_peer_monitoring
+        await start_peer_monitoring()
+        logger.info("Peer monitoring zamanlayıcısı başlatıldı")
+    except Exception as e:
+        logger.warning(f"Peer monitoring zamanlayıcısı başlatılamadı: {e}")
         import traceback
         logger.debug(traceback.format_exc())
     
@@ -261,6 +285,8 @@ app.include_router(ip_pool.router, prefix="/api/v1", tags=["IP Pool"])
 app.include_router(peer_metadata.router, prefix="/api/v1", tags=["Peer Metadata"])
 app.include_router(peer_template.router, prefix="/api/v1", tags=["Peer Templates"])
 app.include_router(dashboard.router, prefix="/api/v1", tags=["Dashboard"])
+app.include_router(telegram_settings.router, prefix="/api/v1", tags=["Telegram"])
+app.include_router(telegram_logs.router, prefix="/api/v1", tags=["Telegram Logs"])
 
 
 # Sağlık kontrolü endpoint'i
@@ -279,4 +305,9 @@ async def health_check():
         "service": "router-manager-api"
     }
 
+
+@app.get("/metrics", include_in_schema=False)
+async def metrics():
+    """Prometheus metrics endpoint"""
+    return Response(generate_latest(REGISTRY), media_type=CONTENT_TYPE_LATEST)
 
