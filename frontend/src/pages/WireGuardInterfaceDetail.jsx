@@ -1856,7 +1856,7 @@ function WireGuardInterfaceDetail() {
       {/* Peer listesi */}
       <div className="card p-3 sm:p-4">
         <div className="flex flex-col gap-3 sm:gap-4 mb-4 sm:mb-6">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:gap-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:gap-4 relative z-10">
             <h2 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-white">
               Peer'lar ({peers.length})
               {selectedPeers.size > 0 && (
