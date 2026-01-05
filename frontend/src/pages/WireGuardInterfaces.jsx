@@ -1402,14 +1402,30 @@ function WireGuardInterfaces() {
       {/* Tüm Peer'lar Listesi */}
       <div className="card p-3 sm:p-4">
         <div className="flex flex-col gap-3 sm:gap-4 mb-4 sm:mb-6">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 relative z-10">
             <h2 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-white">
               Tüm Peer'lar ({allPeers.length})
             </h2>
+            <div className="flex gap-2">
+              <button
+                onClick={loadAllData}
+                className="btn btn-secondary flex items-center gap-1 sm:gap-2 text-xs sm:text-sm py-1.5 sm:py-2 px-2 sm:px-4"
+              >
+                <RefreshCw className="w-4 h-4" />
+                <span className="hidden sm:inline">Yenile</span>
+              </button>
+              <button
+                onClick={() => setShowAddModal(true)}
+                className="btn btn-primary flex items-center gap-1 sm:gap-2 text-xs sm:text-sm py-1.5 sm:py-2 px-2 sm:px-4"
+              >
+                <Plus className="w-4 h-4" />
+                <span className="hidden sm:inline">Peer</span> Ekle
+              </button>
+            </div>
           </div>
           
           {/* Arama ve filtre */}
-          <div className="flex flex-col sm:flex-row gap-2">
+          <div className="flex flex-col sm:flex-row gap-2 relative z-0">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
               <input
@@ -1441,40 +1457,24 @@ function WireGuardInterfaces() {
                 onChange={(e) => setFilterStatus(e.target.value)}
                 className="input text-xs sm:text-sm py-1.5 sm:py-2 flex-1 sm:flex-none"
               >
-              <option value="all">Tümü</option>
-              <option value="active">Aktif</option>
-              <option value="inactive">Pasif</option>
-            </select>
-            <select
-              value={filterGroup}
-              onChange={(e) => setFilterGroup(e.target.value)}
-              className="input"
-            >
-              <option value="all">Tüm Gruplar</option>
-              <option value="none">Grupsuz</option>
-              {availableGroups.map((group, index) => (
-                <option key={index} value={group.name}>
-                  {group.name} ({group.peer_count})
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div className="flex gap-2">
-            <button
-              onClick={loadAllData}
-              className="btn btn-secondary flex items-center gap-1 sm:gap-2 text-xs sm:text-sm py-1.5 sm:py-2 px-2 sm:px-4"
-            >
-              <RefreshCw className="w-4 h-4" />
-              <span className="hidden sm:inline">Yenile</span>
-            </button>
-            <button
-              onClick={() => setShowAddModal(true)}
-              className="btn btn-primary flex items-center gap-1 sm:gap-2 text-xs sm:text-sm py-1.5 sm:py-2 px-2 sm:px-4"
-            >
-              <Plus className="w-4 h-4" />
-              <span className="hidden sm:inline">Peer</span> Ekle
-            </button>
+                <option value="all">Tümü</option>
+                <option value="active">Aktif</option>
+                <option value="inactive">Pasif</option>
+              </select>
+              <select
+                value={filterGroup}
+                onChange={(e) => setFilterGroup(e.target.value)}
+                className="input"
+              >
+                <option value="all">Tüm Gruplar</option>
+                <option value="none">Grupsuz</option>
+                {availableGroups.map((group, index) => (
+                  <option key={index} value={group.name}>
+                    {group.name} ({group.peer_count})
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
         </div>
 
@@ -1879,7 +1879,6 @@ function WireGuardInterfaces() {
           </>
         )}
       </div>
-    </div>
 
       {/* Peer ekleme modal */}
       {showAddModal && (
