@@ -848,10 +848,34 @@ function WireGuardInterfaces() {
     
     try {
       setTogglingPeer(cleanPeerId)
-      // togglePeer fonksiyonuna isDisabled gönder (fonksiyon içinde enable hesaplanacak)
+      
+      // ⚡ OPTIMISTIC UPDATE: Hemen UI'ı güncelle (kullanıcı anında görsün)
+      setAllPeers(prevPeers => 
+        prevPeers.map(peer => {
+          const peerIdMatch = String(peer.id || peer['.id']).trim() === cleanPeerId
+          if (peerIdMatch && peer.interfaceName === interfaceName) {
+            return { ...peer, disabled: !isDisabled }
+          }
+          return peer
+        })
+      )
+      
+      // API çağrısını yap
       await togglePeer(cleanPeerId, interfaceName, isDisabled)
-      // Verileri yenile
-      await loadAllData()
+      
+      // ⚡ Sadece değişen interface'in peer'larını yenile (tüm veriyi değil)
+      const updatedPeersData = await getPeers(interfaceName)
+      if (updatedPeersData?.data) {
+        setAllPeers(prevPeers => {
+          // Bu interface'e ait olmayan peer'ları koru, sadece bu interface'i güncelle
+          const otherPeers = prevPeers.filter(p => p.interfaceName !== interfaceName)
+          const updatedPeers = updatedPeersData.data.map(peer => ({
+            ...peer,
+            interfaceName
+          }))
+          return [...otherPeers, ...updatedPeers]
+        })
+      }
     } catch (error) {
       console.error('Peer toggle hatası:', error)
       console.error('Hata detayları:', {
@@ -861,6 +885,18 @@ function WireGuardInterfaces() {
         peerId: cleanPeerId,
         interfaceName
       })
+      
+      // ⚡ Hata durumunda: Değişikliği geri al
+      setAllPeers(prevPeers => 
+        prevPeers.map(peer => {
+          const peerIdMatch = String(peer.id || peer['.id']).trim() === cleanPeerId
+          if (peerIdMatch && peer.interfaceName === interfaceName) {
+            return { ...peer, disabled: isDisabled } // Eski haline döndür
+          }
+          return peer
+        })
+      )
+      
       alert('Peer durumu değiştirilemedi: ' + (error.response?.data?.detail || error.message))
     } finally {
       setTogglingPeer(null)
