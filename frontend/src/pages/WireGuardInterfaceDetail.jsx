@@ -249,10 +249,10 @@ function WireGuardInterfaceDetail() {
 
   // Modal açıldığında şablonları yükle
   useEffect(() => {
-    if (showAddModal || showImportModal) {
+    if (showAddModal || showImportModal || editingPeer) {
       loadTemplates()
     }
-  }, [showAddModal, showImportModal])
+  }, [showAddModal, showImportModal, editingPeer])
 
   // IP adresi validasyonu - useCallback ile optimize edildi
   const validateIP = useCallback((ip) => {
