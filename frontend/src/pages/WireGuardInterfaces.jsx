@@ -1436,11 +1436,11 @@ function WireGuardInterfaces() {
                 className="input pl-10 text-sm py-1.5 sm:py-2"
               />
             </div>
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
               <select
                 value={filterInterface}
                 onChange={(e) => setFilterInterface(e.target.value)}
-                className="input text-xs sm:text-sm py-1.5 sm:py-2 flex-1 sm:flex-none"
+                className="input text-xs sm:text-sm py-1.5 sm:py-2 flex-1 sm:flex-none min-w-[100px]"
               >
                 <option value="all">Tüm Iface</option>
                 {interfaces.map((iface, index) => {
@@ -1455,7 +1455,7 @@ function WireGuardInterfaces() {
               <select
                 value={filterStatus}
                 onChange={(e) => setFilterStatus(e.target.value)}
-                className="input text-xs sm:text-sm py-1.5 sm:py-2 flex-1 sm:flex-none"
+                className="input text-xs sm:text-sm py-1.5 sm:py-2 flex-1 sm:flex-none min-w-[90px]"
               >
                 <option value="all">Tümü</option>
                 <option value="active">Aktif</option>
@@ -1464,7 +1464,7 @@ function WireGuardInterfaces() {
               <select
                 value={filterGroup}
                 onChange={(e) => setFilterGroup(e.target.value)}
-                className="input"
+                className="input text-xs sm:text-sm py-1.5 sm:py-2 flex-1 sm:flex-none min-w-[110px]"
               >
                 <option value="all">Tüm Gruplar</option>
                 <option value="none">Grupsuz</option>
@@ -1499,33 +1499,33 @@ function WireGuardInterfaces() {
                     <button
                       onClick={() => handleBulkToggle(true)}
                       disabled={bulkActionInProgress}
-                      className="btn btn-sm bg-green-600 text-white hover:bg-green-700 disabled:bg-gray-400 text-xs px-2 py-1"
+                      className="btn btn-sm bg-green-600 text-white hover:bg-green-700 disabled:bg-gray-400 text-xs px-2 py-1 flex items-center gap-1"
                     >
-                      <CheckCircle className="w-3 h-3 sm:w-4 sm:h-4 sm:mr-1" />
+                      <CheckCircle className="w-3 h-3 sm:w-4 sm:h-4" />
                       <span className="hidden sm:inline">Aktif</span>
                     </button>
                     <button
                       onClick={() => handleBulkToggle(false)}
                       disabled={bulkActionInProgress}
-                      className="btn btn-sm bg-yellow-600 text-white hover:bg-yellow-700 disabled:bg-gray-400 text-xs px-2 py-1"
+                      className="btn btn-sm bg-yellow-600 text-white hover:bg-yellow-700 disabled:bg-gray-400 text-xs px-2 py-1 flex items-center gap-1"
                     >
-                      <AlertCircle className="w-3 h-3 sm:w-4 sm:h-4 sm:mr-1" />
+                      <AlertCircle className="w-3 h-3 sm:w-4 sm:h-4" />
                       <span className="hidden sm:inline">Pasif</span>
                     </button>
                     <button
                       onClick={() => setShowGroupModal(true)}
                       disabled={bulkActionInProgress}
-                      className="btn btn-sm bg-blue-600 text-white hover:bg-blue-700 disabled:bg-gray-400 text-xs px-2 py-1"
+                      className="btn btn-sm bg-blue-600 text-white hover:bg-blue-700 disabled:bg-gray-400 text-xs px-2 py-1 flex items-center gap-1"
                     >
-                      <Tags className="w-3 h-3 sm:w-4 sm:h-4 sm:mr-1" />
+                      <Tags className="w-3 h-3 sm:w-4 sm:h-4" />
                       <span className="hidden sm:inline">Grup</span>
                     </button>
                     <button
                       onClick={handleBulkDelete}
                       disabled={bulkActionInProgress}
-                      className="btn btn-sm bg-red-600 text-white hover:bg-red-700 disabled:bg-gray-400 text-xs px-2 py-1"
+                      className="btn btn-sm bg-red-600 text-white hover:bg-red-700 disabled:bg-gray-400 text-xs px-2 py-1 flex items-center gap-1"
                     >
-                      <Trash2 className="w-3 h-3 sm:w-4 sm:h-4 sm:mr-1" />
+                      <Trash2 className="w-3 h-3 sm:w-4 sm:h-4" />
                       <span className="hidden sm:inline">Sil</span>
                     </button>
                     <button
