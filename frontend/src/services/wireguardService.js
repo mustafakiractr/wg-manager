@@ -91,13 +91,21 @@ export const updatePeer = async (peerId, peerData) => {
  * Peer'ı aktif/pasif yapar
  * @param {string} peerId - Peer ID
  * @param {string} interfaceName - Interface adı
- * @param {boolean} enable - True ise aktif et, False ise pasif et
+ * @param {boolean} currentDisabled - Mevcut disabled durumu (true=pasif, false=aktif)
  */
 export const togglePeer = async (peerId, interfaceName, currentDisabled) => {
-  // currentDisabled true ise peer pasif (disabled), false ise aktif
-  // Peer pasifse (currentDisabled=true) → aktif et (enable=true)
-  // Peer aktifse (currentDisabled=false) → pasif et (enable=false)
-  const enable = currentDisabled  // currentDisabled durumunu tersine çeviriyoruz
+  // currentDisabled true ise peer şu an pasif (disabled) → aktif et (enable=true)
+  // currentDisabled false ise peer şu an aktif → pasif et (enable=false)
+  const enable = !currentDisabled  // ❌ HATAYDI: currentDisabled → ✅ DOĞRU: !currentDisabled
+  
+  console.log('togglePeer API çağrısı:', {
+    peerId,
+    interfaceName,
+    currentDisabled,
+    enable,
+    url: `/wg/peer/${encodeURIComponent(peerId)}/toggle?interface=${encodeURIComponent(interfaceName)}&enable=${enable}`
+  })
+  
   const response = await api.post(`/wg/peer/${encodeURIComponent(peerId)}/toggle?interface=${encodeURIComponent(interfaceName)}&enable=${enable}`)
   return response.data
 }
