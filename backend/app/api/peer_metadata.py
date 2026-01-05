@@ -28,6 +28,8 @@ class PeerMetadataUpdate(BaseModel):
     group_color: Optional[str] = None
     tags: Optional[str] = None
     notes: Optional[str] = None
+    expires_at: Optional[datetime] = None
+    expiry_action: Optional[str] = None  # 'disable', 'delete', 'notify_only'
 
 
 class PeerMetadataResponse(BaseModel):
@@ -40,11 +42,22 @@ class PeerMetadataResponse(BaseModel):
     group_color: Optional[str]
     tags: Optional[str]
     notes: Optional[str]
+    expires_at: Optional[datetime] = None
+    expired_notified: Optional[bool] = None
+    expiry_action: Optional[str] = None
     created_at: datetime
     updated_at: datetime
 
     class Config:
         from_attributes = True
+
+
+class PeerExpiryUpdate(BaseModel):
+    """Peer expiry güncelleme modeli"""
+    peer_id: str
+    interface_name: str
+    expires_at: Optional[datetime] = None  # None = süresiz
+    expiry_action: str = 'disable'  # 'disable', 'delete', 'notify_only'
 
 
 class BulkGroupUpdate(BaseModel):
@@ -225,4 +238,171 @@ async def bulk_update_peer_group(
 
     except Exception as e:
         logger.error(f"Toplu grup güncelleme hatası: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ==================== Expiry Endpoints ====================
+
+@router.post("/peer-metadata/expiry")
+async def set_peer_expiry(
+    expiry_data: PeerExpiryUpdate,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Peer için son kullanma tarihi ayarlar
+    
+    Body:
+    - peer_id: Peer ID
+    - interface_name: Interface adı
+    - expires_at: Son kullanma tarihi (ISO format, null = süresiz)
+    - expiry_action: 'disable', 'delete', 'notify_only'
+    """
+    try:
+        from app.services.peer_expiry_service import PeerExpiryService
+        
+        metadata = await PeerExpiryService.set_peer_expiry(
+            db=db,
+            peer_id=expiry_data.peer_id,
+            interface_name=expiry_data.interface_name,
+            expires_at=expiry_data.expires_at,
+            expiry_action=expiry_data.expiry_action
+        )
+        
+        # Activity log
+        expiry_str = expiry_data.expires_at.isoformat() if expiry_data.expires_at else "Süresiz"
+        await ActivityLogger.log(
+            db=db,
+            request=request,
+            action="set_peer_expiry",
+            category="peer",
+            description=f"Peer expiry ayarlandı: {expiry_data.peer_id} -> {expiry_str}",
+            user=current_user,
+            target_type="peer",
+            target_id=expiry_data.peer_id,
+            success='success'
+        )
+        
+        return {
+            "success": True,
+            "message": "Son kullanma tarihi ayarlandı",
+            "data": {
+                "peer_id": metadata.peer_id,
+                "expires_at": metadata.expires_at.isoformat() if metadata.expires_at else None,
+                "expiry_action": metadata.expiry_action
+            }
+        }
+        
+    except Exception as e:
+        logger.error(f"Peer expiry ayarlanamadı: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/peer-metadata/expiry/stats")
+async def get_expiry_stats(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Expiry istatistiklerini getirir
+    
+    Returns:
+    - expired: Süresi dolmuş peer sayısı
+    - expiring_24h: 24 saat içinde dolacak
+    - expiring_7d: 7 gün içinde dolacak
+    - total_with_expiry: Toplam expiry tanımlı peer sayısı
+    """
+    try:
+        from app.services.peer_expiry_service import PeerExpiryService
+        
+        stats = await PeerExpiryService.get_expiry_stats(db)
+        return {
+            "success": True,
+            "data": stats
+        }
+        
+    except Exception as e:
+        logger.error(f"Expiry istatistikleri alınamadı: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/peer-metadata/expiry/expiring-soon")
+async def get_expiring_soon_peers(
+    hours: int = 24,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Yakında süresi dolacak peer'ları listeler
+    
+    Query params:
+    - hours: Kaç saat içinde dolacakları kontrol et (default: 24)
+    """
+    try:
+        from app.services.peer_expiry_service import PeerExpiryService
+        
+        peers = await PeerExpiryService.get_expiring_soon_peers(db, hours)
+        
+        return {
+            "success": True,
+            "data": [
+                {
+                    "peer_id": p.peer_id,
+                    "interface_name": p.interface_name,
+                    "expires_at": p.expires_at.isoformat() if p.expires_at else None,
+                    "expiry_action": p.expiry_action,
+                    "group_name": p.group_name
+                }
+                for p in peers
+            ]
+        }
+        
+    except Exception as e:
+        logger.error(f"Expiring peers alınamadı: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.delete("/peer-metadata/expiry/{peer_id}")
+async def remove_peer_expiry(
+    peer_id: str,
+    interface_name: str,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Peer'dan son kullanma tarihini kaldırır (süresiz yapar)
+    """
+    try:
+        from app.services.peer_expiry_service import PeerExpiryService
+        
+        metadata = await PeerExpiryService.set_peer_expiry(
+            db=db,
+            peer_id=peer_id,
+            interface_name=interface_name,
+            expires_at=None,
+            expiry_action='disable'
+        )
+        
+        # Activity log
+        await ActivityLogger.log(
+            db=db,
+            request=request,
+            action="remove_peer_expiry",
+            category="peer",
+            description=f"Peer expiry kaldırıldı: {peer_id}",
+            user=current_user,
+            target_type="peer",
+            target_id=peer_id,
+            success='success'
+        )
+        
+        return {
+            "success": True,
+            "message": "Son kullanma tarihi kaldırıldı (süresiz)"
+        }
+        
+    except Exception as e:
+        logger.error(f"Peer expiry kaldırılamadı: {e}")
         raise HTTPException(status_code=500, detail=str(e))

@@ -1164,80 +1164,80 @@ function WireGuardInterfaces() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       {/* Sayfa başlığı ve aksiyonlar */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white">
             WireGuard Interface'leri
           </h1>
-          <p className="text-gray-600 dark:text-gray-400 mt-1">
+          <p className="text-sm text-gray-600 dark:text-gray-400 mt-1 hidden sm:block">
             Tüm WireGuard interface'lerini görüntüle ve yönet
           </p>
         </div>
         <div className="flex gap-2">
           <button
             onClick={() => setShowAddInterfaceModal(true)}
-            className="btn btn-primary flex items-center gap-2"
+            className="btn btn-primary flex items-center gap-1 sm:gap-2 text-xs sm:text-sm py-1.5 sm:py-2 px-2 sm:px-4"
           >
             <Plus className="w-4 h-4" />
-            Interface Ekle
+            <span className="hidden sm:inline">Interface</span> Ekle
           </button>
           <button
             onClick={loadInterfaces}
             disabled={loading}
-            className="btn btn-secondary flex items-center gap-2"
+            className="btn btn-secondary flex items-center gap-1 sm:gap-2 text-xs sm:text-sm py-1.5 sm:py-2 px-2 sm:px-4"
           >
             <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-            Yenile
+            <span className="hidden sm:inline">Yenile</span>
           </button>
         </div>
       </div>
 
       {/* İstatistikler */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="card">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4">
+        <div className="card p-3 sm:p-4">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-600 dark:text-gray-400">Toplam Interface</p>
-              <p className="text-2xl font-bold text-gray-900 dark:text-white mt-1">
+              <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">Toplam Interface</p>
+              <p className="text-lg sm:text-2xl font-bold text-gray-900 dark:text-white mt-1">
                 {interfaces.length}
               </p>
             </div>
-            <Network className="w-8 h-8 text-blue-600 dark:text-blue-400" />
+            <Network className="w-6 h-6 sm:w-8 sm:h-8 text-blue-600 dark:text-blue-400" />
           </div>
         </div>
-        <div className="card">
+        <div className="card p-3 sm:p-4">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-600 dark:text-gray-400">Toplam Peer</p>
-              <p className="text-2xl font-bold text-gray-900 dark:text-white mt-1">
+              <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">Toplam Peer</p>
+              <p className="text-lg sm:text-2xl font-bold text-gray-900 dark:text-white mt-1">
                 {stats.total}
               </p>
             </div>
-            <Users className="w-8 h-8 text-purple-600 dark:text-purple-400" />
+            <Users className="w-6 h-6 sm:w-8 sm:h-8 text-purple-600 dark:text-purple-400" />
           </div>
         </div>
-        <div className="card">
+        <div className="card p-3 sm:p-4">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-600 dark:text-gray-400">Aktif Peer</p>
-              <p className="text-2xl font-bold text-green-600 dark:text-green-400 mt-1">
+              <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">Aktif Peer</p>
+              <p className="text-lg sm:text-2xl font-bold text-green-600 dark:text-green-400 mt-1">
                 {stats.active}
               </p>
             </div>
-            <UserCheck className="w-8 h-8 text-green-600 dark:text-green-400" />
+            <UserCheck className="w-6 h-6 sm:w-8 sm:h-8 text-green-600 dark:text-green-400" />
           </div>
         </div>
-        <div className="card">
+        <div className="card p-3 sm:p-4">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-600 dark:text-gray-400">Pasif Peer</p>
-              <p className="text-2xl font-bold text-red-600 dark:text-red-400 mt-1">
+              <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">Pasif Peer</p>
+              <p className="text-lg sm:text-2xl font-bold text-red-600 dark:text-red-400 mt-1">
                 {stats.inactive}
               </p>
             </div>
-            <UserX className="w-8 h-8 text-red-600 dark:text-red-400" />
+            <UserX className="w-6 h-6 sm:w-8 sm:h-8 text-red-600 dark:text-red-400" />
           </div>
         </div>
       </div>
@@ -1259,7 +1259,7 @@ function WireGuardInterfaces() {
           </p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-6">
           {interfaces.map((iface, index) => {
             const interfaceName = iface.name || iface['.id']
             const isRunning = iface.running
@@ -1267,19 +1267,19 @@ function WireGuardInterfaces() {
             const interfaceId = iface['.id'] || iface.id || iface['*id'] || index
 
             return (
-              <div key={interfaceId} className="card">
+              <div key={interfaceId} className="card p-3 sm:p-4">
                 {/* Interface başlığı */}
-                <div className="flex items-start justify-between mb-4">
-                  <div className="flex items-center gap-3">
+                <div className="flex items-start justify-between mb-3 sm:mb-4">
+                  <div className="flex items-center gap-2 sm:gap-3">
                     <div
-                      className={`p-2 rounded-lg ${
+                      className={`p-1.5 sm:p-2 rounded-lg ${
                         isRunning
                           ? 'bg-green-100 dark:bg-green-900/30'
                           : 'bg-gray-100 dark:bg-gray-700'
                       }`}
                     >
                       <Network
-                        className={`w-5 h-5 ${
+                        className={`w-4 h-4 sm:w-5 sm:h-5 ${
                           isRunning
                             ? 'text-green-600 dark:text-green-400'
                             : 'text-gray-400'
@@ -1287,11 +1287,11 @@ function WireGuardInterfaces() {
                       />
                     </div>
                     <div>
-                      <h3 className="font-semibold text-gray-900 dark:text-white">
+                      <h3 className="text-sm sm:text-base font-semibold text-gray-900 dark:text-white">
                         {interfaceName}
                       </h3>
                       <p
-                        className={`text-xs mt-1 ${
+                        className={`text-xs mt-0.5 sm:mt-1 ${
                           isRunning
                             ? 'text-green-600 dark:text-green-400'
                             : 'text-gray-500 dark:text-gray-400'
@@ -1304,16 +1304,16 @@ function WireGuardInterfaces() {
                 </div>
 
                 {/* Interface detayları */}
-                <div className="space-y-2 mb-4">
+                <div className="space-y-1.5 sm:space-y-2 mb-3 sm:mb-4">
                   {iface['ip-address'] && (
-                    <div className="flex justify-between text-sm">
+                    <div className="flex justify-between text-xs sm:text-sm">
                       <span className="text-gray-600 dark:text-gray-400">IP Address:</span>
-                      <span className="text-gray-900 dark:text-white font-medium">
+                      <span className="text-gray-900 dark:text-white font-medium truncate ml-2">
                         {iface['ip-address']}
                       </span>
                     </div>
                   )}
-                  <div className="flex justify-between text-sm">
+                  <div className="flex justify-between text-xs sm:text-sm">
                     <span className="text-gray-600 dark:text-gray-400">Port:</span>
                     <span className="text-gray-900 dark:text-white font-medium">
                       {iface['listen-port'] || 'N/A'}
@@ -1400,44 +1400,47 @@ function WireGuardInterfaces() {
       )}
 
       {/* Tüm Peer'lar Listesi */}
-      <div className="card">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
-            Tüm Peer'lar ({allPeers.length})
-          </h2>
+      <div className="card p-3 sm:p-4">
+        <div className="flex flex-col gap-3 sm:gap-4 mb-4 sm:mb-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <h2 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-white">
+              Tüm Peer'lar ({allPeers.length})
+            </h2>
+          </div>
           
           {/* Arama ve filtre */}
-          <div className="flex flex-col sm:flex-row gap-2 flex-1 md:max-w-2xl">
+          <div className="flex flex-col sm:flex-row gap-2">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
               <input
                 type="text"
-                placeholder="Ara (Public Key, Comment, Address)..."
+                placeholder="Ara..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="input pl-10"
+                className="input pl-10 text-sm py-1.5 sm:py-2"
               />
             </div>
-            <select
-              value={filterInterface}
-              onChange={(e) => setFilterInterface(e.target.value)}
-              className="input"
-            >
-              <option value="all">Tüm Interface'ler</option>
-              {interfaces.map((iface, index) => {
-                const ifaceId = iface['.id'] || iface.id || iface['*id'] || index
-                return (
-                  <option key={ifaceId} value={iface.name || iface['.id']}>
-                    {iface.name || iface['.id']}
-                  </option>
-                )
-              })}
-            </select>
-            <select
-              value={filterStatus}
-              onChange={(e) => setFilterStatus(e.target.value)}
-              className="input"
-            >
+            <div className="flex gap-2">
+              <select
+                value={filterInterface}
+                onChange={(e) => setFilterInterface(e.target.value)}
+                className="input text-xs sm:text-sm py-1.5 sm:py-2 flex-1 sm:flex-none"
+              >
+                <option value="all">Tüm Iface</option>
+                {interfaces.map((iface, index) => {
+                  const ifaceId = iface['.id'] || iface.id || iface['*id'] || index
+                  return (
+                    <option key={ifaceId} value={iface.name || iface['.id']}>
+                      {iface.name || iface['.id']}
+                    </option>
+                  )
+                })}
+              </select>
+              <select
+                value={filterStatus}
+                onChange={(e) => setFilterStatus(e.target.value)}
+                className="input text-xs sm:text-sm py-1.5 sm:py-2 flex-1 sm:flex-none"
+              >
               <option value="all">Tümü</option>
               <option value="active">Aktif</option>
               <option value="inactive">Pasif</option>
@@ -1460,17 +1463,17 @@ function WireGuardInterfaces() {
           <div className="flex gap-2">
             <button
               onClick={loadAllData}
-              className="btn btn-secondary flex items-center gap-2"
+              className="btn btn-secondary flex items-center gap-1 sm:gap-2 text-xs sm:text-sm py-1.5 sm:py-2 px-2 sm:px-4"
             >
               <RefreshCw className="w-4 h-4" />
-              Yenile
+              <span className="hidden sm:inline">Yenile</span>
             </button>
             <button
               onClick={() => setShowAddModal(true)}
-              className="btn btn-primary flex items-center gap-2"
+              className="btn btn-primary flex items-center gap-1 sm:gap-2 text-xs sm:text-sm py-1.5 sm:py-2 px-2 sm:px-4"
             >
               <Plus className="w-4 h-4" />
-              Peer Ekle
+              <span className="hidden sm:inline">Peer</span> Ekle
             </button>
           </div>
         </div>
@@ -1480,61 +1483,65 @@ function WireGuardInterfaces() {
             Henüz peer eklenmemiş
           </div>
         ) : getFilteredPeers().length === 0 ? (
-          <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+          <div className="text-center py-6 sm:py-8 text-sm text-gray-500 dark:text-gray-400">
             Arama kriterlerine uygun peer bulunamadı
           </div>
         ) : (
-          <div className="overflow-x-auto">
+          <>
             {/* Toplu işlem butonları */}
             {selectedPeers.length > 0 && (
-              <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800 flex items-center justify-between">
-                <span className="text-sm font-medium text-blue-800 dark:text-blue-200">
-                  {selectedPeers.length} peer seçildi
-                </span>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => handleBulkToggle(true)}
-                    disabled={bulkActionInProgress}
-                    className="btn btn-sm bg-green-600 text-white hover:bg-green-700 disabled:bg-gray-400"
-                  >
-                    <CheckCircle className="w-4 h-4 mr-1" />
-                    Aktif Yap
-                  </button>
-                  <button
-                    onClick={() => handleBulkToggle(false)}
-                    disabled={bulkActionInProgress}
-                    className="btn btn-sm bg-yellow-600 text-white hover:bg-yellow-700 disabled:bg-gray-400"
-                  >
-                    <AlertCircle className="w-4 h-4 mr-1" />
-                    Pasif Yap
-                  </button>
-                  <button
-                    onClick={() => setShowGroupModal(true)}
-                    disabled={bulkActionInProgress}
-                    className="btn btn-sm bg-blue-600 text-white hover:bg-blue-700 disabled:bg-gray-400"
-                  >
-                    <Tags className="w-4 h-4 mr-1" />
-                    Grup Ata
-                  </button>
-                  <button
-                    onClick={handleBulkDelete}
-                    disabled={bulkActionInProgress}
-                    className="btn btn-sm bg-red-600 text-white hover:bg-red-700 disabled:bg-gray-400"
-                  >
-                    <Trash2 className="w-4 h-4 mr-1" />
-                    Sil
-                  </button>
-                  <button
-                    onClick={() => setSelectedPeers([])}
-                    disabled={bulkActionInProgress}
-                    className="btn btn-sm btn-secondary"
-                  >
-                    İptal
-                  </button>
+              <div className="mb-3 sm:mb-4 p-2 sm:p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <span className="text-xs sm:text-sm font-medium text-blue-800 dark:text-blue-200">
+                    {selectedPeers.length} peer seçildi
+                  </span>
+                  <div className="flex flex-wrap gap-1 sm:gap-2">
+                    <button
+                      onClick={() => handleBulkToggle(true)}
+                      disabled={bulkActionInProgress}
+                      className="btn btn-sm bg-green-600 text-white hover:bg-green-700 disabled:bg-gray-400 text-xs px-2 py-1"
+                    >
+                      <CheckCircle className="w-3 h-3 sm:w-4 sm:h-4 sm:mr-1" />
+                      <span className="hidden sm:inline">Aktif</span>
+                    </button>
+                    <button
+                      onClick={() => handleBulkToggle(false)}
+                      disabled={bulkActionInProgress}
+                      className="btn btn-sm bg-yellow-600 text-white hover:bg-yellow-700 disabled:bg-gray-400 text-xs px-2 py-1"
+                    >
+                      <AlertCircle className="w-3 h-3 sm:w-4 sm:h-4 sm:mr-1" />
+                      <span className="hidden sm:inline">Pasif</span>
+                    </button>
+                    <button
+                      onClick={() => setShowGroupModal(true)}
+                      disabled={bulkActionInProgress}
+                      className="btn btn-sm bg-blue-600 text-white hover:bg-blue-700 disabled:bg-gray-400 text-xs px-2 py-1"
+                    >
+                      <Tags className="w-3 h-3 sm:w-4 sm:h-4 sm:mr-1" />
+                      <span className="hidden sm:inline">Grup</span>
+                    </button>
+                    <button
+                      onClick={handleBulkDelete}
+                      disabled={bulkActionInProgress}
+                      className="btn btn-sm bg-red-600 text-white hover:bg-red-700 disabled:bg-gray-400 text-xs px-2 py-1"
+                    >
+                      <Trash2 className="w-3 h-3 sm:w-4 sm:h-4 sm:mr-1" />
+                      <span className="hidden sm:inline">Sil</span>
+                    </button>
+                    <button
+                      onClick={() => setSelectedPeers([])}
+                      disabled={bulkActionInProgress}
+                      className="btn btn-sm btn-secondary text-xs px-2 py-1"
+                    >
+                      İptal
+                    </button>
+                  </div>
                 </div>
               </div>
             )}
 
+            {/* Desktop tablo görünümü */}
+            <div className="hidden lg:block overflow-x-auto">
             <table className="w-full">
               <thead>
                 <tr className="border-b border-gray-200 dark:border-gray-700">
@@ -1762,9 +1769,117 @@ function WireGuardInterfaces() {
                 })}
               </tbody>
             </table>
-          </div>
+            </div>
+
+            {/* Mobil kart görünümü */}
+            <div className="lg:hidden space-y-3">
+              {getFilteredPeers().map((peer, index) => {
+                const peerId = peer.id || peer['.id'] || peer['*id'] || index
+                const peerKey = `${peerId}-${peer.interfaceName}`
+                const isSelected = selectedPeers.includes(peerKey)
+                const metadata = peerMetadata[peerKey]
+                const isActive = !peer.disabled
+
+                return (
+                  <div 
+                    key={`mobile-${peer.interfaceName}-${peerId}`}
+                    className={`p-3 rounded-lg border ${isSelected ? 'bg-blue-50 dark:bg-blue-900/10 border-blue-300 dark:border-blue-700' : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700'}`}
+                  >
+                    {/* Header */}
+                    <div className="flex items-start justify-between mb-2">
+                      <div className="flex items-center gap-2 flex-1 min-w-0">
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={() => handleSelectPeer(peerId, peer.interfaceName)}
+                          className="w-4 h-4 rounded border-gray-300"
+                        />
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium text-sm text-gray-900 dark:text-white truncate">
+                              {peer.name || peer.comment || 'İsimsiz'}
+                            </span>
+                            <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${isActive ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'}`}>
+                              {isActive ? 'Aktif' : 'Pasif'}
+                            </span>
+                          </div>
+                          <Link to={`/wireguard/${peer.interfaceName}`} className="text-xs text-primary-600 dark:text-primary-400">
+                            {peer.interfaceName}
+                          </Link>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Info */}
+                    <div className="text-xs text-gray-600 dark:text-gray-400 space-y-1 mb-2">
+                      <div className="flex justify-between">
+                        <span>IP:</span>
+                        <span className="text-gray-900 dark:text-white font-mono text-[11px]">
+                          {peer['allowed-address'] || peer.allowed_address || '-'}
+                        </span>
+                      </div>
+                      {metadata?.group_name && (
+                        <div className="flex justify-between items-center">
+                          <span>Grup:</span>
+                          <span className="px-2 py-0.5 rounded text-[10px] text-white" style={{ backgroundColor: metadata.group_color || '#6B7280' }}>
+                            {metadata.group_name}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Actions */}
+                    <div className="flex items-center gap-1 pt-2 border-t border-gray-200 dark:border-gray-700">
+                      <button
+                        onClick={() => handleTogglePeer(peerId, peer.interfaceName, isActive)}
+                        disabled={togglingPeer === peerId}
+                        className={`p-1.5 rounded ${isActive ? 'bg-red-100 text-red-600 dark:bg-red-900/30' : 'bg-green-100 text-green-600 dark:bg-green-900/30'}`}
+                      >
+                        <Power className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        onClick={() => handleShowQR(peerId, peer.interfaceName)}
+                        className="p-1.5 rounded bg-blue-100 text-blue-600 dark:bg-blue-900/30"
+                      >
+                        <QrCode className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        onClick={() => handleShowConfig(peerId, peer.interfaceName)}
+                        className="p-1.5 rounded bg-green-100 text-green-600 dark:bg-green-900/30"
+                      >
+                        <FileText className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        onClick={() => {
+                          const allowedAddressStr = peer['allowed-address'] || peer.allowed_address || ''
+                          const ips = allowedAddressStr.split(',').map(ip => ip.trim()).filter(ip => ip.length > 0)
+                          setAllowedIPs(ips)
+                          setNewIP('')
+                          setEditingPeer({
+                            ...peer,
+                            allowed_address: allowedAddressStr,
+                            persistent_keepalive: peer['persistent-keepalive'] || peer.persistent_keepalive || ''
+                          })
+                        }}
+                        className="p-1.5 rounded bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400"
+                      >
+                        <Edit className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        onClick={() => handleDeletePeer(peerId, peer.interfaceName)}
+                        className="p-1.5 rounded bg-red-100 text-red-600 dark:bg-red-900/30"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </>
         )}
       </div>
+    </div>
 
       {/* Peer ekleme modal */}
       {showAddModal && (
@@ -2165,9 +2280,9 @@ function WireGuardInterfaces() {
 
       {/* Peer düzenleme modal */}
       {editingPeer && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-gray-800 rounded-lg max-w-md w-full p-6">
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-2 sm:p-4 overflow-y-auto">
+          <div className="bg-white dark:bg-gray-800 rounded-lg max-w-md w-full p-4 sm:p-6 my-auto max-h-[95vh] sm:max-h-[90vh] overflow-y-auto">
+            <h3 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-white mb-3 sm:mb-4">
               Peer Düzenle
             </h3>
             <div className="space-y-4">
@@ -2326,10 +2441,10 @@ function WireGuardInterfaces() {
       {/* QR kod modal */}
       {/* QR Kod Modal */}
       {showQRModal && qrData && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-gray-800 rounded-lg max-w-md w-full p-6">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-2 sm:p-4 overflow-y-auto">
+          <div className="bg-white dark:bg-gray-800 rounded-lg max-w-md w-full p-4 sm:p-6 my-auto max-h-[95vh] sm:max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-3 sm:mb-4">
+              <h3 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-white">
                 WireGuard Config QR Kodu
               </h3>
               <button
@@ -2339,17 +2454,17 @@ function WireGuardInterfaces() {
                 <X className="w-5 h-5" />
               </button>
             </div>
-            <div className="flex flex-col items-center gap-4">
+            <div className="flex flex-col items-center gap-3 sm:gap-4">
               {qrData.qrcode ? (
-                <img src={qrData.qrcode} alt="QR Code" className="w-64 h-64" />
+                <img src={qrData.qrcode} alt="QR Code" className="w-48 h-48 sm:w-64 sm:h-64" />
               ) : (
-                <div className="w-64 h-64 flex items-center justify-center bg-gray-100 dark:bg-gray-700 rounded-lg">
-                  <p className="text-gray-500 dark:text-gray-400">QR kod oluşturulamadı</p>
+                <div className="w-48 h-48 sm:w-64 sm:h-64 flex items-center justify-center bg-gray-100 dark:bg-gray-700 rounded-lg">
+                  <p className="text-sm text-gray-500 dark:text-gray-400">QR kod oluşturulamadı</p>
                 </div>
               )}
               <div className="w-full">
                 <div className="flex items-center justify-between mb-2">
-                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  <label className="text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300">
                     Config:
                   </label>
                   <button
@@ -2391,10 +2506,10 @@ function WireGuardInterfaces() {
 
       {/* Config Dosyası Modal */}
       {showConfigModal && configData && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 overflow-y-auto">
-          <div className="bg-white dark:bg-gray-800 rounded-lg max-w-2xl w-full p-6 my-8">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-2 sm:p-4 overflow-y-auto">
+          <div className="bg-white dark:bg-gray-800 rounded-lg max-w-2xl w-full p-4 sm:p-6 my-auto max-h-[95vh] sm:max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-3 sm:mb-4">
+              <h3 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-white">
                 Peer Configuration File
               </h3>
               <button
@@ -2415,8 +2530,8 @@ function WireGuardInterfaces() {
                   <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                     QR Code:
                   </label>
-                  <img src={qrData.qrcode} alt="QR Code" className="w-64 h-64 border border-gray-300 dark:border-gray-600 rounded" />
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+                  <img src={qrData.qrcode} alt="QR Code" className="w-40 h-40 sm:w-64 sm:h-64 border border-gray-300 dark:border-gray-600 rounded" />
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-2 text-center">
                     QR kodu WireGuard mobil uygulaması ile tarayarak peer'ı ekleyebilirsiniz.
                   </p>
                 </div>
@@ -2424,41 +2539,41 @@ function WireGuardInterfaces() {
 
               {/* Configuration Textarea (Salt Okunur) */}
               <div>
-                <div className="flex items-center justify-between mb-2">
-                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2">
+                  <label className="text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300">
                     Configuration:
                   </label>
                   <div className="flex items-center gap-2">
                     <button
                       onClick={() => handleCopyConfig(configData.config)}
-                      className="flex items-center gap-2 text-sm px-3 py-1 bg-gray-100 dark:bg-gray-700 rounded hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300"
+                      className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm px-2 sm:px-3 py-1 bg-gray-100 dark:bg-gray-700 rounded hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300"
                     >
                       {copied ? (
                         <>
-                          <Check className="w-4 h-4" />
-                          Kopyalandı!
+                          <Check className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                          <span className="hidden sm:inline">Kopyalandı!</span>
                         </>
                       ) : (
                         <>
-                          <Copy className="w-4 h-4" />
-                          Kopyala
+                          <Copy className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                          <span className="hidden sm:inline">Kopyala</span>
                         </>
                       )}
                     </button>
                     <button
                       onClick={() => handleDownloadConfig(configData.config, configData.peer?.comment || 'peer')}
-                      className="flex items-center gap-2 text-sm px-3 py-1 bg-primary-600 text-white rounded hover:bg-primary-700"
+                      className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm px-2 sm:px-3 py-1 bg-primary-600 text-white rounded hover:bg-primary-700"
                     >
-                      <Download className="w-4 h-4" />
-                      İndir
+                      <Download className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                      <span className="hidden sm:inline">İndir</span>
                     </button>
                   </div>
                 </div>
                 <textarea
                   value={configData.config || ''}
                   readOnly
-                  className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded bg-gray-50 dark:bg-gray-900 text-sm font-mono text-gray-900 dark:text-white"
-                  rows={15}
+                  className="w-full p-2 sm:p-3 border border-gray-300 dark:border-gray-600 rounded bg-gray-50 dark:bg-gray-900 text-xs sm:text-sm font-mono text-gray-900 dark:text-white"
+                  rows={10}
                   spellCheck={false}
                 />
                 <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
@@ -2466,14 +2581,14 @@ function WireGuardInterfaces() {
                 </p>
               </div>
             </div>
-            <div className="flex gap-2 mt-4">
+            <div className="flex gap-2 mt-3 sm:mt-4">
               <button
                 onClick={() => {
                   setShowConfigModal(false)
                   setConfigData(null)
                   setQrData(null)
                 }}
-                className="flex-1 btn btn-secondary"
+                className="flex-1 btn btn-secondary text-sm"
               >
                 Kapat
               </button>
@@ -2484,10 +2599,10 @@ function WireGuardInterfaces() {
 
       {/* Interface Ekleme Modal */}
       {showAddInterfaceModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 overflow-y-auto">
-          <div className="bg-white dark:bg-gray-800 rounded-lg max-w-md w-full p-6 my-8">
-            <div className="flex items-center justify-between mb-6">
-              <h3 className="text-xl font-semibold text-gray-900 dark:text-white">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-2 sm:p-4 overflow-y-auto">
+          <div className="bg-white dark:bg-gray-800 rounded-lg max-w-md w-full p-4 sm:p-6 my-auto max-h-[95vh] sm:max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-4 sm:mb-6">
+              <h3 className="text-lg sm:text-xl font-semibold text-gray-900 dark:text-white">
                 Yeni WireGuard Interface Ekle
               </h3>
               <button
@@ -2688,11 +2803,11 @@ function WireGuardInterfaces() {
                       comment: ''
                     })
                   }}
-                  className="flex-1 btn btn-secondary"
+                  className="flex-1 btn btn-secondary text-sm"
                 >
                   İptal
                 </button>
-                <button type="submit" className="flex-1 btn btn-primary">
+                <button type="submit" className="flex-1 btn btn-primary text-sm">
                   Ekle
                 </button>
               </div>
@@ -2703,10 +2818,10 @@ function WireGuardInterfaces() {
 
       {/* Interface Düzenleme Modal */}
       {showEditInterfaceModal && editingInterface && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 overflow-y-auto">
-          <div className="bg-white dark:bg-gray-800 rounded-lg max-w-md w-full p-6 my-8">
-            <div className="flex items-center justify-between mb-6">
-              <h3 className="text-xl font-semibold text-gray-900 dark:text-white">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-2 sm:p-4 overflow-y-auto">
+          <div className="bg-white dark:bg-gray-800 rounded-lg max-w-md w-full p-4 sm:p-6 my-auto max-h-[95vh] sm:max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-4 sm:mb-6">
+              <h3 className="text-lg sm:text-xl font-semibold text-gray-900 dark:text-white">
                 Interface Yapılandırma
               </h3>
               <button

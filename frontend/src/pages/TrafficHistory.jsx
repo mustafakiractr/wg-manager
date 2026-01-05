@@ -263,68 +263,84 @@ function TrafficHistory() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6 p-2 sm:p-0">
       {/* Sayfa başlığı */}
       <div>
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+        <h1 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white">
           Trafik Geçmişi
         </h1>
-        <p className="text-gray-600 dark:text-gray-400 mt-1">
+        <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400 mt-1">
           Sistem trafik kullanım verilerini görüntüleyin
         </p>
       </div>
 
       {/* Filtreler */}
-      <div className="card">
-        <div className="flex flex-col md:flex-row gap-4 items-end">
-          {/* Periyot seçimi */}
-          <div className="flex-1">
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Zaman Aralığı
-            </label>
-            <select
-              value={periodType}
-              onChange={(e) => setPeriodType(e.target.value)}
-              className="input w-full"
+      <div className="card p-3 sm:p-4">
+        <div className="flex flex-col gap-3 sm:gap-4">
+          {/* Periyot ve Yenile - İlk satır */}
+          <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 sm:items-end">
+            {/* Periyot seçimi */}
+            <div className="flex-1">
+              <label className="block text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5 sm:mb-2">
+                Zaman Aralığı
+              </label>
+              <select
+                value={periodType}
+                onChange={(e) => setPeriodType(e.target.value)}
+                className="input w-full text-sm"
+              >
+                <option value="hourly">Saatlik</option>
+                <option value="daily">Günlük</option>
+                <option value="monthly">Aylık</option>
+                <option value="yearly">Yıllık</option>
+              </select>
+            </div>
+
+            {/* Yenile butonu - desktop'ta sağda */}
+            <button
+              onClick={loadTrafficData}
+              disabled={loading}
+              className="hidden sm:flex btn btn-primary items-center gap-2"
             >
-              <option value="hourly">Saatlik Trafik</option>
-              <option value="daily">Günlük Trafik</option>
-              <option value="monthly">Aylık Trafik</option>
-              <option value="yearly">Yıllık Trafik</option>
-            </select>
+              <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+              Yenile
+            </button>
+          </div>
+          
+          {/* Tarih filtreleri - İkinci satır */}
+          <div className="grid grid-cols-2 gap-3 sm:gap-4">
+            {/* Başlangıç tarihi */}
+            <div>
+              <label className="block text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5 sm:mb-2">
+                Başlangıç
+              </label>
+              <input
+                type="date"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                className="input w-full text-sm"
+              />
+            </div>
+
+            {/* Bitiş tarihi */}
+            <div>
+              <label className="block text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5 sm:mb-2">
+                Bitiş
+              </label>
+              <input
+                type="date"
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+                className="input w-full text-sm"
+              />
+            </div>
           </div>
 
-          {/* Başlangıç tarihi */}
-          <div className="flex-1">
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Başlangıç Tarihi
-            </label>
-            <input
-              type="date"
-              value={startDate}
-              onChange={(e) => setStartDate(e.target.value)}
-              className="input w-full"
-            />
-          </div>
-
-          {/* Bitiş tarihi */}
-          <div className="flex-1">
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Bitiş Tarihi
-            </label>
-            <input
-              type="date"
-              value={endDate}
-              onChange={(e) => setEndDate(e.target.value)}
-              className="input w-full"
-            />
-          </div>
-
-          {/* Yenile butonu */}
+          {/* Yenile butonu - mobile'da tam genişlik */}
           <button
             onClick={loadTrafficData}
             disabled={loading}
-            className="btn btn-primary flex items-center gap-2"
+            className="sm:hidden btn btn-primary flex items-center justify-center gap-2"
           >
             <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
             Yenile
@@ -334,68 +350,68 @@ function TrafficHistory() {
 
       {/* Özet istatistikler */}
       {summary && summary.record_count > 0 && (
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <div className="card bg-blue-50 dark:bg-blue-900/20">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-4">
+          <div className="card p-3 sm:p-4 bg-blue-50 dark:bg-blue-900/20">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-gray-600 dark:text-gray-400">Toplam İndirme</p>
-                <p className="text-2xl font-bold text-blue-600 dark:text-blue-400 mt-1">
-                  {(summary.total_rx_mb || 0).toFixed(2)} MB
+                <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">İndirme</p>
+                <p className="text-base sm:text-2xl font-bold text-blue-600 dark:text-blue-400 mt-0.5 sm:mt-1">
+                  {(summary.total_rx_mb || 0).toFixed(1)} MB
                 </p>
               </div>
-              <Download className="w-8 h-8 text-blue-600 dark:text-blue-400" />
+              <Download className="w-6 h-6 sm:w-8 sm:h-8 text-blue-600 dark:text-blue-400" />
             </div>
           </div>
 
-          <div className="card bg-green-50 dark:bg-green-900/20">
+          <div className="card p-3 sm:p-4 bg-green-50 dark:bg-green-900/20">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-gray-600 dark:text-gray-400">Toplam Yükleme</p>
-                <p className="text-2xl font-bold text-green-600 dark:text-green-400 mt-1">
-                  {(summary.total_tx_mb || 0).toFixed(2)} MB
+                <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">Yükleme</p>
+                <p className="text-base sm:text-2xl font-bold text-green-600 dark:text-green-400 mt-0.5 sm:mt-1">
+                  {(summary.total_tx_mb || 0).toFixed(1)} MB
                 </p>
               </div>
-              <Upload className="w-8 h-8 text-green-600 dark:text-green-400" />
+              <Upload className="w-6 h-6 sm:w-8 sm:h-8 text-green-600 dark:text-green-400" />
             </div>
           </div>
 
-          <div className="card bg-purple-50 dark:bg-purple-900/20">
+          <div className="card p-3 sm:p-4 bg-purple-50 dark:bg-purple-900/20">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-gray-600 dark:text-gray-400">Ortalama İndirme</p>
-                <p className="text-2xl font-bold text-purple-600 dark:text-purple-400 mt-1">
-                  {((Number(summary.avg_rx_bytes) || 0) / (1024 * 1024)).toFixed(2)} MB
+                <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">Ort. İnd.</p>
+                <p className="text-base sm:text-2xl font-bold text-purple-600 dark:text-purple-400 mt-0.5 sm:mt-1">
+                  {((Number(summary.avg_rx_bytes) || 0) / (1024 * 1024)).toFixed(1)} MB
                 </p>
               </div>
-              <TrendingUp className="w-8 h-8 text-purple-600 dark:text-purple-400" />
+              <TrendingUp className="w-6 h-6 sm:w-8 sm:h-8 text-purple-600 dark:text-purple-400" />
             </div>
           </div>
 
-          <div className="card bg-orange-50 dark:bg-orange-900/20">
+          <div className="card p-3 sm:p-4 bg-orange-50 dark:bg-orange-900/20">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-gray-600 dark:text-gray-400">Kayıt Sayısı</p>
-                <p className="text-2xl font-bold text-orange-600 dark:text-orange-400 mt-1">
+                <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">Kayıt</p>
+                <p className="text-base sm:text-2xl font-bold text-orange-600 dark:text-orange-400 mt-0.5 sm:mt-1">
                   {summary.record_count || 0}
                 </p>
               </div>
-              <Calendar className="w-8 h-8 text-orange-600 dark:text-orange-400" />
+              <Calendar className="w-6 h-6 sm:w-8 sm:h-8 text-orange-600 dark:text-orange-400" />
             </div>
           </div>
         </div>
       )}
 
       {/* Grafik */}
-      <div className="card">
+      <div className="card p-3 sm:p-4">
         {loading ? (
-          <div className="flex items-center justify-center h-96">
-            <RefreshCw className="w-8 h-8 animate-spin text-primary-600 dark:text-primary-400" />
+          <div className="flex items-center justify-center h-48 sm:h-96">
+            <RefreshCw className="w-6 h-6 sm:w-8 sm:h-8 animate-spin text-primary-600 dark:text-primary-400" />
           </div>
         ) : trafficData.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-96 text-gray-500 dark:text-gray-400">
-            <Calendar className="w-16 h-16 mb-4" />
-            <p className="text-lg font-medium">Henüz trafik verisi bulunamadı</p>
-            <p className="text-sm mt-2">Trafik verileri periyodik olarak kaydedilecek</p>
+          <div className="flex flex-col items-center justify-center h-48 sm:h-96 text-gray-500 dark:text-gray-400">
+            <Calendar className="w-12 h-12 sm:w-16 sm:h-16 mb-3 sm:mb-4" />
+            <p className="text-base sm:text-lg font-medium text-center">Henüz trafik verisi bulunamadı</p>
+            <p className="text-xs sm:text-sm mt-1 sm:mt-2 text-center">Trafik verileri periyodik olarak kaydedilecek</p>
           </div>
         ) : (
           <TrafficChart 
@@ -408,28 +424,28 @@ function TrafficHistory() {
 
       {/* Veri tablosu */}
       {trafficData.length > 0 && (
-        <div className="card">
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+        <div className="card p-3 sm:p-4">
+          <h3 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-white mb-3 sm:mb-4">
             Detaylı Veriler
           </h3>
           <div className="overflow-x-auto">
-            <table className="w-full">
+            <table className="w-full min-w-[400px]">
               <thead>
                 <tr className="border-b border-gray-200 dark:border-gray-700">
-                  <th className="text-left py-3 px-4 text-sm font-medium text-gray-700 dark:text-gray-300">
-                    Tarih/Saat
+                  <th className="text-left py-2 sm:py-3 px-2 sm:px-4 text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300">
+                    Tarih
                   </th>
-                  <th className="text-right py-3 px-4 text-sm font-medium text-gray-700 dark:text-gray-300">
-                    İndirme (MB)
+                  <th className="text-right py-2 sm:py-3 px-2 sm:px-4 text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300">
+                    İnd.
                   </th>
-                  <th className="text-right py-3 px-4 text-sm font-medium text-gray-700 dark:text-gray-300">
-                    Yükleme (MB)
+                  <th className="text-right py-2 sm:py-3 px-2 sm:px-4 text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300">
+                    Yük.
                   </th>
-                  <th className="text-right py-3 px-4 text-sm font-medium text-gray-700 dark:text-gray-300">
-                    Toplam (MB)
+                  <th className="text-right py-2 sm:py-3 px-2 sm:px-4 text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300 hidden sm:table-cell">
+                    Toplam
                   </th>
-                  <th className="text-right py-3 px-4 text-sm font-medium text-gray-700 dark:text-gray-300">
-                    Aktif Peer
+                  <th className="text-right py-2 sm:py-3 px-2 sm:px-4 text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300 hidden md:table-cell">
+                    Peer
                   </th>
                 </tr>
               </thead>
@@ -439,19 +455,19 @@ function TrafficHistory() {
                     key={item.id}
                     className="border-b border-gray-100 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700/50"
                   >
-                    <td className="py-3 px-4 text-sm text-gray-900 dark:text-white">
+                    <td className="py-2 sm:py-3 px-2 sm:px-4 text-xs sm:text-sm text-gray-900 dark:text-white whitespace-nowrap">
                       {formatDateTime(item.timestamp)}
                     </td>
-                    <td className="py-3 px-4 text-sm text-right text-blue-600 dark:text-blue-400 font-medium">
-                      {item.total_rx_mb.toFixed(2)}
+                    <td className="py-2 sm:py-3 px-2 sm:px-4 text-xs sm:text-sm text-right text-blue-600 dark:text-blue-400 font-medium">
+                      {item.total_rx_mb.toFixed(1)}
                     </td>
-                    <td className="py-3 px-4 text-sm text-right text-green-600 dark:text-green-400 font-medium">
-                      {item.total_tx_mb.toFixed(2)}
+                    <td className="py-2 sm:py-3 px-2 sm:px-4 text-xs sm:text-sm text-right text-green-600 dark:text-green-400 font-medium">
+                      {item.total_tx_mb.toFixed(1)}
                     </td>
-                    <td className="py-3 px-4 text-sm text-right text-gray-900 dark:text-white font-semibold">
-                      {(item.total_rx_mb + item.total_tx_mb).toFixed(2)}
+                    <td className="py-2 sm:py-3 px-2 sm:px-4 text-xs sm:text-sm text-right text-gray-900 dark:text-white font-semibold hidden sm:table-cell">
+                      {(item.total_rx_mb + item.total_tx_mb).toFixed(1)}
                     </td>
-                    <td className="py-3 px-4 text-sm text-right text-gray-600 dark:text-gray-400">
+                    <td className="py-2 sm:py-3 px-2 sm:px-4 text-xs sm:text-sm text-right text-gray-600 dark:text-gray-400 hidden md:table-cell">
                       {item.active_peer_count || 0}
                     </td>
                   </tr>

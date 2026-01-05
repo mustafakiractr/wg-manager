@@ -44,3 +44,23 @@ export const getTemplateStats = async () => {
   const response = await api.get('/dashboard/template-stats')
   return response.data
 }
+
+/**
+ * Peer grup dağılımını getirir
+ * Her grup için: grup adı, peer sayısı
+ */
+export const getPeerGroupDistribution = async () => {
+  const response = await api.get('/dashboard/peer-groups')
+  return response.data
+}
+
+/**
+ * Süresi dolacak ve dolmuş peer'ları getirir
+ * @param {number} days - Kaç gün içinde süresi dolacak (default: 7)
+ */
+export const getExpiringPeers = async (days = 7) => {
+  const response = await api.get('/dashboard/expiring-peers', {
+    params: { days }
+  })
+  return response.data
+}

@@ -114,3 +114,57 @@ export const updatePeerGroup = async (peerId, interfaceName, groupName, groupCol
     group_color: groupColor
   })
 }
+
+// ==================== EXPIRY ENDPOINTS ====================
+
+/**
+ * Peer son kullanma tarihi ayarlar veya günceller
+ * @param {string} peerId - Peer ID
+ * @param {string} interfaceName - Interface adı
+ * @param {string} expiresAt - Son kullanma tarihi (ISO format)
+ * @param {string} expiryAction - Süre dolduğunda yapılacak işlem: 'disable', 'delete', 'notify_only'
+ * @returns {Promise<Object>} Expiry ayar sonucu
+ */
+export const setPeerExpiry = async (peerId, interfaceName, expiresAt, expiryAction = 'disable') => {
+  const response = await api.post('/peer-metadata/expiry', {
+    peer_id: peerId,
+    interface_name: interfaceName,
+    expires_at: expiresAt,
+    expiry_action: expiryAction
+  })
+  return response.data
+}
+
+/**
+ * Peer son kullanma tarihini kaldırır
+ * @param {string} peerId - Peer ID
+ * @param {string} interfaceName - Interface adı
+ * @returns {Promise<Object>} Silme sonucu
+ */
+export const removePeerExpiry = async (peerId, interfaceName) => {
+  const response = await api.delete(`/peer-metadata/expiry/${peerId}`, {
+    params: { interface_name: interfaceName }
+  })
+  return response.data
+}
+
+/**
+ * Yakında süresi dolacak peer'ları listeler
+ * @param {number} withinDays - Kaç gün içinde süresi dolacaklar (varsayılan: 7)
+ * @returns {Promise<Array>} Yakında süresi dolacak peer listesi
+ */
+export const getExpiringPeers = async (withinDays = 7) => {
+  const response = await api.get('/peer-metadata/expiry/expiring-soon', {
+    params: { within_days: withinDays }
+  })
+  return response.data
+}
+
+/**
+ * Expiry istatistiklerini getirir
+ * @returns {Promise<Object>} Expiry istatistikleri
+ */
+export const getExpiryStats = async () => {
+  const response = await api.get('/peer-metadata/expiry/stats')
+  return response.data
+}

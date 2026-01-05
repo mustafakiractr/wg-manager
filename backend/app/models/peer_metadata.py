@@ -1,8 +1,8 @@
 """
 Peer Metadata Model
-Peer'lar için ek bilgiler (grup, etiketler, notlar)
+Peer'lar için ek bilgiler (grup, etiketler, notlar, son kullanma tarihi)
 """
-from sqlalchemy import Column, Integer, String, DateTime, Text, Index
+from sqlalchemy import Column, Integer, String, DateTime, Text, Boolean, Index
 from sqlalchemy.sql import func
 from app.database.database import Base
 
@@ -10,7 +10,7 @@ from app.database.database import Base
 class PeerMetadata(Base):
     """
     Peer metadata tablosu
-    Peer'lar için ek bilgileri saklar (grup, etiketler, notlar)
+    Peer'lar için ek bilgileri saklar (grup, etiketler, notlar, expiry)
     """
     __tablename__ = "peer_metadata"
 
@@ -27,6 +27,11 @@ class PeerMetadata(Base):
     tags = Column(Text, nullable=True)  # Etiketler (virgülle ayrılmış: "production,important,vip")
     notes = Column(Text, nullable=True)  # Kullanıcı notları
 
+    # Son Kullanma Tarihi (Expiry)
+    expires_at = Column(DateTime(timezone=True), nullable=True, index=True)  # Son kullanma tarihi
+    expired_notified = Column(Boolean, default=False)  # Süresi dolduğunda bildirim gönderildi mi
+    expiry_action = Column(String(20), default='disable')  # Süre dolduğunda: 'disable', 'delete', 'notify_only'
+
     # Ek alanlar
     custom_fields = Column(Text, nullable=True)  # JSON formatında ek alanlar
 
@@ -37,4 +42,5 @@ class PeerMetadata(Base):
     # Composite index for better query performance
     __table_args__ = (
         Index('ix_peer_metadata_peer_interface', 'peer_id', 'interface_name'),
+        Index('ix_peer_metadata_expiry', 'expires_at', 'expired_notified'),
     )

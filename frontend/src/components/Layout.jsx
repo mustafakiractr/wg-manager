@@ -33,9 +33,24 @@ function Layout() {
   const navigate = useNavigate()
   const { user, logout } = useAuthStore()
   const [sidebarOpen, setSidebarOpen] = useState(false)
-  const [darkMode, setDarkMode] = useState(
-    localStorage.getItem('darkMode') === 'true' || false
-  )
+  
+  // Sistem temasını algıla
+  const getSystemTheme = () => {
+    if (typeof window !== 'undefined' && window.matchMedia) {
+      return window.matchMedia('(prefers-color-scheme: dark)').matches
+    }
+    return false
+  }
+  
+  // Tema tercihi: localStorage'dan oku, yoksa sistem temasını kullan
+  const [darkMode, setDarkMode] = useState(() => {
+    const stored = localStorage.getItem('darkMode')
+    if (stored !== null) {
+      return stored === 'true'
+    }
+    return getSystemTheme()
+  })
+  
   const [mikrotikConnected, setMikrotikConnected] = useState(false)
   const [checkingConnection, setCheckingConnection] = useState(false)
   const [userProfile, setUserProfile] = useState(null)
@@ -329,13 +344,18 @@ function Layout() {
                 {/* Karanlık mod toggle */}
                 <button
                   onClick={() => setDarkMode(!darkMode)}
-                  className="p-2 rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700"
+                  className="relative p-2 rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 group"
+                  title={darkMode ? 'Aydınlık Tema' : 'Karanlık Tema'}
                 >
                   {darkMode ? (
-                    <Sun className="w-5 h-5" />
+                    <Sun className="w-5 h-5 text-yellow-500" />
                   ) : (
-                    <Moon className="w-5 h-5" />
+                    <Moon className="w-5 h-5 text-indigo-500" />
                   )}
+                  {/* Tooltip */}
+                  <span className="absolute -bottom-8 left-1/2 -translate-x-1/2 px-2 py-1 text-xs font-medium text-white bg-gray-900 dark:bg-gray-700 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
+                    {darkMode ? 'Aydınlık Tema' : 'Karanlık Tema'}
+                  </span>
                 </button>
               </div>
             </div>

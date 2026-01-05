@@ -245,3 +245,133 @@ async def get_template_stats(
     except Exception as e:
         logger.error(f"Template stats error: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/dashboard/peer-groups")
+async def get_peer_group_distribution(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Peer grup dağılımı istatistikleri
+
+    Returns:
+        Gruplara göre peer sayıları
+    """
+    try:
+        from app.models.peer_metadata import PeerMetadata
+
+        # Grup dağılımını hesapla
+        result = await db.execute(
+            select(PeerMetadata.group_name, func.count(PeerMetadata.id).label('count'))
+            .group_by(PeerMetadata.group_name)
+        )
+        group_counts = result.all()
+
+        distribution = []
+        no_group_count = 0
+
+        for group_name, count in group_counts:
+            if group_name and group_name.strip():
+                distribution.append({
+                    'group_name': group_name,
+                    'count': count
+                })
+            else:
+                no_group_count += count
+
+        # Grubu olmayan peer'ları da ekle
+        if no_group_count > 0:
+            distribution.append({
+                'group_name': 'Grupsuz',
+                'count': no_group_count
+            })
+
+        # Sayıya göre sırala
+        distribution.sort(key=lambda x: x['count'], reverse=True)
+
+        return {
+            'success': True,
+            'data': distribution
+        }
+
+    except Exception as e:
+        logger.error(f"Peer group distribution error: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/dashboard/expiring-peers")
+async def get_expiring_peers(
+    days: int = 7,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Süresi dolacak ve dolmuş peer'ları listeler
+
+    Args:
+        days: Kaç gün içinde süresi dolacak peer'lar (default: 7)
+
+    Returns:
+        Süresi dolacak/dolmuş peer listesi
+    """
+    try:
+        from app.models.peer_metadata import PeerMetadata
+
+        now = utcnow()
+        future_date = now + timedelta(days=days)
+
+        # Süresi dolmuş peer'lar
+        result_expired = await db.execute(
+            select(PeerMetadata)
+            .where(
+                and_(
+                    PeerMetadata.expires_at.isnot(None),
+                    PeerMetadata.expires_at < now
+                )
+            )
+            .order_by(PeerMetadata.expires_at)
+        )
+        expired_peers = result_expired.scalars().all()
+
+        # Süresi dolacak peer'lar (önümüzdeki X gün)
+        result_expiring = await db.execute(
+            select(PeerMetadata)
+            .where(
+                and_(
+                    PeerMetadata.expires_at.isnot(None),
+                    PeerMetadata.expires_at >= now,
+                    PeerMetadata.expires_at <= future_date
+                )
+            )
+            .order_by(PeerMetadata.expires_at)
+        )
+        expiring_peers = result_expiring.scalars().all()
+
+        def peer_to_dict(peer, status):
+            return {
+                'peer_id': peer.peer_id,
+                'public_key': peer.public_key,
+                'interface_name': peer.interface_name,
+                'group_name': peer.group_name,
+                'expires_at': peer.expires_at.isoformat() if peer.expires_at else None,
+                'status': status
+            }
+
+        expired_list = [peer_to_dict(p, 'expired') for p in expired_peers]
+        expiring_list = [peer_to_dict(p, 'expiring') for p in expiring_peers]
+
+        return {
+            'success': True,
+            'data': {
+                'expired': expired_list,
+                'expiring': expiring_list,
+                'expired_count': len(expired_list),
+                'expiring_count': len(expiring_list),
+                'total': len(expired_list) + len(expiring_list)
+            }
+        }
+
+    except Exception as e:
+        logger.error(f"Expiring peers error: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))

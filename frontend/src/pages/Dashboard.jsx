@@ -5,13 +5,29 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import { getInterfaces, getPeers, getPeerLogs } from '../services/wireguardService'
-import { getDashboardStats, getIPPoolUsage, getRecentActivities } from '../services/dashboardService'
+import { getDashboardStats, getIPPoolUsage, getRecentActivities, getPeerGroupDistribution, getExpiringPeers } from '../services/dashboardService'
 import {
   getPeerHourlyTraffic,
   getPeerDailyTraffic,
   getPeerMonthlyTraffic,
   getPeerYearlyTraffic,
 } from '../services/trafficService'
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+} from '@dnd-kit/core'
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  rectSortingStrategy,
+} from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -66,7 +82,103 @@ import {
   Eye,
   EyeOff,
   Info,
+  GripVertical,
 } from 'lucide-react'
+
+// Sürüklenebilir Widget Container bileşeni
+function SortableWidget({ id, children, isVisible }) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id })
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  }
+
+  if (!isVisible) return null
+
+  return (
+    <div ref={setNodeRef} style={style} className="relative group">
+      {/* Sürükleme tutamacı */}
+      <div
+        {...attributes}
+        {...listeners}
+        className="absolute top-2 right-2 z-10 p-1.5 rounded-lg bg-gray-100 dark:bg-gray-700 opacity-0 group-hover:opacity-100 cursor-grab active:cursor-grabbing transition-opacity"
+        title="Sürükleyerek taşı"
+      >
+        <GripVertical className="w-4 h-4 text-gray-500 dark:text-gray-400" />
+      </div>
+      {children}
+    </div>
+  )
+}
+
+// Widget Ayarları Modal içindeki sürüklenebilir öğe bileşeni
+function SortableWidgetItem({ id, widget, isVisible, onToggle }) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id })
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+    zIndex: isDragging ? 50 : 'auto',
+  }
+
+  const Icon = widget.icon
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={`flex items-center justify-between p-4 rounded-lg transition-colors ${
+        isVisible
+          ? 'bg-primary-100 dark:bg-primary-900/30 border-2 border-primary-500'
+          : 'bg-gray-100 dark:bg-gray-700 border-2 border-transparent'
+      }`}
+    >
+      <div className="flex items-center gap-3">
+        {/* Sürükleme tutamacı */}
+        <div
+          {...attributes}
+          {...listeners}
+          className="cursor-grab active:cursor-grabbing p-1 hover:bg-gray-200 dark:hover:bg-gray-600 rounded"
+          title="Sürükleyerek sırala"
+        >
+          <GripVertical className="w-4 h-4 text-gray-400" />
+        </div>
+        <Icon className={`w-5 h-5 ${isVisible ? 'text-primary-600 dark:text-primary-400' : 'text-gray-500 dark:text-gray-400'}`} />
+        <span className={`font-medium ${isVisible ? 'text-gray-900 dark:text-white' : 'text-gray-600 dark:text-gray-400'}`}>
+          {widget.label}
+        </span>
+      </div>
+      <button
+        onClick={onToggle}
+        className="p-1 hover:bg-gray-200 dark:hover:bg-gray-600 rounded transition-colors"
+        title={isVisible ? 'Gizle' : 'Göster'}
+      >
+        {isVisible ? (
+          <Eye className="w-5 h-5 text-primary-600 dark:text-primary-400" />
+        ) : (
+          <EyeOff className="w-5 h-5 text-gray-400" />
+        )}
+      </button>
+    </div>
+  )
+}
 
 function Dashboard() {
   const [interfaces, setInterfaces] = useState([])
@@ -103,9 +215,48 @@ function Dashboard() {
       trafficCharts: true,
       activePeers: true,
       ipPoolUsage: true,
-      recentActivities: true
+      recentActivities: true,
+      peerGroups: true,
+      expiringPeers: true
     }
   })
+
+  // Widget sırası - localStorage'dan yükle
+  const defaultWidgetOrder = ['stats', 'trafficCharts', 'peerGroups', 'expiringPeers', 'ipPoolUsage', 'recentActivities', 'activePeers']
+  const [widgetOrder, setWidgetOrder] = useState(() => {
+    const saved = localStorage.getItem('dashboardWidgetOrder')
+    return saved ? JSON.parse(saved) : defaultWidgetOrder
+  })
+
+  // DnD sensörleri
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8, // 8px hareket edince sürükleme başlar
+      },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  )
+
+  // Sürükleme bittiğinde
+  const handleDragEnd = (event) => {
+    const { active, over } = event
+
+    if (active.id !== over?.id) {
+      setWidgetOrder((items) => {
+        const oldIndex = items.indexOf(active.id)
+        const newIndex = items.indexOf(over.id)
+        const newOrder = arrayMove(items, oldIndex, newIndex)
+        localStorage.setItem('dashboardWidgetOrder', JSON.stringify(newOrder))
+        return newOrder
+      })
+    }
+  }
+
+  const [peerGroupData, setPeerGroupData] = useState([]) // Grup dağılımı
+  const [expiringPeersData, setExpiringPeersData] = useState({ expired: [], expiring: [], total: 0 }) // Expiring peers
   const [stats, setStats] = useState({
     totalInterfaces: 0,
     totalPeers: 0,
@@ -249,6 +400,26 @@ function Dashboard() {
       const activitiesRes = await getRecentActivities(10)
       if (activitiesRes.success) {
         setRecentActivities(activitiesRes.data)
+      }
+
+      // Grup dağılımını al
+      try {
+        const groupRes = await getPeerGroupDistribution()
+        if (groupRes.success) {
+          setPeerGroupData(groupRes.data)
+        }
+      } catch (err) {
+        console.log('Grup dağılımı alınamadı:', err)
+      }
+
+      // Süresi dolacak peer'ları al
+      try {
+        const expiringRes = await getExpiringPeers(7)
+        if (expiringRes.success) {
+          setExpiringPeersData(expiringRes.data)
+        }
+      } catch (err) {
+        console.log('Expiring peers alınamadı:', err)
       }
     } catch (error) {
       console.error('Dashboard verileri yüklenemedi:', error)
@@ -798,50 +969,50 @@ function Dashboard() {
   return (
     <div className="space-y-6">
       {/* Sayfa başlığı */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white">
             Dashboard
           </h1>
-          <p className="text-gray-600 dark:text-gray-400 mt-1">
+          <p className="text-sm sm:text-base text-gray-600 dark:text-gray-400 mt-1">
             WireGuard aktif peer'ları ve istatistikleri
           </p>
         </div>
         <button
           onClick={() => setShowWidgetSettings(true)}
-          className="flex items-center gap-2 px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg transition-colors"
+          className="flex items-center justify-center gap-2 px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg transition-colors w-full sm:w-auto"
           title="Widget Görünürlük Ayarları"
         >
           <Settings className="w-5 h-5" />
-          <span className="hidden sm:inline">Ayarlar</span>
+          <span>Ayarlar</span>
         </button>
       </div>
 
       {/* Genel Bakış Kartları */}
       {widgetVisibility.stats && dashboardStats && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6">
           {/* IP Pool Kartı */}
           <div className="card bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20 border-blue-200 dark:border-blue-800">
             <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-blue-700 dark:text-blue-300 font-medium">
+              <div className="min-w-0 flex-1">
+                <p className="text-xs sm:text-sm text-blue-700 dark:text-blue-300 font-medium truncate">
                   IP Pool Kullanımı
                 </p>
-                <p className="text-3xl font-bold text-blue-900 dark:text-blue-100 mt-2">
+                <p className="text-xl sm:text-3xl font-bold text-blue-900 dark:text-blue-100 mt-1 sm:mt-2">
                   {dashboardStats.ip_pool.usage_percent}%
                 </p>
-                <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
+                <p className="text-xs text-blue-600 dark:text-blue-400 mt-1 hidden sm:block">
                   {dashboardStats.ip_pool.allocated_ips} / {dashboardStats.ip_pool.total_ips} IP
                 </p>
               </div>
-              <div className="p-3 rounded-lg bg-blue-200 dark:bg-blue-700/50">
-                <Database className="w-6 h-6 text-blue-700 dark:text-blue-300" />
+              <div className="p-2 sm:p-3 rounded-lg bg-blue-200 dark:bg-blue-700/50 flex-shrink-0">
+                <Database className="w-5 h-5 sm:w-6 sm:h-6 text-blue-700 dark:text-blue-300" />
               </div>
             </div>
-            <div className="mt-4">
-              <div className="w-full bg-blue-200 dark:bg-blue-800 rounded-full h-2">
+            <div className="mt-3 sm:mt-4">
+              <div className="w-full bg-blue-200 dark:bg-blue-800 rounded-full h-1.5 sm:h-2">
                 <div
-                  className="bg-blue-600 dark:bg-blue-400 h-2 rounded-full transition-all duration-500"
+                  className="bg-blue-600 dark:bg-blue-400 h-1.5 sm:h-2 rounded-full transition-all duration-500"
                   style={{ width: `${dashboardStats.ip_pool.usage_percent}%` }}
                 ></div>
               </div>
@@ -851,21 +1022,21 @@ function Dashboard() {
           {/* Peer Templates Kartı */}
           <div className="card bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-900/20 dark:to-purple-800/20 border-purple-200 dark:border-purple-800">
             <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-purple-700 dark:text-purple-300 font-medium">
+              <div className="min-w-0 flex-1">
+                <p className="text-xs sm:text-sm text-purple-700 dark:text-purple-300 font-medium truncate">
                   Peer Şablonları
                 </p>
-                <p className="text-3xl font-bold text-purple-900 dark:text-purple-100 mt-2">
+                <p className="text-xl sm:text-3xl font-bold text-purple-900 dark:text-purple-100 mt-1 sm:mt-2">
                   {dashboardStats.templates.total_templates}
                 </p>
                 {dashboardStats.templates.most_used_template && (
-                  <p className="text-xs text-purple-600 dark:text-purple-400 mt-1 truncate">
+                  <p className="text-xs text-purple-600 dark:text-purple-400 mt-1 truncate hidden sm:block">
                     En çok: {dashboardStats.templates.most_used_template.name}
                   </p>
                 )}
               </div>
-              <div className="p-3 rounded-lg bg-purple-200 dark:bg-purple-700/50">
-                <FileCode className="w-6 h-6 text-purple-700 dark:text-purple-300" />
+              <div className="p-2 sm:p-3 rounded-lg bg-purple-200 dark:bg-purple-700/50 flex-shrink-0">
+                <FileCode className="w-5 h-5 sm:w-6 sm:h-6 text-purple-700 dark:text-purple-300" />
               </div>
             </div>
           </div>
@@ -873,19 +1044,19 @@ function Dashboard() {
           {/* Kullanıcılar Kartı */}
           <div className="card bg-gradient-to-br from-green-50 to-green-100 dark:from-green-900/20 dark:to-green-800/20 border-green-200 dark:border-green-800">
             <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-green-700 dark:text-green-300 font-medium">
+              <div className="min-w-0 flex-1">
+                <p className="text-xs sm:text-sm text-green-700 dark:text-green-300 font-medium truncate">
                   Aktif Kullanıcılar
                 </p>
-                <p className="text-3xl font-bold text-green-900 dark:text-green-100 mt-2">
+                <p className="text-xl sm:text-3xl font-bold text-green-900 dark:text-green-100 mt-1 sm:mt-2">
                   {dashboardStats.users.active_users}
                 </p>
-                <p className="text-xs text-green-600 dark:text-green-400 mt-1">
+                <p className="text-xs text-green-600 dark:text-green-400 mt-1 hidden sm:block">
                   Toplam: {dashboardStats.users.total_users}
                 </p>
               </div>
-              <div className="p-3 rounded-lg bg-green-200 dark:bg-green-700/50">
-                <Users className="w-6 h-6 text-green-700 dark:text-green-300" />
+              <div className="p-2 sm:p-3 rounded-lg bg-green-200 dark:bg-green-700/50 flex-shrink-0">
+                <Users className="w-5 h-5 sm:w-6 sm:h-6 text-green-700 dark:text-green-300" />
               </div>
             </div>
           </div>
@@ -893,19 +1064,19 @@ function Dashboard() {
           {/* Son 24 Saat Aktivite Kartı */}
           <div className="card bg-gradient-to-br from-orange-50 to-orange-100 dark:from-orange-900/20 dark:to-orange-800/20 border-orange-200 dark:border-orange-800">
             <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-orange-700 dark:text-orange-300 font-medium">
+              <div className="min-w-0 flex-1">
+                <p className="text-xs sm:text-sm text-orange-700 dark:text-orange-300 font-medium truncate">
                   Son 24 Saat
                 </p>
-                <p className="text-3xl font-bold text-orange-900 dark:text-orange-100 mt-2">
+                <p className="text-xl sm:text-3xl font-bold text-orange-900 dark:text-orange-100 mt-1 sm:mt-2">
                   {dashboardStats.activity.last_24h}
                 </p>
-                <p className="text-xs text-orange-600 dark:text-orange-400 mt-1">
+                <p className="text-xs text-orange-600 dark:text-orange-400 mt-1 hidden sm:block">
                   Toplam Aktivite
                 </p>
               </div>
-              <div className="p-3 rounded-lg bg-orange-200 dark:bg-orange-700/50">
-                <Zap className="w-6 h-6 text-orange-700 dark:text-orange-300" />
+              <div className="p-2 sm:p-3 rounded-lg bg-orange-200 dark:bg-orange-700/50 flex-shrink-0">
+                <Zap className="w-5 h-5 sm:w-6 sm:h-6 text-orange-700 dark:text-orange-300" />
               </div>
             </div>
           </div>
@@ -913,22 +1084,22 @@ function Dashboard() {
       )}
 
       {/* İstatistik kartları */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6">
         {statCards.map((stat, index) => {
           const Icon = stat.icon
           return (
             <div key={index} className="card">
               <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400 truncate">
                     {stat.title}
                   </p>
-                  <p className="text-3xl font-bold text-gray-900 dark:text-white mt-2">
+                  <p className="text-xl sm:text-3xl font-bold text-gray-900 dark:text-white mt-1 sm:mt-2">
                     {stat.value}
                   </p>
                 </div>
-                <div className={`p-3 rounded-lg ${stat.bgColor}`}>
-                  <Icon className={`w-6 h-6 ${stat.color}`} />
+                <div className={`p-2 sm:p-3 rounded-lg ${stat.bgColor} flex-shrink-0`}>
+                  <Icon className={`w-5 h-5 sm:w-6 sm:h-6 ${stat.color}`} />
                 </div>
               </div>
             </div>
@@ -938,13 +1109,13 @@ function Dashboard() {
 
       {/* Gerçek Zamanlı Veri Kullanımı Grafikleri */}
       {widgetVisibility.trafficCharts && (
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
         <div className="card">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-              Gerçek Zamanlı Gelen Veri Kullanımı
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
+            <h3 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-white">
+              Gelen Veri
             </h3>
-            <span className="text-2xl font-bold text-blue-600 dark:text-blue-400">
+            <span className="text-xl sm:text-2xl font-bold text-blue-600 dark:text-blue-400">
               {formatBytes(stats.totalRx)}
             </span>
           </div>
@@ -1011,11 +1182,11 @@ function Dashboard() {
           </div>
         </div>
         <div className="card">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-              Gerçek Zamanlı Gönderilen Veri Kullanımı
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
+            <h3 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-white">
+              Gönderilen Veri
             </h3>
-            <span className="text-2xl font-bold text-green-600 dark:text-green-400">
+            <span className="text-xl sm:text-2xl font-bold text-green-600 dark:text-green-400">
               {formatBytes(stats.totalTx)}
             </span>
           </div>
@@ -1115,79 +1286,120 @@ function Dashboard() {
             <p className="text-gray-500 dark:text-gray-400">Şu anda aktif peer yok</p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-gray-200 dark:border-gray-700">
-                  <th className="text-left py-3 px-4 text-sm font-semibold text-gray-700 dark:text-gray-300">
-                    Peer Adı
-                  </th>
-                  <th className="text-left py-3 px-4 text-sm font-semibold text-gray-700 dark:text-gray-300">
-                    IP Adresi
-                  </th>
-                  <th className="text-left py-3 px-4 text-sm font-semibold text-gray-700 dark:text-gray-300">
-                    Endpoint
-                  </th>
-                  <th className="text-right py-3 px-4 text-sm font-semibold text-gray-700 dark:text-gray-300">
-                    İndirme
-                  </th>
-                  <th className="text-right py-3 px-4 text-sm font-semibold text-gray-700 dark:text-gray-300">
-                    Yükleme
-                  </th>
-                  <th className="text-center py-3 px-4 text-sm font-semibold text-gray-700 dark:text-gray-300">
-                    Son İletişim
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredPeers
-                  .filter(p => p._processed.lastActivity.isOnline)
-                  .map((peer, index) => (
-                    <tr
-                      key={peer.id || peer['.id'] || index}
-                      onClick={() => handleShowPeerDetails(peer)}
-                      className="border-b border-gray-100 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors cursor-pointer"
-                    >
-                      <td className="py-3 px-4">
-                        <div className="flex items-center gap-2">
-                          <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
-                          <span className="font-medium text-gray-900 dark:text-white">
-                            {peer._processed.name}
-                          </span>
-                        </div>
-                      </td>
-                      <td className="py-3 px-4 text-sm text-gray-600 dark:text-gray-400">
-                        {peer._processed.allowedAddress}
-                      </td>
-                      <td className="py-3 px-4 text-sm text-gray-600 dark:text-gray-400">
-                        {peer._processed.fullEndpoint}
-                      </td>
-                      <td className="py-3 px-4 text-right">
-                        <div className="flex items-center justify-end gap-1">
-                          <Download className="w-4 h-4 text-blue-500" />
-                          <span className="text-sm font-medium text-gray-900 dark:text-white">
-                            {formatBytes(peer._processed.rxBytes)}
-                          </span>
-                        </div>
-                      </td>
-                      <td className="py-3 px-4 text-right">
-                        <div className="flex items-center justify-end gap-1">
-                          <Upload className="w-4 h-4 text-green-500" />
-                          <span className="text-sm font-medium text-gray-900 dark:text-white">
-                            {formatBytes(peer._processed.txBytes)}
-                          </span>
-                        </div>
-                      </td>
-                      <td className="py-3 px-4 text-center">
-                        <span className="text-xs text-green-600 dark:text-green-400 font-medium">
-                          {peer._processed.lastActivity.text}
+          <>
+            {/* Mobil Kart Görünümü */}
+            <div className="md:hidden grid grid-cols-1 gap-3">
+              {filteredPeers
+                .filter(p => p._processed.lastActivity.isOnline)
+                .map((peer, index) => (
+                  <div
+                    key={peer.id || peer['.id'] || index}
+                    onClick={() => handleShowPeerDetails(peer)}
+                    className="p-3 bg-gray-50 dark:bg-gray-800 rounded-lg cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                  >
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-2">
+                        <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
+                        <span className="font-medium text-gray-900 dark:text-white text-sm">
+                          {peer._processed.name}
                         </span>
-                      </td>
-                    </tr>
-                  ))}
-              </tbody>
-            </table>
-          </div>
+                      </div>
+                      <span className="text-xs text-green-600 dark:text-green-400 font-medium">
+                        {peer._processed.lastActivity.text}
+                      </span>
+                    </div>
+                    <div className="text-xs text-gray-500 dark:text-gray-400 mb-2">
+                      {peer._processed.allowedAddress}
+                    </div>
+                    <div className="flex items-center justify-between text-xs">
+                      <div className="flex items-center gap-1">
+                        <Download className="w-3 h-3 text-blue-500" />
+                        <span className="text-gray-700 dark:text-gray-300">{formatBytes(peer._processed.rxBytes)}</span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <Upload className="w-3 h-3 text-green-500" />
+                        <span className="text-gray-700 dark:text-gray-300">{formatBytes(peer._processed.txBytes)}</span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+            </div>
+            
+            {/* Desktop Tablo Görünümü */}
+            <div className="hidden md:block overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b border-gray-200 dark:border-gray-700">
+                    <th className="text-left py-3 px-4 text-sm font-semibold text-gray-700 dark:text-gray-300">
+                      Peer Adı
+                    </th>
+                    <th className="text-left py-3 px-4 text-sm font-semibold text-gray-700 dark:text-gray-300">
+                      IP Adresi
+                    </th>
+                    <th className="text-left py-3 px-4 text-sm font-semibold text-gray-700 dark:text-gray-300 hidden lg:table-cell">
+                      Endpoint
+                    </th>
+                    <th className="text-right py-3 px-4 text-sm font-semibold text-gray-700 dark:text-gray-300">
+                      İndirme
+                    </th>
+                    <th className="text-right py-3 px-4 text-sm font-semibold text-gray-700 dark:text-gray-300">
+                      Yükleme
+                    </th>
+                    <th className="text-center py-3 px-4 text-sm font-semibold text-gray-700 dark:text-gray-300">
+                      Son İletişim
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredPeers
+                    .filter(p => p._processed.lastActivity.isOnline)
+                    .map((peer, index) => (
+                      <tr
+                        key={peer.id || peer['.id'] || index}
+                        onClick={() => handleShowPeerDetails(peer)}
+                        className="border-b border-gray-100 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors cursor-pointer"
+                      >
+                        <td className="py-3 px-4">
+                          <div className="flex items-center gap-2">
+                            <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
+                            <span className="font-medium text-gray-900 dark:text-white">
+                              {peer._processed.name}
+                            </span>
+                          </div>
+                        </td>
+                        <td className="py-3 px-4 text-sm text-gray-600 dark:text-gray-400">
+                          {peer._processed.allowedAddress}
+                        </td>
+                        <td className="py-3 px-4 text-sm text-gray-600 dark:text-gray-400 hidden lg:table-cell">
+                          {peer._processed.fullEndpoint}
+                        </td>
+                        <td className="py-3 px-4 text-right">
+                          <div className="flex items-center justify-end gap-1">
+                            <Download className="w-4 h-4 text-blue-500" />
+                            <span className="text-sm font-medium text-gray-900 dark:text-white">
+                              {formatBytes(peer._processed.rxBytes)}
+                            </span>
+                          </div>
+                        </td>
+                        <td className="py-3 px-4 text-right">
+                          <div className="flex items-center justify-end gap-1">
+                            <Upload className="w-4 h-4 text-green-500" />
+                            <span className="text-sm font-medium text-gray-900 dark:text-white">
+                              {formatBytes(peer._processed.txBytes)}
+                            </span>
+                          </div>
+                        </td>
+                        <td className="py-3 px-4 text-center">
+                          <span className="text-xs text-green-600 dark:text-green-400 font-medium">
+                            {peer._processed.lastActivity.text}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                </tbody>
+              </table>
+            </div>
+          </>
         )}
       </div>
       )}
@@ -1304,13 +1516,147 @@ function Dashboard() {
         )}
       </div>
 
+      {/* Grup Dağılımı ve Süresi Dolacak Peer'lar */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Peer Grup Dağılımı */}
+        {widgetVisibility.peerGroups && peerGroupData.length > 0 && (
+          <div className="card">
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+                  Peer Grup Dağılımı
+                </h2>
+                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                  Gruplara göre peer sayıları
+                </p>
+              </div>
+              <Users className="w-6 h-6 text-gray-400" />
+            </div>
+            <div className="space-y-3">
+              {peerGroupData.slice(0, 8).map((group, idx) => {
+                const colors = ['#6366F1', '#8B5CF6', '#EC4899', '#14B8A6', '#F59E0B', '#EF4444', '#3B82F6', '#10B981']
+                const color = colors[idx % colors.length]
+                const total = peerGroupData.reduce((sum, g) => sum + g.count, 0)
+                const percentage = total > 0 ? Math.round((group.count / total) * 100) : 0
+                
+                return (
+                  <div key={group.group_name} className="flex items-center gap-3">
+                    <div 
+                      className="w-3 h-3 rounded-full flex-shrink-0"
+                      style={{ backgroundColor: color }}
+                    ></div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-medium text-gray-900 dark:text-white truncate">
+                          {group.group_name}
+                        </span>
+                        <span className="text-sm text-gray-500 dark:text-gray-400 ml-2">
+                          {group.count} ({percentage}%)
+                        </span>
+                      </div>
+                      <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-1.5 mt-1">
+                        <div
+                          className="h-1.5 rounded-full transition-all duration-500"
+                          style={{ width: `${percentage}%`, backgroundColor: color }}
+                        ></div>
+                      </div>
+                    </div>
+                  </div>
+                )
+              })}
+              {peerGroupData.length > 8 && (
+                <p className="text-xs text-gray-500 dark:text-gray-400 text-center pt-2">
+                  +{peerGroupData.length - 8} daha fazla grup
+                </p>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Süresi Dolacak Peer'lar */}
+        {widgetVisibility.expiringPeers && expiringPeersData.total > 0 && (
+          <div className="card">
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+                  Süre Uyarıları
+                </h2>
+                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                  Süresi dolmuş ve dolacak peer'lar
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                {expiringPeersData.expired_count > 0 && (
+                  <span className="px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400">
+                    {expiringPeersData.expired_count} Dolmuş
+                  </span>
+                )}
+                {expiringPeersData.expiring_count > 0 && (
+                  <span className="px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400">
+                    {expiringPeersData.expiring_count} Dolacak
+                  </span>
+                )}
+              </div>
+            </div>
+            <div className="space-y-2 max-h-64 overflow-y-auto">
+              {expiringPeersData.expired.slice(0, 5).map((peer) => (
+                <Link
+                  key={peer.peer_id}
+                  to={`/wireguard/${peer.interface_name}`}
+                  className="flex items-center justify-between p-2 rounded-lg bg-red-50 dark:bg-red-900/20 hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors"
+                >
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-red-700 dark:text-red-400 truncate">
+                      {peer.public_key?.substring(0, 20)}...
+                    </p>
+                    <p className="text-xs text-red-600 dark:text-red-500">
+                      {peer.interface_name} {peer.group_name && `• ${peer.group_name}`}
+                    </p>
+                  </div>
+                  <span className="text-xs text-red-600 dark:text-red-500 ml-2">
+                    {new Date(peer.expiry_date).toLocaleDateString('tr-TR')}
+                  </span>
+                </Link>
+              ))}
+              {expiringPeersData.expiring.slice(0, 5).map((peer) => (
+                <Link
+                  key={peer.peer_id}
+                  to={`/wireguard/${peer.interface_name}`}
+                  className="flex items-center justify-between p-2 rounded-lg bg-yellow-50 dark:bg-yellow-900/20 hover:bg-yellow-100 dark:hover:bg-yellow-900/30 transition-colors"
+                >
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-yellow-700 dark:text-yellow-400 truncate">
+                      {peer.public_key?.substring(0, 20)}...
+                    </p>
+                    <p className="text-xs text-yellow-600 dark:text-yellow-500">
+                      {peer.interface_name} {peer.group_name && `• ${peer.group_name}`}
+                    </p>
+                  </div>
+                  <span className="text-xs text-yellow-600 dark:text-yellow-500 ml-2">
+                    {new Date(peer.expiry_date).toLocaleDateString('tr-TR')}
+                  </span>
+                </Link>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+
       {/* Tüm Peer Listesi */}
       <div className="card">
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-            Tüm Peer'lar
-          </h2>
-          <div className="flex items-center gap-2">
+        <div className="flex flex-col gap-4 mb-6">
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg sm:text-xl font-semibold text-gray-900 dark:text-white">
+              Tüm Peer'lar
+            </h2>
+            <button className="px-2 sm:px-3 py-1 rounded-lg bg-green-600 text-white text-xs sm:text-sm font-medium flex items-center gap-1 sm:gap-2">
+              <Users className="w-3 h-3 sm:w-4 sm:h-4" />
+              <span className="hidden sm:inline">Aktif Eşler</span> ({filteredPeers.length})
+            </button>
+          </div>
+          
+          {/* Kontrol Butonları - Mobil Optimize */}
+          <div className="flex flex-wrap items-center gap-2">
             <button
               onClick={() => {
                 const sortOptions = ['lastActivity', 'name', 'rx', 'tx']
@@ -1321,58 +1667,58 @@ function Dashboard() {
               className="p-2 rounded-lg text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700"
               title={`Sırala: ${sortBy === 'lastActivity' ? 'Son Aktivite' : sortBy === 'name' ? 'İsim' : sortBy === 'rx' ? 'İndirme' : 'Yükleme'}`}
             >
-              <ArrowUpDown className="w-5 h-5" />
+              <ArrowUpDown className="w-4 h-4 sm:w-5 sm:h-5" />
             </button>
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-gray-600 dark:text-gray-400">Yenileme:</span>
+            
+            <div className="flex items-center gap-1 sm:gap-2">
+              <span className="text-xs sm:text-sm text-gray-600 dark:text-gray-400 hidden sm:inline">Yenileme:</span>
               <select
                 value={refreshRate}
                 onChange={(e) => setRefreshRate(Number(e.target.value))}
-                className="px-3 py-1 rounded-lg bg-blue-600 text-white text-sm font-medium border-0 focus:ring-2 focus:ring-blue-300"
+                className="px-2 sm:px-3 py-1 rounded-lg bg-blue-600 text-white text-xs sm:text-sm font-medium border-0 focus:ring-2 focus:ring-blue-300"
               >
-                <option value={10}>10 Saniye</option>
-                <option value={30}>30 Saniye</option>
-                <option value={60}>1 Dakika</option>
-                <option value={120}>2 Dakika</option>
-                <option value={300}>5 Dakika</option>
+                <option value={10}>10s</option>
+                <option value={30}>30s</option>
+                <option value={60}>1dk</option>
+                <option value={120}>2dk</option>
+                <option value={300}>5dk</option>
               </select>
             </div>
+            
             <button
-              onClick={() => loadData(false)} // Sessizce yenile
+              onClick={() => loadData(false)}
               className="p-2 rounded-lg text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700"
               title="Yenile"
             >
-              <RefreshCw className={`w-5 h-5 ${isRefreshing ? 'animate-spin' : ''}`} />
+              <RefreshCw className={`w-4 h-4 sm:w-5 sm:h-5 ${isRefreshing ? 'animate-spin' : ''}`} />
             </button>
-            <div className="flex items-center gap-2 ml-4">
+            
+            <div className="flex-1 min-w-0 sm:flex-none">
               <div className="relative">
-                <Search className="w-5 h-5 text-gray-400 absolute left-3 top-1/2 transform -translate-y-1/2" />
+                <Search className="w-4 h-4 sm:w-5 sm:h-5 text-gray-400 absolute left-2 sm:left-3 top-1/2 transform -translate-y-1/2" />
                 <input
                   type="text"
                   placeholder="Ara..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                  className="w-full sm:w-auto pl-8 sm:pl-10 pr-3 sm:pr-4 py-1.5 sm:py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-xs sm:text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                 />
               </div>
-              <button className="p-2 rounded-lg text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700">
-                <Download className="w-5 h-5" />
-              </button>
-              <button className="p-2 rounded-lg text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700">
-                <Filter className="w-5 h-5" />
-              </button>
-              <button className="px-3 py-1 rounded-lg bg-green-600 text-white text-sm font-medium flex items-center gap-2">
-                <Users className="w-4 h-4" />
-                Aktif Eşler ({filteredPeers.length})
-              </button>
-        </div>
+            </div>
+            
+            <button className="p-2 rounded-lg text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 hidden sm:block">
+              <Download className="w-5 h-5" />
+            </button>
+            <button className="p-2 rounded-lg text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 hidden sm:block">
+              <Filter className="w-5 h-5" />
+            </button>
           </div>
         </div>
 
         {filteredPeers.length === 0 ? (
           <div className="text-center py-8">
-            <AlertCircle className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-            <p className="text-gray-500 dark:text-gray-400">
+            <AlertCircle className="w-8 h-8 sm:w-12 sm:h-12 text-gray-400 mx-auto mb-4" />
+            <p className="text-sm sm:text-base text-gray-500 dark:text-gray-400">
               {searchTerm ? 'Arama sonucu bulunamadı' : 'Henüz aktif peer bulunamadı'}
             </p>
           </div>
@@ -1385,39 +1731,39 @@ function Dashboard() {
               return (
                 <div
                   key={peer['.id'] || peer.id || index}
-                  className="p-5 border border-gray-200 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-800 shadow-sm hover:shadow-md transition-all duration-200"
+                  className="p-3 sm:p-5 border border-gray-200 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-800 shadow-sm hover:shadow-md transition-all duration-200"
                 >
-                  <div className="flex items-start justify-between gap-4">
+                  <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 sm:gap-4">
                     <div className="flex-1 min-w-0">
                       {/* Başlık ve Durum */}
-                      <div className="flex items-center gap-3 mb-3">
-                        <div className={`w-3 h-3 rounded-full flex-shrink-0 ${
+                      <div className="flex items-center gap-2 sm:gap-3 mb-2 sm:mb-3">
+                        <div className={`w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full flex-shrink-0 ${
                           lastActivity.isOnline 
                             ? 'bg-green-500 animate-pulse' 
                             : 'bg-gray-400'
                         }`}></div>
                         <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2">
-                            <p className="font-semibold text-gray-900 dark:text-white truncate">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <p className="font-semibold text-sm sm:text-base text-gray-900 dark:text-white truncate">
                               {name}
                             </p>
-                            <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                            <span className={`px-1.5 sm:px-2 py-0.5 rounded-full text-[10px] sm:text-xs font-medium ${
                               lastActivity.isOnline
                                 ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400'
                                 : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400'
                             }`}>
-                              {lastActivity.isOnline ? 'Çevrimiçi' : 'Çevrimdışı'}
+                              {lastActivity.isOnline ? 'Online' : 'Offline'}
                             </span>
                           </div>
-                          <p className="text-sm text-gray-600 dark:text-gray-400 truncate">
+                          <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400 truncate">
                             {fullEndpoint}
                           </p>
                         </div>
                       </div>
                       
                       {/* Peer Bilgileri */}
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-                        <div className="space-y-2">
+                      <div className="grid grid-cols-1 gap-2 sm:gap-4 mt-3 sm:mt-4">
+                        <div className="hidden sm:block space-y-2">
                           <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">
                             Genel Anahtar
                           </p>
@@ -1425,47 +1771,47 @@ function Dashboard() {
                             {publicKey.substring(0, 44)}...
                           </p>
                         </div>
-                        <div className="space-y-2">
-                          <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">
-                            İzin Verilen IP Adresi
+                        <div className="space-y-1 sm:space-y-2">
+                          <p className="text-[10px] sm:text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">
+                            IP Adresi
                           </p>
-                          <p className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                          <p className="text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300">
                             {allowedAddress}
                           </p>
                         </div>
                       </div>
 
                       {/* İstatistikler */}
-                      <div className="flex flex-wrap items-center gap-4 mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+                      <div className="grid grid-cols-2 sm:flex sm:flex-wrap items-center gap-2 sm:gap-4 mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
                         <div className="flex items-center gap-2">
-                          <div className="p-1.5 rounded-lg bg-blue-100 dark:bg-blue-900/30">
-                            <Download className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                          <div className="p-1 sm:p-1.5 rounded-lg bg-blue-100 dark:bg-blue-900/30">
+                            <Download className="w-3 h-3 sm:w-4 sm:h-4 text-blue-600 dark:text-blue-400" />
                           </div>
                           <div>
-                            <p className="text-xs text-gray-500 dark:text-gray-400">İndirme</p>
-                            <p className="text-sm font-semibold text-gray-900 dark:text-white">
+                            <p className="text-[10px] sm:text-xs text-gray-500 dark:text-gray-400">İndirme</p>
+                            <p className="text-xs sm:text-sm font-semibold text-gray-900 dark:text-white">
                               {formatBytes(rxBytes)}
                             </p>
                           </div>
                         </div>
                         <div className="flex items-center gap-2">
-                          <div className="p-1.5 rounded-lg bg-green-100 dark:bg-green-900/30">
-                            <Upload className="w-4 h-4 text-green-600 dark:text-green-400" />
+                          <div className="p-1 sm:p-1.5 rounded-lg bg-green-100 dark:bg-green-900/30">
+                            <Upload className="w-3 h-3 sm:w-4 sm:h-4 text-green-600 dark:text-green-400" />
                           </div>
                           <div>
-                            <p className="text-xs text-gray-500 dark:text-gray-400">Yükleme</p>
-                            <p className="text-sm font-semibold text-gray-900 dark:text-white">
+                            <p className="text-[10px] sm:text-xs text-gray-500 dark:text-gray-400">Yükleme</p>
+                            <p className="text-xs sm:text-sm font-semibold text-gray-900 dark:text-white">
                               {formatBytes(txBytes)}
                             </p>
                           </div>
                         </div>
                         <div className="flex items-center gap-2">
-                          <div className="p-1.5 rounded-lg bg-purple-100 dark:bg-purple-900/30">
-                            <Clock className="w-4 h-4 text-purple-600 dark:text-purple-400" />
+                          <div className="p-1 sm:p-1.5 rounded-lg bg-purple-100 dark:bg-purple-900/30">
+                            <Clock className="w-3 h-3 sm:w-4 sm:h-4 text-purple-600 dark:text-purple-400" />
                           </div>
                   <div>
-                            <p className="text-xs text-gray-500 dark:text-gray-400">Son Aktivite</p>
-                            <p className={`text-sm font-semibold ${
+                            <p className="text-[10px] sm:text-xs text-gray-500 dark:text-gray-400">Son Aktivite</p>
+                            <p className={`text-xs sm:text-sm font-semibold ${
                               lastActivity.isOnline 
                                 ? 'text-green-600 dark:text-green-400' 
                                 : 'text-gray-600 dark:text-gray-400'
@@ -1476,12 +1822,12 @@ function Dashboard() {
                         </div>
                         {connectionDuration && (
                           <div className="flex items-center gap-2">
-                            <div className="p-1.5 rounded-lg bg-orange-100 dark:bg-orange-900/30">
-                              <Wifi className="w-4 h-4 text-orange-600 dark:text-orange-400" />
+                            <div className="p-1 sm:p-1.5 rounded-lg bg-orange-100 dark:bg-orange-900/30">
+                              <Wifi className="w-3 h-3 sm:w-4 sm:h-4 text-orange-600 dark:text-orange-400" />
                             </div>
                             <div>
-                              <p className="text-xs text-gray-500 dark:text-gray-400">Bağlantı Süresi</p>
-                              <p className="text-sm font-semibold text-gray-900 dark:text-white">
+                              <p className="text-[10px] sm:text-xs text-gray-500 dark:text-gray-400">Bağlantı</p>
+                              <p className="text-xs sm:text-sm font-semibold text-gray-900 dark:text-white">
                                 {connectionDuration}
                               </p>
                             </div>
@@ -1491,7 +1837,7 @@ function Dashboard() {
                     </div>
 
                     {/* Aksiyon Butonları */}
-                    <div className="flex items-center gap-2 flex-shrink-0">
+                    <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 flex-shrink-0 mt-4 sm:mt-0">
                       <button
                         onClick={() => {
                           const peerId = peer.id || peer['.id']
@@ -1501,11 +1847,11 @@ function Dashboard() {
                           }
                           handleShowPeerLogs(peerId, peer.interfaceName)
                         }}
-                        className="px-3 py-1.5 rounded-lg bg-purple-600 text-white text-sm font-medium hover:bg-purple-700 transition-colors flex items-center gap-2"
+                        className="flex-1 sm:flex-none px-2 sm:px-3 py-1.5 rounded-lg bg-purple-600 text-white text-xs sm:text-sm font-medium hover:bg-purple-700 transition-colors flex items-center justify-center gap-1 sm:gap-2"
                         title="Peer Logları"
                       >
-                        <FileText className="w-4 h-4" />
-                        Loglar
+                        <FileText className="w-3 h-3 sm:w-4 sm:h-4" />
+                        <span className="hidden sm:inline">Loglar</span>
                       </button>
                       <button
                         onClick={() => {
@@ -1516,15 +1862,15 @@ function Dashboard() {
                           }
                           handleShowPeerTraffic(peerId, peer.interfaceName, peer.comment || peer.name)
                         }}
-                        className="px-3 py-1.5 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 transition-colors flex items-center gap-2"
+                        className="flex-1 sm:flex-none px-2 sm:px-3 py-1.5 rounded-lg bg-blue-600 text-white text-xs sm:text-sm font-medium hover:bg-blue-700 transition-colors flex items-center justify-center gap-1 sm:gap-2"
                         title="Peer Trafik Geçmişi"
                       >
-                        <TrendingUp className="w-4 h-4" />
-                        Trafik
+                        <TrendingUp className="w-3 h-3 sm:w-4 sm:h-4" />
+                        <span className="hidden sm:inline">Trafik</span>
                       </button>
                       <Link
                         to={`/wireguard/${peer.interfaceName}`}
-                        className="px-3 py-1.5 rounded-lg bg-primary-600 text-white text-sm font-medium hover:bg-primary-700 transition-colors"
+                        className="flex-1 sm:flex-none px-2 sm:px-3 py-1.5 rounded-lg bg-primary-600 text-white text-xs sm:text-sm font-medium hover:bg-primary-700 transition-colors text-center"
                       >
                         Detay
                       </Link>
@@ -1539,17 +1885,17 @@ function Dashboard() {
 
       {/* Peer Logları Modal */}
       {showLogsModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-2 sm:p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xl w-full h-full sm:h-auto sm:max-w-4xl sm:max-h-[90vh] overflow-hidden flex flex-col">
             {/* Modal Header */}
-            <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
+            <div className="flex items-center justify-between p-4 sm:p-6 border-b border-gray-200 dark:border-gray-700">
               <div>
-                <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
+                <h2 className="text-lg sm:text-2xl font-bold text-gray-900 dark:text-white">
                   Peer Logları
                 </h2>
                 {selectedPeer && (
-                  <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                    Arayüz: {selectedPeer.interfaceName} | Peer ID: {selectedPeer.peerId}
+                  <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400 mt-1 truncate">
+                    <span className="hidden sm:inline">Arayüz: </span>{selectedPeer.interfaceName}
                   </p>
                 )}
               </div>
@@ -1564,39 +1910,39 @@ function Dashboard() {
                 }}
                 className="p-2 rounded-lg text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
               >
-                <X className="w-6 h-6" />
+                <X className="w-5 h-5 sm:w-6 sm:h-6" />
               </button>
             </div>
 
             {/* Tarih Filtreleri ve İstatistikler */}
-            <div className="p-6 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50">
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
+            <div className="p-4 sm:p-6 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-4 mb-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Başlangıç Tarihi
+                  <label className="block text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 sm:mb-2">
+                    Başlangıç
                   </label>
                   <input
                     type="date"
                     value={startDate}
                     onChange={(e) => setStartDate(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                    className="w-full px-2 sm:px-3 py-1.5 sm:py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Bitiş Tarihi
+                  <label className="block text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 sm:mb-2">
+                    Bitiş
                   </label>
                   <input
                     type="date"
                     value={endDate}
                     onChange={(e) => setEndDate(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                    className="w-full px-2 sm:px-3 py-1.5 sm:py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                   />
                 </div>
-                <div className="flex items-end">
+                <div className="flex items-end col-span-2 sm:col-span-1">
                   <button
                     onClick={handleFilterLogs}
-                    className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                    className="w-full px-3 sm:px-4 py-1.5 sm:py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
                   >
                     Filtrele
                   </button>
@@ -1742,16 +2088,17 @@ function Dashboard() {
 
       {/* Peer Trafik Geçmişi Modal */}
       {showTrafficModal && selectedPeer && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 overflow-y-auto">
-          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xl max-w-6xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-2 sm:p-4 overflow-y-auto">
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xl w-full max-w-6xl h-full sm:h-auto sm:max-h-[90vh] overflow-hidden flex flex-col">
             {/* Modal Header */}
-            <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
-              <div>
-                <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
+            <div className="flex items-start sm:items-center justify-between p-4 sm:p-6 border-b border-gray-200 dark:border-gray-700">
+              <div className="flex-1 min-w-0 pr-2">
+                <h2 className="text-lg sm:text-2xl font-bold text-gray-900 dark:text-white">
                   Peer Trafik Geçmişi
                 </h2>
-                <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                  Peer: {selectedPeer.peerName} | Arayüz: {selectedPeer.interfaceName} | Peer ID: {selectedPeer.peerId}
+                <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400 mt-1 truncate">
+                  <span className="hidden sm:inline">Peer: {selectedPeer.peerName} | Arayüz: {selectedPeer.interfaceName}</span>
+                  <span className="sm:hidden">{selectedPeer.peerName}</span>
                 </p>
               </div>
               <button
@@ -1763,17 +2110,17 @@ function Dashboard() {
                   setTrafficStartDate('')
                   setTrafficEndDate('')
                 }}
-                className="p-2 rounded-lg text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+                className="p-1.5 sm:p-2 rounded-lg text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 flex-shrink-0"
               >
-                <X className="w-6 h-6" />
+                <X className="w-5 h-5 sm:w-6 sm:h-6" />
               </button>
             </div>
 
             {/* Filtreler */}
-            <div className="p-6 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50">
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            <div className="p-3 sm:p-6 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-4">
+                <div className="col-span-2 sm:col-span-1">
+                  <label className="block text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 sm:mb-2">
                     Zaman Aralığı
                   </label>
                   <select
@@ -1782,43 +2129,44 @@ function Dashboard() {
                       setTrafficPeriodType(e.target.value)
                       loadPeerTrafficData(selectedPeer.peerId, selectedPeer.interfaceName, e.target.value, trafficStartDate, trafficEndDate)
                     }}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                    className="w-full px-2 sm:px-3 py-1.5 sm:py-2 text-xs sm:text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                   >
-                    <option value="hourly">Saatlik Trafik</option>
-                    <option value="daily">Günlük Trafik</option>
-                    <option value="monthly">Aylık Trafik</option>
-                    <option value="yearly">Yıllık Trafik</option>
+                    <option value="hourly">Saatlik</option>
+                    <option value="daily">Günlük</option>
+                    <option value="monthly">Aylık</option>
+                    <option value="yearly">Yıllık</option>
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Başlangıç Tarihi
+                  <label className="block text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 sm:mb-2">
+                    Başlangıç
                   </label>
                   <input
                     type="date"
                     value={trafficStartDate}
                     onChange={(e) => setTrafficStartDate(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                    className="w-full px-2 sm:px-3 py-1.5 sm:py-2 text-xs sm:text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Bitiş Tarihi
+                  <label className="block text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 sm:mb-2">
+                    Bitiş
                   </label>
                   <input
                     type="date"
                     value={trafficEndDate}
                     onChange={(e) => setTrafficEndDate(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                    className="w-full px-2 sm:px-3 py-1.5 sm:py-2 text-xs sm:text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                   />
                 </div>
-                <div className="flex items-end gap-2">
+                <div className="col-span-2 sm:col-span-1 flex items-end gap-2">
                   <button
                     onClick={handleFilterPeerTraffic}
-                    className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"
+                    className="flex-1 px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center gap-1 sm:gap-2"
                   >
-                    <RefreshCwIcon className={`w-4 h-4 ${loadingTraffic ? 'animate-spin' : ''}`} />
-                    Filtrele
+                    <RefreshCwIcon className={`w-3.5 h-3.5 sm:w-4 sm:h-4 ${loadingTraffic ? 'animate-spin' : ''}`} />
+                    <span className="hidden sm:inline">Filtrele</span>
+                    <span className="sm:hidden">Ara</span>
                   </button>
                   <button
                     onClick={() => {
@@ -1826,50 +2174,51 @@ function Dashboard() {
                       setTrafficEndDate('')
                       loadPeerTrafficData(selectedPeer.peerId, selectedPeer.interfaceName, trafficPeriodType, '', '')
                     }}
-                    className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
+                    className="px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
                   >
-                    Temizle
+                    <span className="hidden sm:inline">Temizle</span>
+                    <span className="sm:hidden">Sıfırla</span>
                   </button>
                 </div>
               </div>
 
               {/* Özet İstatistikler */}
               {peerTrafficSummary && peerTrafficSummary.record_count > 0 && (
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4">
-                  <div className="bg-blue-100 dark:bg-blue-900/30 p-3 rounded-lg">
-                    <p className="text-xs text-gray-600 dark:text-gray-400">Toplam İndirme</p>
-                    <p className="text-2xl font-bold text-blue-700 dark:text-blue-400">{peerTrafficSummary.total_rx_mb.toFixed(2)} MB</p>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-4 mt-3 sm:mt-4">
+                  <div className="bg-blue-100 dark:bg-blue-900/30 p-2 sm:p-3 rounded-lg">
+                    <p className="text-[10px] sm:text-xs text-gray-600 dark:text-gray-400">Toplam İndirme</p>
+                    <p className="text-base sm:text-2xl font-bold text-blue-700 dark:text-blue-400">{peerTrafficSummary.total_rx_mb.toFixed(2)} MB</p>
                   </div>
-                  <div className="bg-green-100 dark:bg-green-900/30 p-3 rounded-lg">
-                    <p className="text-xs text-gray-600 dark:text-gray-400">Toplam Yükleme</p>
-                    <p className="text-2xl font-bold text-green-700 dark:text-green-400">{peerTrafficSummary.total_tx_mb.toFixed(2)} MB</p>
+                  <div className="bg-green-100 dark:bg-green-900/30 p-2 sm:p-3 rounded-lg">
+                    <p className="text-[10px] sm:text-xs text-gray-600 dark:text-gray-400">Toplam Yükleme</p>
+                    <p className="text-base sm:text-2xl font-bold text-green-700 dark:text-green-400">{peerTrafficSummary.total_tx_mb.toFixed(2)} MB</p>
                   </div>
-                  <div className="bg-purple-100 dark:bg-purple-900/30 p-3 rounded-lg">
-                    <p className="text-xs text-gray-600 dark:text-gray-400">Ortalama İndirme</p>
-                    <p className="text-2xl font-bold text-purple-700 dark:text-purple-400">{(peerTrafficSummary.avg_rx_bytes / (1024 * 1024)).toFixed(2)} MB</p>
+                  <div className="bg-purple-100 dark:bg-purple-900/30 p-2 sm:p-3 rounded-lg">
+                    <p className="text-[10px] sm:text-xs text-gray-600 dark:text-gray-400">Ortalama İndirme</p>
+                    <p className="text-base sm:text-2xl font-bold text-purple-700 dark:text-purple-400">{(peerTrafficSummary.avg_rx_bytes / (1024 * 1024)).toFixed(2)} MB</p>
                   </div>
-                  <div className="bg-orange-100 dark:bg-orange-900/30 p-3 rounded-lg">
-                    <p className="text-xs text-gray-600 dark:text-gray-400">Kayıt Sayısı</p>
-                    <p className="text-2xl font-bold text-orange-700 dark:text-orange-400">{peerTrafficSummary.record_count}</p>
+                  <div className="bg-orange-100 dark:bg-orange-900/30 p-2 sm:p-3 rounded-lg">
+                    <p className="text-[10px] sm:text-xs text-gray-600 dark:text-gray-400">Kayıt Sayısı</p>
+                    <p className="text-base sm:text-2xl font-bold text-orange-700 dark:text-orange-400">{peerTrafficSummary.record_count}</p>
                   </div>
                 </div>
               )}
             </div>
 
             {/* Grafik */}
-            <div className="flex-1 overflow-y-auto p-6">
+            <div className="flex-1 overflow-y-auto p-3 sm:p-6">
               {loadingTraffic ? (
-                <div className="flex items-center justify-center h-96">
-                  <RefreshCwIcon className="w-8 h-8 animate-spin text-primary-600 dark:text-primary-400" />
+                <div className="flex items-center justify-center h-64 sm:h-96">
+                  <RefreshCwIcon className="w-6 h-6 sm:w-8 sm:h-8 animate-spin text-primary-600 dark:text-primary-400" />
                 </div>
               ) : peerTrafficData.length === 0 ? (
-                <div className="flex flex-col items-center justify-center h-96 text-gray-500 dark:text-gray-400">
-                  <TrendingUp className="w-16 h-16 mb-4" />
-                  <p className="text-lg font-medium">Henüz trafik verisi bulunamadı</p>
-                  <p className="text-sm mt-2">Trafik verileri periyodik olarak kaydedilecek</p>
+                <div className="flex flex-col items-center justify-center h-64 sm:h-96 text-gray-500 dark:text-gray-400">
+                  <TrendingUp className="w-12 h-12 sm:w-16 sm:h-16 mb-3 sm:mb-4" />
+                  <p className="text-sm sm:text-lg font-medium text-center">Henüz trafik verisi bulunamadı</p>
+                  <p className="text-xs sm:text-sm mt-1 sm:mt-2 text-center">Trafik verileri periyodik olarak kaydedilecek</p>
                 </div>
               ) : (
-                <div className="h-96 mb-6">
+                <div className="h-64 sm:h-96 mb-4 sm:mb-6">
                   <Line
                     data={{
                       labels: peerTrafficData.map((item) => {
@@ -2115,7 +2464,7 @@ function Dashboard() {
       {/* Widget Ayarları Modal */}
       {showWidgetSettings && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full max-h-[90vh] overflow-hidden flex flex-col">
             <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
               <h2 className="text-xl font-bold text-gray-900 dark:text-white">
                 Dashboard Widget Ayarları
@@ -2127,43 +2476,42 @@ function Dashboard() {
                 <X className="w-5 h-5" />
               </button>
             </div>
-            <div className="p-6 space-y-4">
+            <div className="p-6 space-y-4 overflow-y-auto flex-1">
               <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-                Dashboard'da görüntülemek istediğiniz widget'ları seçin
+                Widget'ları sürükleyerek sıralayın, tıklayarak göster/gizle
               </p>
 
-              {[
-                { key: 'stats', label: 'İstatistik Kartları', icon: BarChart3 },
-                { key: 'trafficCharts', label: 'Trafik Grafikleri', icon: TrendingUp },
-                { key: 'activePeers', label: 'Online Peer\'lar', icon: Wifi },
-                { key: 'ipPoolUsage', label: 'IP Pool Kullanımı', icon: Database },
-                { key: 'recentActivities', label: 'Son Aktiviteler', icon: Clock }
-              ].map(widget => {
-                const Icon = widget.icon
-                return (
-                  <button
-                    key={widget.key}
-                    onClick={() => toggleWidget(widget.key)}
-                    className={`w-full flex items-center justify-between p-4 rounded-lg transition-colors ${
-                      widgetVisibility[widget.key]
-                        ? 'bg-primary-100 dark:bg-primary-900/30 border-2 border-primary-500'
-                        : 'bg-gray-100 dark:bg-gray-700 border-2 border-transparent'
-                    }`}
-                  >
-                    <div className="flex items-center gap-3">
-                      <Icon className={`w-5 h-5 ${widgetVisibility[widget.key] ? 'text-primary-600 dark:text-primary-400' : 'text-gray-500 dark:text-gray-400'}`} />
-                      <span className={`font-medium ${widgetVisibility[widget.key] ? 'text-gray-900 dark:text-white' : 'text-gray-600 dark:text-gray-400'}`}>
-                        {widget.label}
-                      </span>
-                    </div>
-                    {widgetVisibility[widget.key] ? (
-                      <Eye className="w-5 h-5 text-primary-600 dark:text-primary-400" />
-                    ) : (
-                      <EyeOff className="w-5 h-5 text-gray-400" />
-                    )}
-                  </button>
-                )
-              })}
+              <DndContext
+                sensors={sensors}
+                collisionDetection={closestCenter}
+                onDragEnd={handleDragEnd}
+              >
+                <SortableContext items={widgetOrder} strategy={rectSortingStrategy}>
+                  {widgetOrder.map((widgetKey) => {
+                    const widgetInfo = {
+                      stats: { label: 'İstatistik Kartları', icon: BarChart3 },
+                      trafficCharts: { label: 'Trafik Grafikleri', icon: TrendingUp },
+                      activePeers: { label: 'Online Peer\'lar', icon: Wifi },
+                      ipPoolUsage: { label: 'IP Pool Kullanımı', icon: Database },
+                      recentActivities: { label: 'Son Aktiviteler', icon: Clock },
+                      peerGroups: { label: 'Grup Dağılımı', icon: Users },
+                      expiringPeers: { label: 'Süre Uyarıları', icon: AlertCircle }
+                    }[widgetKey]
+
+                    if (!widgetInfo) return null
+
+                    return (
+                      <SortableWidgetItem
+                        key={widgetKey}
+                        id={widgetKey}
+                        widget={{ key: widgetKey, ...widgetInfo }}
+                        isVisible={widgetVisibility[widgetKey]}
+                        onToggle={() => toggleWidget(widgetKey)}
+                      />
+                    )
+                  })}
+                </SortableContext>
+              </DndContext>
             </div>
           </div>
         </div>

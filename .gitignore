@@ -43,6 +43,10 @@ package-lock.json
 .env.development
 *.env
 
+# ============ Encryption Keys ============
+.encryption_key
+*.key
+
 # ============ Database ============
 *.db
 *.sqlite
@@ -66,7 +70,7 @@ backups/
 Thumbs.db
 
 # ============ Archives ============
-archive/
+# archive/
 *.zip
 *.tar.gz
 *.rar
@@ -110,7 +114,7 @@ backups/
 *.rar
 *.7z
 *.sha256
-archive/
+# archive/  -- keep archive folder in git
 
 # Claude Code
 .claude/

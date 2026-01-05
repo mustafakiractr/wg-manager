@@ -75,30 +75,30 @@ function Login() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary-50 to-primary-100 dark:from-gray-900 dark:to-gray-800 p-4">
-      <div className="w-full max-w-md">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary-50 to-primary-100 dark:from-gray-900 dark:to-gray-800 px-4 py-8 sm:p-4">
+      <div className="w-full max-w-sm sm:max-w-md">
         {/* Logo ve başlık */}
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-primary-600 rounded-full mb-4">
-            <Network className="w-8 h-8 text-white" />
+        <div className="text-center mb-6 sm:mb-8">
+          <div className="inline-flex items-center justify-center w-14 h-14 sm:w-16 sm:h-16 bg-primary-600 rounded-full mb-3 sm:mb-4">
+            <Network className="w-7 h-7 sm:w-8 sm:h-8 text-white" />
           </div>
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white mb-1 sm:mb-2">
             Router Manager
           </h1>
-          <p className="text-gray-600 dark:text-gray-400">
+          <p className="text-sm sm:text-base text-gray-600 dark:text-gray-400">
             MikroTik Yönetim Paneli
           </p>
         </div>
 
         {/* Login formu */}
-        <div className="card">
+        <div className="card p-4 sm:p-6">
           {!show2FA ? (
             // Normal login form
-            <form onSubmit={handleSubmit} className="space-y-6">
+            <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-6">
               {/* Hata mesajı */}
               {error && (
-                <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
-                  <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
+                <div className="p-3 sm:p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+                  <p className="text-xs sm:text-sm text-red-600 dark:text-red-400">{error}</p>
                 </div>
               )}
 
@@ -106,7 +106,7 @@ function Login() {
               <div>
                 <label
                   htmlFor="username"
-                  className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2"
+                  className="block text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5 sm:mb-2"
                 >
                   Kullanıcı Adı
                 </label>
@@ -115,7 +115,7 @@ function Login() {
                   type="text"
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
-                  className="input"
+                  className="input text-sm sm:text-base"
                   placeholder="admin"
                   required
                   autoFocus
@@ -126,7 +126,7 @@ function Login() {
               <div>
                 <label
                   htmlFor="password"
-                  className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2"
+                  className="block text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5 sm:mb-2"
                 >
                   Şifre
                 </label>
@@ -135,7 +135,7 @@ function Login() {
                   type="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="input"
+                  className="input text-sm sm:text-base"
                   placeholder="••••••••"
                   required
                 />
@@ -152,7 +152,7 @@ function Login() {
                 />
                 <label
                   htmlFor="remember-me"
-                  className="ml-2 block text-sm text-gray-700 dark:text-gray-300"
+                  className="ml-2 block text-xs sm:text-sm text-gray-700 dark:text-gray-300"
                 >
                   Beni hatırla (30 gün)
                 </label>
@@ -162,27 +162,27 @@ function Login() {
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full btn btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full btn btn-primary text-sm sm:text-base py-2.5 sm:py-3 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {loading ? 'Giriş yapılıyor...' : 'Giriş Yap'}
               </button>
             </form>
           ) : (
             // 2FA verification form
-            <form onSubmit={handle2FASubmit} className="space-y-6">
-              <div className="text-center mb-4">
-                <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
+            <form onSubmit={handle2FASubmit} className="space-y-4 sm:space-y-6">
+              <div className="text-center mb-3 sm:mb-4">
+                <h2 className="text-lg sm:text-xl font-semibold text-gray-900 dark:text-white mb-1 sm:mb-2">
                   İki Faktörlü Doğrulama
                 </h2>
-                <p className="text-sm text-gray-600 dark:text-gray-400">
+                <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">
                   Authenticator uygulamanızdaki 6 haneli kodu girin
                 </p>
               </div>
 
               {/* Hata mesajı */}
               {error && (
-                <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
-                  <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
+                <div className="p-3 sm:p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+                  <p className="text-xs sm:text-sm text-red-600 dark:text-red-400">{error}</p>
                 </div>
               )}
 
@@ -190,7 +190,7 @@ function Login() {
               <div>
                 <label
                   htmlFor="twoFactorCode"
-                  className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2"
+                  className="block text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5 sm:mb-2"
                 >
                   Doğrulama Kodu
                 </label>
@@ -199,14 +199,14 @@ function Login() {
                   type="text"
                   value={twoFactorCode}
                   onChange={(e) => setTwoFactorCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                  className="input text-center text-2xl tracking-widest"
+                  className="input text-center text-xl sm:text-2xl tracking-widest"
                   placeholder="000000"
                   maxLength={6}
                   pattern="[0-9]{6}"
                   required
                   autoFocus
                 />
-                <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                <p className="mt-1.5 sm:mt-2 text-xs text-gray-500 dark:text-gray-400">
                   Yedek kodunuzu da kullanabilirsiniz (xxxx-xxxx formatında)
                 </p>
               </div>
@@ -215,7 +215,7 @@ function Login() {
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full btn btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full btn btn-primary text-sm sm:text-base py-2.5 sm:py-3 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {loading ? 'Doğrulanıyor...' : 'Doğrula'}
               </button>
@@ -228,7 +228,7 @@ function Login() {
                   setTwoFactorCode('')
                   setError('')
                 }}
-                className="w-full btn btn-secondary"
+                className="w-full btn btn-secondary text-sm sm:text-base py-2.5 sm:py-3"
               >
                 Geri Dön
               </button>

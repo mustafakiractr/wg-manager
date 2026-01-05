@@ -156,10 +156,28 @@ async def lifespan(app: FastAPI):
         import traceback
         logger.debug(traceback.format_exc())
     
+    # Peer expiry zamanlayıcısını başlat
+    try:
+        from app.services.peer_expiry_service import start_expiry_scheduler
+        await start_expiry_scheduler()
+        logger.info("Peer expiry zamanlayıcısı başlatıldı")
+    except Exception as e:
+        logger.warning(f"Peer expiry zamanlayıcısı başlatılamadı: {e}")
+        import traceback
+        logger.debug(traceback.format_exc())
+    
     logger.info("Uygulama başlatıldı")
     yield
     # Kapanışta temizlik işlemleri
     logger.info("Uygulama kapatılıyor...")
+    
+    # Expiry scheduler'ı durdur
+    try:
+        from app.services.peer_expiry_service import stop_expiry_scheduler
+        await stop_expiry_scheduler()
+        logger.info("Peer expiry zamanlayıcısı durduruldu")
+    except Exception as e:
+        logger.warning(f"Peer expiry zamanlayıcısı durdurulamadı: {e}")
 
 
 # FastAPI uygulaması oluştur

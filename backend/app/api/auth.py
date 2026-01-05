@@ -31,6 +31,7 @@ from app.services.log_service import create_log
 from app.services.notification_service import notify_user_login
 from app.utils.ip_helper import get_client_ip
 from app.utils.activity_logger import log_auth
+from app.utils.datetime_helper import utcnow
 
 router = APIRouter()
 security_scheme = HTTPBearer()
@@ -163,7 +164,6 @@ async def login(
     # 2FA aktif mi kontrol et
     if user.two_factor_enabled:
         # Geçici token oluştur (sadece 2FA verify için geçerli)
-        from datetime import datetime, timedelta
         from jose import jwt
 
         pending_token_data = {
