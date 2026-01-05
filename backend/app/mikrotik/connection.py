@@ -122,10 +122,51 @@ class MikroTikConnection:
         if self.connection is not None and self.api is not None:
             try:
                 # Basit bir test komutu çalıştırarak bağlantının aktif olduğunu doğrula
-                # Eğer bağlantı kopmuşsa exception fırlatılır
+                # Timeout ile sınırlı (5 saniye)
                 loop = asyncio.get_event_loop()
-                await loop.run_in_executor(None, lambda: self.api.get_resource('/system/resource').get())
+                
+                # Test komutu için timeout ekle
+                def test_connection():
+                    try:
+                        return self.api.get_resource('/system/resource').get()
+                    except Exception as test_error:
+                        # Bad file descriptor veya connection hatası
+                        raise test_error
+                
+                # asyncio.wait_for ile timeout kontrolü
+                await asyncio.wait_for(
+                    loop.run_in_executor(None, test_connection),
+                    timeout=5.0  # 5 saniye timeout
+                )
                 return True
+            except asyncio.TimeoutError:
+                # Bağlantı timeout oldu
+                logger.warning(f"MikroTik bağlantısı timeout (5s), yeniden bağlanılıyor")
+                
+                # Telegram bildirimi gönder
+                try:
+                    from app.database.database import AsyncSessionLocal
+                    TelegramService = get_telegram_service()
+                    async with AsyncSessionLocal() as db:
+                        await TelegramService.send_critical_event(
+                            db=db,
+                            event_type="mikrotik_disconnect",
+                            title="⚠️ MikroTik Bağlantısı Koptu",
+                            description=f"Router bağlantısı timeout (5s)",
+                            details=f"Host: {self.host}:{self.port}\nHata: Connection timeout"
+                        )
+                        logger.info(f"Telegram bildirimi gönderildi: mikrotik_disconnect (timeout)")
+                except Exception as telegram_error:
+                    logger.error(f"Telegram bildirimi gönderilemedi: {telegram_error}")
+                
+                # Bağlantıyı zorla kapat
+                try:
+                    await self.disconnect()
+                except:
+                    pass
+                self.connection = None
+                self.api = None
+                
             except Exception as e:
                 # Bağlantı kopmuş, yeniden bağlan
                 logger.warning(f"MikroTik bağlantısı kopmuş, yeniden bağlanılıyor: {e}")
@@ -327,9 +368,11 @@ class MikroTikConnection:
                             logger.error(f"❌ Bağlantı yeniden kurma hatası: {retry_error}")
                     
                     # Bağlantı veya timeout hatası varsa yeniden dene
-                    if "connection" in error_msg.lower() or "timeout" in error_msg.lower() or "network" in error_msg.lower():
-                        logger.warning(f"⚠️ Bağlantı/Network hatası, yeniden deniyoruz... (Deneme {attempt + 1}/{max_retries})")
+                    if "connection" in error_msg.lower() or "timeout" in error_msg.lower() or "network" in error_msg.lower() or "bad file descriptor" in error_msg.lower():
+                        logger.warning(f"⚠️ Bağlantı/Network/Timeout hatası, yeniden deniyoruz... (Deneme {attempt + 1}/{max_retries})")
+                        # Connection nesnesini temizle (timeout sonrası socket geçersiz olabilir)
                         self.connection = None
+                        self.api = None
                         await asyncio.sleep(retry_delay)
                         if await self.connect():
                             await asyncio.sleep(retry_delay)

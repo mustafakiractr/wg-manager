@@ -18,7 +18,10 @@ async def monitor_all_peers():
     try:
         async with AsyncSessionLocal() as db:
             # Bağlantının açık olduğundan emin ol
-            await mikrotik_conn.ensure_connected()
+            is_connected = await mikrotik_conn.ensure_connected()
+            if not is_connected:
+                logger.warning("Peer monitoring: MikroTik bağlantısı kurulamadı, atlanıyor")
+                return
             
             # Tüm WireGuard interface'lerini al
             interfaces = await mikrotik_conn.get_wireguard_interfaces(use_cache=False)
@@ -64,13 +67,23 @@ async def monitor_all_peers():
                         total_peers_checked += 1
                 
                 except Exception as e:
-                    logger.error(f"Peer monitoring hatası ({interface_name}): {e}")
+                    error_msg = str(e)
+                    # Timeout hatalarını sadece debug seviyede logla (çok sık olmasın diye)
+                    if "timeout" in error_msg.lower() or "timed out" in error_msg.lower():
+                        logger.debug(f"Peer monitoring timeout ({interface_name}): {e}")
+                    else:
+                        logger.error(f"Peer monitoring hatası ({interface_name}): {e}")
             
             if total_peers_checked > 0:
                 logger.debug(f"Peer monitoring tamamlandı: {total_peers_checked} peer kontrol edildi")
     
     except Exception as e:
-        logger.error(f"Peer monitoring genel hatası: {e}")
+        error_msg = str(e)
+        # Timeout hatalarını sadece debug seviyede logla
+        if "timeout" in error_msg.lower() or "timed out" in error_msg.lower():
+            logger.debug(f"Peer monitoring genel timeout: {e}")
+        else:
+            logger.error(f"Peer monitoring genel hatası: {e}")
 
 
 async def start_peer_monitoring():
