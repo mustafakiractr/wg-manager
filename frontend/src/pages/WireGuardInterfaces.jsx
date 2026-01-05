@@ -1336,26 +1336,26 @@ function WireGuardInterfaces() {
                 </div>
 
                 {/* Aksiyon butonları */}
-                <div className="flex gap-2">
+                <div className="flex flex-wrap gap-2">
                   <button
                     onClick={() => handleToggle(interfaceName, isRunning)}
                     disabled={isToggling}
-                    className={`flex-1 btn flex items-center justify-center gap-2 ${
+                    className={`flex-1 min-w-[80px] btn flex items-center justify-center gap-1 sm:gap-2 text-xs sm:text-sm ${
                       isRunning
                         ? 'btn-secondary'
                         : 'btn-primary'
                     }`}
                   >
-                    <Power className="w-4 h-4" />
-                    {isToggling
+                    <Power className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                    <span className="hidden xs:inline">{isToggling
                       ? '...'
                       : isRunning
                       ? 'Kapat'
-                      : 'Aç'}
+                      : 'Aç'}</span>
                   </button>
                   <Link
                     to={`/wireguard/${interfaceName}`}
-                    className="btn btn-secondary flex-1 text-center"
+                    className="btn btn-secondary flex-1 min-w-[90px] text-center text-xs sm:text-sm"
                   >
                     Detaylar
                   </Link>
@@ -1371,10 +1371,10 @@ function WireGuardInterfaces() {
                       })
                       setShowEditInterfaceModal(true)
                     }}
-                    className="btn btn-secondary flex items-center justify-center gap-2"
+                    className="btn btn-secondary flex items-center justify-center gap-2 px-2 sm:px-3"
                     title="Yapılandır"
                   >
-                    <Settings className="w-4 h-4" />
+                    <Settings className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                   </button>
                   <button
                     onClick={async () => {
@@ -1387,10 +1387,10 @@ function WireGuardInterfaces() {
                         alert('Interface silinemedi: ' + (error.response?.data?.detail || error.message))
                       }
                     }}
-                    className="btn btn-secondary text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20"
+                    className="btn btn-secondary text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 px-2 sm:px-3"
                     title="Sil"
                   >
-                    <Trash2 className="w-4 h-4" />
+                    <Trash2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                   </button>
                 </div>
               </div>
