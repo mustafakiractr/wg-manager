@@ -203,6 +203,34 @@ sudo systemctl status router-manager-frontend
 
 Tam dağıtım kılavuzu için [PROJECT_GUIDE.md](PROJECT_GUIDE.md#deployment) dosyasına bakın.
 
+### Frontend Build ve Deploy
+
+**Production için frontend build:**
+
+Frontend'de değişiklik yaptığınızda production'a deploy etmek için:
+
+```bash
+# Otomatik build ve deploy scripti
+bash /root/wg/build_frontend.sh
+```
+
+Bu script:
+- ✅ Frontend'i build eder (`npm run build`)
+- ✅ Dosyaları `/var/www/wg-manager/` klasörüne kopyalar
+- ✅ Dosya izinlerini ayarlar
+- ✅ Nginx'i test edip reload eder
+- ✅ Detaylı build istatistikleri gösterir
+
+**Manuel build:**
+```bash
+cd /root/wg/frontend
+npm run build
+cp -r dist/* /var/www/wg-manager/
+systemctl reload nginx
+```
+
+**Not:** Frontend dosyaları `/var/www/wg-manager/` klasöründe tutulur. `/root/wg/frontend/dist/` klasörü geçicidir.
+
 ---
 
 ## 🐛 Sorun Giderme
