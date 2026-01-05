@@ -6,11 +6,10 @@
 *.log
 *.log.*
 logs/
-backend/logs/
-frontend/logs/
-backend_output.log
-frontend.log
-backend.log
+backend/logs/*
+!backend/logs/.gitkeep
+frontend/logs/*
+!frontend/logs/.gitkeep
 
 # ============ Python ============
 __pycache__/
@@ -38,58 +37,33 @@ package-lock.json
 
 # ============ Environment Variables ============
 .env
-.env.local
-.env.production
-.env.development
+.env.*
 *.env
 
 # ============ Encryption Keys ============
 .encryption_key
 *.key
+*.pem
+*.crt
+*.cert
 
 # ============ Database ============
 *.db
 *.sqlite
 *.sqlite3
-router_manager.db
 
 # ============ Backups ============
-backups/
+backend/backups/*
+!backend/backups/.gitkeep
 *.backup
 *.bak
 *.old
-*~
-*.swp
-*.swo
 
 # ============ IDE ============
 .vscode/
 .idea/
 *.sublime-*
-.DS_Store
-Thumbs.db
-
-# ============ Archives ============
-# archive/
-*.zip
-*.tar.gz
-*.rar
-
-# ============ Temporary ============
-tmp/
-temp/
-*.tmp
-.cache
-
-# ============ Static Files (User Uploads) ============
-backend/static/avatars/*
-!backend/static/avatars/.gitkeep
-
-# ============ Certificates ============
-*.pem
-*.key
-*.crt
-*.cert
+.claude/
 
 # ============ OS ============
 .DS_Store
@@ -98,34 +72,32 @@ backend/static/avatars/*
 Thumbs.db
 ehthumbs.db
 Desktop.ini
+*~
+*.swp
+*.swo
 
-# ============ SHA256 Checksums ============
-*.sha256
-Thumbs.db
-
-# Backups
-backups/
-*.bak
-*.backup
-
-# Archives
+# ============ Archives ============
 *.zip
 *.tar.gz
 *.rar
 *.7z
-*.sha256
-# archive/  -- keep archive folder in git
 
-# Claude Code
-.claude/
-
-# WireGuard specific
-*.conf.bak
-wg*.zip
-
-# Temporary files
-*.tmp
-temp/
+# ============ Temporary ============
 tmp/
+temp/
+*.tmp
+
+# ============ Static Files (User Uploads) ============
+backend/static/avatars/*
+!backend/static/avatars/.gitkeep
+
+# ============ Tests ============
 test_*.py
 test_*.sh
+
+# ============ Checksums ============
+*.sha256
+
+# ============ WireGuard specific ============
+*.conf.bak
+wg*.zip
