@@ -1483,26 +1483,9 @@ function WireGuardInterfaceDetail() {
 
     try {
       setTogglingPeer(cleanPeerId)
-      
-      // ⚡ OPTIMISTIC UPDATE: Hemen UI'ı güncelle (kullanıcı anında görsün)
-      setPeers(prevPeers => 
-        prevPeers.map(peer => {
-          const peerIdMatch = String(peer.id || peer['.id']).trim() === cleanPeerId
-          if (peerIdMatch) {
-            return { ...peer, disabled: !isDisabled }
-          }
-          return peer
-        })
-      )
-      
-      // API çağrısını yap
       await togglePeer(cleanPeerId, interfaceName, isDisabled)
-      
-      // ⚡ Sadece peer listesini yenile (interface bilgisi değişmedi)
-      const updatedPeersData = await getPeers(interfaceName)
-      if (updatedPeersData?.data) {
-        setPeers(updatedPeersData.data)
-      }
+      // Verileri yenile
+      await loadData()
     } catch (error) {
       console.error('Peer toggle hatası:', error)
       console.error('Hata detayları:', {
@@ -1510,18 +1493,6 @@ function WireGuardInterfaceDetail() {
         response: error.response?.data,
         status: error.response?.status
       })
-      
-      // ⚡ Hata durumunda: Değişikliği geri al
-      setPeers(prevPeers => 
-        prevPeers.map(peer => {
-          const peerIdMatch = String(peer.id || peer['.id']).trim() === cleanPeerId
-          if (peerIdMatch) {
-            return { ...peer, disabled: isDisabled } // Eski haline döndür
-          }
-          return peer
-        })
-      )
-      
       alert('Peer durumu değiştirilemedi: ' + (error.response?.data?.detail || error.message))
     } finally {
       setTogglingPeer(null)
