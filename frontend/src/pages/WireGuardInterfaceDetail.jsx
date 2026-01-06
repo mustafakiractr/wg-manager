@@ -2188,7 +2188,7 @@ function WireGuardInterfaceDetail() {
                     
                     <div className="flex flex-wrap gap-1.5 mt-3 pt-3 border-t border-gray-100 dark:border-gray-700">
                       <button
-                        onClick={() => handleTogglePeer(peer)}
+                        onClick={() => handleTogglePeer(peerId, peer.disabled)}
                         className={`p-1.5 rounded ${isDisabled ? 'text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20' : 'text-yellow-600 hover:bg-yellow-50 dark:hover:bg-yellow-900/20'}`}
                         title={isDisabled ? 'Aktif Et' : 'Pasif Et'}
                       >

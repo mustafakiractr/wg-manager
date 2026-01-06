@@ -1831,7 +1831,7 @@ function WireGuardInterfaces() {
                     {/* Actions */}
                     <div className="flex items-center gap-1 pt-2 border-t border-gray-200 dark:border-gray-700">
                       <button
-                        onClick={() => handleTogglePeer(peerId, peer.interfaceName, isActive)}
+                        onClick={() => handleTogglePeer(peerId, peer.interfaceName, peer.disabled)}
                         disabled={togglingPeer === peerId}
                         className={`p-1.5 rounded ${isActive ? 'bg-red-100 text-red-600 dark:bg-red-900/30' : 'bg-green-100 text-green-600 dark:bg-green-900/30'}`}
                       >
