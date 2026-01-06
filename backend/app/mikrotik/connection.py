@@ -122,7 +122,7 @@ class MikroTikConnection:
         if self.connection is not None and self.api is not None:
             try:
                 # Basit bir test komutu çalıştırarak bağlantının aktif olduğunu doğrula
-                # Timeout ile sınırlı (5 saniye)
+                # Timeout ile sınırlı (15 saniye - yavaş ağlar için artırıldı)
                 loop = asyncio.get_event_loop()
                 
                 # Test komutu için timeout ekle
@@ -136,12 +136,12 @@ class MikroTikConnection:
                 # asyncio.wait_for ile timeout kontrolü
                 await asyncio.wait_for(
                     loop.run_in_executor(None, test_connection),
-                    timeout=5.0  # 5 saniye timeout
+                    timeout=15.0  # 15 saniye timeout (yavaş ağlar için)
                 )
                 return True
             except asyncio.TimeoutError:
                 # Bağlantı timeout oldu
-                logger.warning(f"MikroTik bağlantısı timeout (5s), yeniden bağlanılıyor")
+                logger.warning(f"MikroTik bağlantısı timeout (15s), yeniden bağlanılıyor")
                 
                 # Telegram bildirimi gönder
                 try:
@@ -152,7 +152,7 @@ class MikroTikConnection:
                             db=db,
                             event_type="mikrotik_disconnect",
                             title="⚠️ MikroTik Bağlantısı Koptu",
-                            description=f"Router bağlantısı timeout (5s)",
+                            description=f"Router bağlantısı timeout (15s)",
                             details=f"Host: {self.host}:{self.port}\nHata: Connection timeout"
                         )
                         logger.info(f"Telegram bildirimi gönderildi: mikrotik_disconnect (timeout)")
@@ -883,9 +883,13 @@ class MikroTikConnection:
             )
             logger.info(f"Peer güncelleme başarılı. Sonuç: {result}")
             
-            # Peer güncellendikten sonra cache'i temizle
+            # Peer güncellendikten sonra cache'i temizle (HEM redis_cache HEM mikrotik_cache)
             if interface:
+                # Redis cache'i temizle (get_wireguard_peers tarafından kullanılıyor)
+                invalidate_pattern(f"wireguard_peers:{interface}")
+                # Mikrotik cache'i de temizle (eski sistem için)
                 mikrotik_cache.invalidate_pattern(f"wireguard_peers:{interface}")
+                logger.info(f"✅ Cache temizlendi: wireguard_peers:{interface}")
             
             return result[0] if result else {}
         except Exception as e:

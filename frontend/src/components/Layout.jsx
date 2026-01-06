@@ -25,6 +25,8 @@ import {
   Database,
   Layers,
   Archive,
+  Clock,
+  Shield,
 } from 'lucide-react'
 import NotificationDropdown from './NotificationDropdown'
 

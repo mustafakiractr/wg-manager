@@ -230,3 +230,25 @@ async def get_current_user_ws(
         raise WebSocketException(code=1011, reason="Authentication error")
 
 
+def require_admin(current_user: User = Depends(get_current_user)) -> User:
+    """
+    Admin yetkisi kontrolü yapar
+    Sadece admin kullanıcıların erişebileceği endpoint'lerde kullanılır
+    
+    Args:
+        current_user: Mevcut kullanıcı (get_current_user'dan gelir)
+    
+    Returns:
+        User modeli (admin ise)
+    
+    Raises:
+        HTTPException: Kullanıcı admin değilse 403 Forbidden
+    """
+    if not current_user.is_admin:
+        logger.warning(f"Non-admin user attempted admin operation: {current_user.username} (ID: {current_user.id})")
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Bu işlem için admin yetkisi gerekli"
+        )
+    return current_user
+

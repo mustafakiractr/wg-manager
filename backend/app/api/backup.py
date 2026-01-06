@@ -12,6 +12,8 @@ from app.models.user import User
 from app.database.database import get_db
 from app.services.log_service import create_log
 from app.services.backup_service import backup_service
+from app.services.backup_scheduler_service import BackupSchedulerService
+from app.services.backup_encryption_service import BackupEncryptionService
 from sqlalchemy.ext.asyncio import AsyncSession
 import logging
 from datetime import datetime
@@ -49,11 +51,11 @@ async def backup_wireguard_config(
         logger.info(f"💾 Backup isteği: Kullanıcı={current_user.username}")
 
         # MikroTik bağlantısını kontrol et
-        if not mikrotik_conn.connection:
-            await mikrotik_conn.connect()
+        if not await mikrotik_conn.ensure_connected():
+            raise HTTPException(status_code=503, detail="MikroTik bağlantısı kurulamadı")
 
-        # Interface'leri al
-        interfaces = mikrotik_conn.connection.get_resource('/interface/wireguard').get()
+        # Interface'leri al (mevcut execute_command metodunu kullan)
+        interfaces = await mikrotik_conn.get_wireguard_interfaces(use_cache=False)
 
         # Her interface için peer'ları al
         backup_data = {
@@ -65,10 +67,8 @@ async def backup_wireguard_config(
         for interface in interfaces:
             interface_name = interface.get('name')
 
-            # Peer'ları al
-            peers = mikrotik_conn.connection.get_resource('/interface/wireguard/peers').get(
-                interface=interface_name
-            )
+            # Peer'ları al (mevcut execute_command metodunu kullan)
+            peers = await mikrotik_conn.get_wireguard_peers(interface_name, use_cache=False)
 
             interface_backup = {
                 "name": interface_name,
@@ -99,10 +99,9 @@ async def backup_wireguard_config(
         # Log kaydı oluştur
         await create_log(
             db=db,
+            username=current_user.username,
             action="backup_config",
-            user=current_user.username,
-            details=f"WireGuard konfigürasyonu yedeklendi ({len(backup_data['interfaces'])} interface)",
-            success=True
+            details=f"WireGuard konfigürasyonu yedeklendi ({len(backup_data['interfaces'])} interface)"
         )
 
         logger.info(f"✅ Backup başarılı: {len(backup_data['interfaces'])} interface yedeklendi")
@@ -118,10 +117,9 @@ async def backup_wireguard_config(
 
         await create_log(
             db=db,
-            action="backup_config",
-            user=current_user.username,
-            details=f"Backup hatası: {str(e)}",
-            success=False
+            username=current_user.username,
+            action="backup_config_error",
+            details=f"Backup hatası: {str(e)}"
         )
         
         # Telegram bildirimi gönder (async, non-blocking)
@@ -177,8 +175,8 @@ async def restore_wireguard_config(
             )
 
         # MikroTik bağlantısını kontrol et
-        if not mikrotik_conn.connection:
-            await mikrotik_conn.connect()
+        if not await mikrotik_conn.ensure_connected():
+            raise HTTPException(status_code=503, detail="MikroTik bağlantısı kurulamadı")
 
         results = {
             "interfaces_restored": 0,
@@ -194,13 +192,15 @@ async def restore_wireguard_config(
 
             try:
                 # Interface'in mevcut olup olmadığını kontrol et
-                existing_interfaces = mikrotik_conn.connection.get_resource('/interface/wireguard').get(
-                    name=interface_name
+                existing_interfaces = await mikrotik_conn.get_wireguard_interfaces(use_cache=False)
+                interface_exists = any(
+                    iface.get('name') == interface_name
+                    for iface in existing_interfaces
                 )
 
-                # Interface yoksa oluştur
-                if not existing_interfaces:
-                    logger.info(f"📝 Interface oluşturuluyor: {interface_name}")
+                # Interface yoksa uyar
+                if not interface_exists:
+                    logger.info(f"📝 Interface kontrol: {interface_name}")
                     # NOT: Interface oluşturma için private key gerekli
                     # Ancak güvenlik nedeniyle private key'i restore etmek riskli olabilir
                     # Bu nedenle sadece peer'ları restore ediyoruz
@@ -210,49 +210,55 @@ async def restore_wireguard_config(
                 if config.restore_peers:
                     peers = interface_data.get('peers', [])
 
+                    # Mevcut peer'ları al
+                    existing_peers_list = []
+                    if interface_exists:
+                        existing_peers_list = await mikrotik_conn.get_wireguard_peers(interface_name, use_cache=False)
+
                     for peer_data in peers:
                         try:
                             # Mevcut peer'ları kontrol et
                             public_key = peer_data.get('public_key')
-                            existing_peers = mikrotik_conn.connection.get_resource('/interface/wireguard/peers').get(
-                                interface=interface_name,
-                                **{'public-key': public_key}
-                            )
+                            
+                            # Public key ile mevcut peer'ı ara
+                            existing_peer = None
+                            for ep in existing_peers_list:
+                                ep_public_key = ep.get('public-key') or ep.get('public_key')
+                                if ep_public_key and str(ep_public_key).strip() == str(public_key).strip():
+                                    existing_peer = ep
+                                    break
 
-                            if existing_peers and not config.overwrite_existing:
+                            if existing_peer and not config.overwrite_existing:
                                 logger.info(f"⏭️ Peer zaten mevcut, atlanıyor: {peer_data.get('comment')}")
                                 results["peers_skipped"] += 1
                                 continue
 
-                            # Peer'ı ekle veya güncelle
+                            # Peer parametrelerini hazırla
                             peer_params = {
-                                'interface': interface_name,
-                                'public-key': public_key,
                                 'comment': peer_data.get('comment', ''),
                                 'allowed-address': peer_data.get('allowed_address', ''),
                             }
 
                             # Opsiyonel alanlar
-                            if peer_data.get('endpoint_address'):
-                                peer_params['endpoint-address'] = peer_data['endpoint_address']
-                            if peer_data.get('endpoint_port'):
-                                peer_params['endpoint-port'] = peer_data['endpoint_port']
                             if peer_data.get('persistent_keepalive'):
                                 peer_params['persistent-keepalive'] = peer_data['persistent_keepalive']
                             if peer_data.get('preshared_key'):
                                 peer_params['preshared-key'] = peer_data['preshared_key']
 
-                            if existing_peers and config.overwrite_existing:
+                            if existing_peer and config.overwrite_existing:
                                 # Mevcut peer'ı güncelle
-                                peer_id = existing_peers[0]['.id']
-                                mikrotik_conn.connection.get_resource('/interface/wireguard/peers').set(
-                                    id=peer_id,
+                                peer_id = existing_peer.get('.id') or existing_peer.get('id')
+                                await mikrotik_conn.update_wireguard_peer(
+                                    peer_id=peer_id,
+                                    interface=interface_name,
                                     **peer_params
                                 )
                                 logger.info(f"🔄 Peer güncellendi: {peer_data.get('comment')}")
                             else:
                                 # Yeni peer ekle
-                                mikrotik_conn.connection.get_resource('/interface/wireguard/peers').add(
+                                await mikrotik_conn.add_wireguard_peer(
+                                    interface=interface_name,
+                                    public_key=public_key,
                                     **peer_params
                                 )
                                 logger.info(f"✅ Peer eklendi: {peer_data.get('comment')}")
@@ -274,10 +280,9 @@ async def restore_wireguard_config(
         # Log kaydı oluştur
         await create_log(
             db=db,
+            username=current_user.username,
             action="restore_config",
-            user=current_user.username,
-            details=f"Konfigürasyon geri yüklendi: {results['interfaces_restored']} interface, {results['peers_restored']} peer",
-            success=len(results["errors"]) == 0
+            details=f"Konfigürasyon geri yüklendi: {results['interfaces_restored']} interface, {results['peers_restored']} peer"
         )
 
         logger.info(f"✅ Restore tamamlandı: {results}")
@@ -295,10 +300,9 @@ async def restore_wireguard_config(
 
         await create_log(
             db=db,
-            action="restore_config",
-            user=current_user.username,
-            details=f"Restore hatası: {str(e)}",
-            success=False
+            username=current_user.username,
+            action="restore_config_error",
+            details=f"Restore hatası: {str(e)}"
         )
 
         raise HTTPException(status_code=500, detail=str(e))
@@ -704,4 +708,455 @@ async def download_backup(
         raise
     except Exception as e:
         logger.error(f"❌ Backup indirme hatası: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ========== SCHEDULED BACKUP ENDPOINTS ==========
+
+@router.post("/backup/schedule/run")
+async def run_scheduled_backup(
+    backup_type: str = "database",
+    send_notification: bool = True,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Manuel olarak zamanlanmış backup çalıştır
+    
+    Args:
+        backup_type: "database" veya "full"
+        send_notification: Telegram bildirimi gönder
+    
+    Returns:
+        Backup sonucu
+    """
+    try:
+        logger.info(f"🕒 Manuel zamanlanmış backup: {backup_type}, Kullanıcı: {current_user.username}")
+        
+        result = await BackupSchedulerService.create_scheduled_backup(
+            db=db,
+            backup_type=backup_type,
+            description=f"Manual scheduled {backup_type} backup by {current_user.username}",
+            send_notification=send_notification
+        )
+        
+        return result
+    
+    except Exception as e:
+        logger.error(f"❌ Zamanlanmış backup hatası: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/backup/retention/apply")
+async def apply_retention_policy(
+    backup_type: str = None,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Retention policy uygula - eski backup'ları temizle
+    
+    Args:
+        backup_type: Sadece belirli bir tip için policy uygula (None ise tümü)
+    
+    Returns:
+        Temizleme sonucu
+    """
+    try:
+        logger.info(f"🗑️ Retention policy: {backup_type or 'all'}, Kullanıcı: {current_user.username}")
+        
+        result = await BackupSchedulerService.apply_retention_policy(
+            backup_type=backup_type
+        )
+        
+        return result
+    
+    except Exception as e:
+        logger.error(f"❌ Retention policy hatası: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/backup/schedule/next")
+async def get_next_scheduled_backups(
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Sonraki zamanlanmış backup'ların bilgisini döndür
+    
+    Returns:
+        Sonraki backup zamanları
+    """
+    try:
+        result = await BackupSchedulerService.get_next_scheduled_backups()
+        return result
+    
+    except Exception as e:
+        logger.error(f"❌ Schedule bilgisi alınamadı: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/backup/schedule/settings")
+async def get_backup_schedule_settings(
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Backup zamanlama ve retention ayarlarını döndür
+    
+    Returns:
+        Schedule ve retention ayarları
+    """
+    try:
+        return {
+            "success": True,
+            "retention_policy": BackupSchedulerService.RETENTION_POLICY,
+            "schedule": {
+                "daily_database": {
+                    "enabled": True,
+                    "time": "02:00",
+                    "description": "Günlük database backup (her gün 02:00)"
+                },
+                "weekly_full": {
+                    "enabled": True,
+                    "time": "03:00",
+                    "day": "Sunday",
+                    "description": "Haftalık full backup (her Pazar 03:00)"
+                }
+            }
+        }
+    
+    except Exception as e:
+        logger.error(f"❌ Schedule ayarları alınamadı: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ========== ŞİFRELEME ENDPOINTLERİ ==========
+
+class EncryptBackupRequest(BaseModel):
+    """Backup şifreleme isteği"""
+    backup_filename: str
+    password: str
+
+
+class DecryptBackupRequest(BaseModel):
+    """Backup şifre çözme isteği"""
+    encrypted_filename: str
+    password: str
+
+
+@router.post("/backup/encrypt")
+async def encrypt_backup(
+    request: EncryptBackupRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Mevcut backup dosyasını şifreler
+    
+    Args:
+        backup_filename: Şifrelenecek backup dosyası adı
+        password: Şifreleme parolası
+    
+    Returns:
+        Şifreli dosya bilgileri
+    """
+    try:
+        # Backup dosyası kontrolü
+        backup_file = os.path.join(backup_service.backup_dir, request.backup_filename)
+        if not os.path.exists(backup_file):
+            raise HTTPException(
+                status_code=404,
+                detail=f"Backup dosyası bulunamadı: {request.backup_filename}"
+            )
+        
+        # Şifreli dosya adı (.encrypted uzantısı)
+        encrypted_filename = f"{request.backup_filename}.encrypted"
+        encrypted_file = os.path.join(backup_service.backup_dir, encrypted_filename)
+        
+        # Şifrele
+        logger.info(f"🔐 Backup şifreleniyor: {request.backup_filename}")
+        result = BackupEncryptionService.encrypt_file(
+            backup_file,
+            encrypted_file,
+            request.password
+        )
+        
+        # Activity log
+        await create_log(
+            db,
+            current_user.username,
+            "backup_encrypted",
+            details=f"Backup şifrelendi: {request.backup_filename} → {encrypted_filename}",
+            ip_address="127.0.0.1"
+        )
+        
+        logger.info(f"✅ Backup şifrelendi: {encrypted_filename}")
+        
+        return {
+            "success": True,
+            "message": "Backup başarıyla şifrelendi",
+            "original_file": request.backup_filename,
+            "encrypted_file": encrypted_filename,
+            "original_size": result["original_size"],
+            "encrypted_size": result["encrypted_size"],
+            "algorithm": result["algorithm"]
+        }
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Backup şifreleme hatası: {e}")
+        import traceback
+        logger.error(traceback.format_exc())
+        raise HTTPException(status_code=500, detail=f"Şifreleme başarısız: {str(e)}")
+
+
+@router.post("/backup/decrypt")
+async def decrypt_backup(
+    request: DecryptBackupRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Şifreli backup dosyasını çözer
+    
+    Args:
+        encrypted_filename: Şifreli dosya adı
+        password: Şifre çözme parolası
+    
+    Returns:
+        Çözülmüş dosya bilgileri
+    """
+    try:
+        # Şifreli dosya kontrolü
+        encrypted_file = os.path.join(backup_service.backup_dir, request.encrypted_filename)
+        if not os.path.exists(encrypted_file):
+            raise HTTPException(
+                status_code=404,
+                detail=f"Şifreli dosya bulunamadı: {request.encrypted_filename}"
+            )
+        
+        # Çözülmüş dosya adı (.encrypted uzantısını kaldır)
+        decrypted_filename = request.encrypted_filename.replace('.encrypted', '')
+        decrypted_file = os.path.join(backup_service.backup_dir, decrypted_filename)
+        
+        # Şifre çöz
+        logger.info(f"🔓 Backup şifresi çözülüyor: {request.encrypted_filename}")
+        result = BackupEncryptionService.decrypt_file(
+            encrypted_file,
+            decrypted_file,
+            request.password
+        )
+        
+        # Activity log
+        await create_log(
+            db,
+            current_user.username,
+            "backup_decrypted",
+            details=f"Backup şifresi çözüldü: {request.encrypted_filename} → {decrypted_filename}",
+            ip_address="127.0.0.1"
+        )
+        
+        logger.info(f"✅ Backup şifresi çözüldü: {decrypted_filename}")
+        
+        return {
+            "success": True,
+            "message": "Backup şifresi başarıyla çözüldü",
+            "encrypted_file": request.encrypted_filename,
+            "decrypted_file": decrypted_filename,
+            "encrypted_size": result["encrypted_size"],
+            "decrypted_size": result["decrypted_size"]
+        }
+    
+    except HTTPException:
+        raise
+    except ValueError as e:
+        # Yanlış şifre veya bozuk dosya
+        logger.error(f"❌ Şifre çözme hatası: {e}")
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"❌ Backup şifre çözme hatası: {e}")
+        import traceback
+        logger.error(traceback.format_exc())
+        raise HTTPException(status_code=500, detail=f"Şifre çözme başarısız: {str(e)}")
+
+
+@router.post("/backup/create-encrypted")
+async def create_encrypted_backup(
+    backup_type: str = "database",
+    password: str = None,
+    send_notification: bool = True,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Direkt olarak şifreli backup oluşturur (backup al → şifrele → orijinali sil)
+    
+    Args:
+        backup_type: "database" veya "full"
+        password: Şifreleme parolası
+        send_notification: Telegram bildirimi gönderilsin mi?
+    
+    Returns:
+        Şifreli backup bilgileri
+    """
+    try:
+        # Validasyon
+        if not password or len(password.strip()) < 8:
+            raise HTTPException(
+                status_code=400,
+                detail="Şifre en az 8 karakter olmalıdır"
+            )
+        
+        # Önce normal backup al
+        logger.info(f"🔐 Şifreli backup oluşturuluyor: {backup_type}")
+        
+        if backup_type == "database":
+            backup_result = await backup_service.backup_database()
+        elif backup_type == "full":
+            backup_result = await backup_service.backup_full()
+        else:
+            raise HTTPException(status_code=400, detail="Geçersiz backup tipi")
+        
+        if not backup_result["success"]:
+            raise Exception("Backup oluşturulamadı")
+        
+        backup_filename = os.path.basename(backup_result["backup_file"])
+        
+        # Backup'ı şifrele
+        encrypted_filename = f"{backup_filename}.encrypted"
+        encrypted_file = os.path.join(backup_service.backup_dir, encrypted_filename)
+        
+        encrypt_result = BackupEncryptionService.encrypt_file(
+            backup_result["backup_file"],
+            encrypted_file,
+            password
+        )
+        
+        # Orijinal backup'ı sil (şifreli versiyonu kullanacağız)
+        try:
+            os.remove(backup_result["backup_file"])
+            logger.info(f"🗑️ Orijinal backup silindi: {backup_filename}")
+        except Exception as remove_error:
+            logger.warning(f"⚠️ Orijinal backup silinemedi: {remove_error}")
+        
+        # Activity log
+        await create_log(
+            db,
+            current_user.username,
+            "encrypted_backup_created",
+            details=f"Şifreli backup oluşturuldu: {encrypted_filename} ({backup_type})",
+            ip_address="127.0.0.1"
+        )
+        
+        # Telegram bildirimi (isteğe bağlı)
+        if send_notification:
+            try:
+                TelegramService = get_telegram_service()
+                await TelegramService.send_backup_completed(
+                    db=db,
+                    backup_type=backup_type,
+                    backup_file=encrypted_filename,
+                    file_size=encrypt_result["encrypted_size"],
+                    is_encrypted=True
+                )
+            except Exception as telegram_error:
+                logger.warning(f"⚠️ Telegram bildirimi gönderilemedi: {telegram_error}")
+        
+        logger.info(f"✅ Şifreli backup oluşturuldu: {encrypted_filename}")
+        
+        return {
+            "success": True,
+            "message": "Şifreli backup başarıyla oluşturuldu",
+            "backup_type": backup_type,
+            "encrypted_file": encrypted_filename,
+            "encrypted_size": encrypt_result["encrypted_size"],
+            "original_size": encrypt_result["original_size"],
+            "algorithm": encrypt_result["algorithm"]
+        }
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Şifreli backup oluşturma hatası: {e}")
+        import traceback
+        logger.error(traceback.format_exc())
+        raise HTTPException(status_code=500, detail=f"Şifreli backup oluşturulamadı: {str(e)}")
+
+
+@router.post("/backup/verify-password")
+async def verify_backup_password(
+    encrypted_filename: str,
+    password: str,
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Şifreli backup için şifre doğrulaması yapar
+    
+    Args:
+        encrypted_filename: Şifreli dosya adı
+        password: Test edilecek şifre
+    
+    Returns:
+        Şifre doğru mu?
+    """
+    try:
+        encrypted_file = os.path.join(backup_service.backup_dir, encrypted_filename)
+        
+        if not os.path.exists(encrypted_file):
+            raise HTTPException(
+                status_code=404,
+                detail=f"Şifreli dosya bulunamadı: {encrypted_filename}"
+            )
+        
+        # Şifreyi doğrula (test decryption)
+        is_valid = BackupEncryptionService.verify_password(encrypted_file, password)
+        
+        return {
+            "success": True,
+            "is_valid": is_valid,
+            "message": "Şifre doğru ✅" if is_valid else "Şifre yanlış ❌"
+        }
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Şifre doğrulama hatası: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/backup/encrypted-info/{filename}")
+async def get_encrypted_backup_info(
+    filename: str,
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Şifreli backup dosyası hakkında bilgi döner (şifre çözmeden)
+    
+    Args:
+        filename: Şifreli dosya adı
+    
+    Returns:
+        Dosya bilgileri
+    """
+    try:
+        encrypted_file = os.path.join(backup_service.backup_dir, filename)
+        
+        if not os.path.exists(encrypted_file):
+            raise HTTPException(
+                status_code=404,
+                detail=f"Dosya bulunamadı: {filename}"
+            )
+        
+        info = BackupEncryptionService.get_file_info(encrypted_file)
+        
+        return {
+            "success": True,
+            "filename": filename,
+            **info
+        }
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Dosya bilgisi alınamadı: {e}")
         raise HTTPException(status_code=500, detail=str(e))

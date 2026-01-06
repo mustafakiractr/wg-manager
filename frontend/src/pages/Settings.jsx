@@ -3,12 +3,13 @@
  * Profil bilgileri ve güvenlik ayarları
  */
 import { useState } from 'react'
-import { Settings as SettingsIcon, User, Shield, Smartphone, Bell, MessageSquare } from 'lucide-react'
+import { Settings as SettingsIcon, User, Shield, Smartphone, Bell, MessageSquare, Mail } from 'lucide-react'
 import ProfileSettings from '../components/ProfileSettings'
 import TwoFactorSettings from '../components/TwoFactorSettings'
 import ActiveDevices from '../components/ActiveDevices'
 import TelegramSettings from '../components/TelegramSettings'
 import TelegramDashboard from '../components/TelegramDashboard'
+import EmailSettings from '../components/EmailSettings'
 
 function Settings() {
   const [activeTab, setActiveTab] = useState('profile')
@@ -98,6 +99,20 @@ function Settings() {
             <span className="hidden md:inline">Telegram Geçmişi</span>
             <span className="md:hidden">Telegram</span>
           </button>
+          <button
+            onClick={() => setActiveTab('email')}
+            className={`
+              py-3 sm:py-4 px-1 border-b-2 font-medium text-xs sm:text-sm whitespace-nowrap
+              ${activeTab === 'email'
+                ? 'border-primary-500 text-primary-600 dark:text-primary-400'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300'
+              }
+            `}
+          >
+            <Mail className="w-4 h-4 sm:w-5 sm:h-5 inline-block mr-1 sm:mr-2" />
+            <span className="hidden md:inline">Email</span>
+            <span className="md:hidden">Email</span>
+          </button>
         </nav>
       </div>
 
@@ -130,6 +145,12 @@ function Settings() {
         <div className={activeTab === 'telegram-logs' ? 'block' : 'hidden'}>
           <div className="space-y-4 sm:space-y-6">
             <TelegramDashboard />
+          </div>
+        </div>
+
+        <div className={activeTab === 'email' ? 'block' : 'hidden'}>
+          <div className="space-y-4 sm:space-y-6">
+            <EmailSettings />
           </div>
         </div>
       </div>

@@ -684,7 +684,8 @@ async def get_peers(
     try:
         # Bağlantının açık olduğundan emin ol
         await mikrotik_conn.ensure_connected()
-        peers = await mikrotik_conn.get_wireguard_peers(interface)
+        # Cache kullanma - toggle sonrası güncel veri için use_cache=False
+        peers = await mikrotik_conn.get_wireguard_peers(interface, use_cache=False)
 
         # Her peer için durumu takip et ve DB'de olup olmadığını kontrol et
         from sqlalchemy import select

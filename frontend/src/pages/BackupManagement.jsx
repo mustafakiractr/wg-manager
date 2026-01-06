@@ -12,12 +12,26 @@ import {
   AlertCircle,
   CheckCircle,
   Info,
-  Archive
+  Archive,
+  Shield,
+  Lock,
+  Unlock,
+  FileKey,
+  Eye,
+  EyeOff,
+  PlayCircle,
+  Settings
 } from 'lucide-react';
 import { useToast } from '../context/ToastContext';
 import api from '../services/api';
+import BackupSchedule from './BackupSchedule';
+import BackupEncryption from './BackupEncryption';
 
 export default function BackupManagement() {
+  // Tab state
+  const [activeTab, setActiveTab] = useState('backups'); // 'backups', 'schedule', 'encryption'
+
+  // Backup Listesi states
   const [backups, setBackups] = useState([]);
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -25,11 +39,26 @@ export default function BackupManagement() {
   const [filterType, setFilterType] = useState('all');
   const toast = useToast();
 
+  // Schedule states
+  const [scheduleLoading, setScheduleLoading] = useState(false);
+  const [scheduleSettings, setScheduleSettings] = useState(null);
+  const [nextBackups, setNextBackups] = useState(null);
+  const [runningBackup, setRunningBackup] = useState(false);
+  const [applyingRetention, setApplyingRetention] = useState(false);
+
+  // Encryption states
+  const [encryptionLoading, setEncryptionLoading] = useState(false);
+  const [selectedEncryptionBackup, setSelectedEncryptionBackup] = useState(null);
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [operation, setOperation] = useState(null); // 'encrypt', 'decrypt', 'create'
+
   // Modal states
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showRestoreModal, setShowRestoreModal] = useState(false);
   const [showUploadModal, setShowUploadModal] = useState(false);
-  const [selectedBackup, setSelectedBackup] = useState(null);
+  const [selectedBackupForModal, setSelectedBackupForModal] = useState(null);
   const [createType, setCreateType] = useState('database');
   const [description, setDescription] = useState('');
   const [createBeforeRestore, setCreateBeforeRestore] = useState(true);
@@ -84,22 +113,22 @@ export default function BackupManagement() {
   };
 
   const handleRestoreBackup = async () => {
-    if (!selectedBackup) return;
+    if (!selectedBackupForModal) return;
 
     try {
       setCreating(true);
 
       await api.post('/backup/restore', {
-        backup_name: selectedBackup.filename || selectedBackup.dirname,
-        backup_type: selectedBackup.backup_type,
+        backup_name: selectedBackupForModal.filename || selectedBackupForModal.dirname,
+        backup_type: selectedBackupForModal.backup_type,
         create_backup_before: createBeforeRestore
       });
 
       toast.success('Backup başarıyla geri yüklendi');
       setShowRestoreModal(false);
-      setSelectedBackup(null);
+      setSelectedBackupForModal(null);
 
-      if (selectedBackup.backup_type === 'full') {
+      if (selectedBackupForModal.backup_type === 'full') {
         toast.warning('Full backup restore edildi. Servisleri yeniden başlatmanız gerekebilir.');
       }
 
@@ -257,30 +286,80 @@ export default function BackupManagement() {
             Veritabanı ve sistem yedeklerini yönetin
           </p>
         </div>
-        <div className="flex flex-wrap gap-2 sm:gap-3">
-          <button
-            onClick={loadData}
-            className="px-3 sm:px-4 py-2 bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 rounded-lg flex items-center transition-colors text-sm"
-          >
-            <RefreshCw className="w-4 h-4 sm:mr-2" />
-            <span className="hidden sm:inline">Yenile</span>
-          </button>
-          <button
-            onClick={() => setShowUploadModal(true)}
-            className="px-3 sm:px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg flex items-center transition-colors text-sm"
-          >
-            <Upload className="w-4 h-4 sm:mr-2" />
-            <span className="hidden sm:inline">Backup Yükle</span>
-          </button>
-          <button
-            onClick={() => setShowCreateModal(true)}
-            className="px-3 sm:px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg flex items-center transition-colors text-sm"
-          >
-            <Download className="w-4 h-4 sm:mr-2" />
-            <span className="hidden sm:inline">Yeni Backup</span>
-          </button>
-        </div>
       </div>
+
+      {/* Tab Navigation */}
+      <div className="border-b border-gray-200 dark:border-gray-700 mb-6">
+        <nav className="-mb-px flex space-x-8">
+          <button
+            onClick={() => setActiveTab('backups')}
+            className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
+              activeTab === 'backups'
+                ? 'border-blue-500 text-blue-600 dark:text-blue-400'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300'
+            }`}
+          >
+            <div className="flex items-center gap-2">
+              <Archive className="w-4 h-4" />
+              Backup Listesi
+            </div>
+          </button>
+          <button
+            onClick={() => setActiveTab('schedule')}
+            className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
+              activeTab === 'schedule'
+                ? 'border-blue-500 text-blue-600 dark:text-blue-400'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300'
+            }`}
+          >
+            <div className="flex items-center gap-2">
+              <Clock className="w-4 h-4" />
+              Otomatik Backup
+            </div>
+          </button>
+          <button
+            onClick={() => setActiveTab('encryption')}
+            className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
+              activeTab === 'encryption'
+                ? 'border-blue-500 text-blue-600 dark:text-blue-400'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300'
+            }`}
+          >
+            <div className="flex items-center gap-2">
+              <Shield className="w-4 h-4" />
+              Şifreleme
+            </div>
+          </button>
+        </nav>
+      </div>
+
+      {/* Tab Content - Backup Listesi */}
+      {activeTab === 'backups' && (
+        <div>
+          {/* Original Backup List Content */}
+          <div className="flex flex-wrap gap-2 sm:gap-3 mb-4">
+            <button
+              onClick={loadData}
+              className="px-3 sm:px-4 py-2 bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 rounded-lg flex items-center transition-colors text-sm"
+            >
+              <RefreshCw className="w-4 h-4 sm:mr-2" />
+              <span className="hidden sm:inline">Yenile</span>
+            </button>
+            <button
+              onClick={() => setShowUploadModal(true)}
+              className="px-3 sm:px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg flex items-center transition-colors text-sm"
+            >
+              <Upload className="w-4 h-4 sm:mr-2" />
+              <span className="hidden sm:inline">Backup Yükle</span>
+            </button>
+            <button
+              onClick={() => setShowCreateModal(true)}
+              className="px-3 sm:px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg flex items-center transition-colors text-sm"
+            >
+              <Download className="w-4 h-4 sm:mr-2" />
+              <span className="hidden sm:inline">Yeni Backup</span>
+            </button>
+          </div>
 
       {/* Stats Cards */}
       {stats && (
@@ -456,7 +535,7 @@ export default function BackupManagement() {
                         </button>
                         <button
                           onClick={() => {
-                            setSelectedBackup(backup);
+                              setSelectedBackupForModal(backup);
                             setShowRestoreModal(true);
                           }}
                           className="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300 p-1.5 sm:p-2 rounded hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"
@@ -480,6 +559,14 @@ export default function BackupManagement() {
           </table>
         </div>
       </div>
+        </div>
+      )}
+
+      {/* Tab Content - Otomatik Backup (Schedule) */}
+      {activeTab === 'schedule' && <BackupSchedule />}
+
+      {/* Tab Content - Şifreleme */}
+      {activeTab === 'encryption' && <BackupEncryption />}
 
       {/* Create Backup Modal */}
       {showCreateModal && (
@@ -585,7 +672,7 @@ export default function BackupManagement() {
       )}
 
       {/* Restore Backup Modal */}
-      {showRestoreModal && selectedBackup && (
+      {showRestoreModal && selectedBackupForModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-start sm:items-center justify-center z-50 p-2 sm:p-4 overflow-y-auto">
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full my-auto max-h-[95vh] sm:max-h-[90vh] overflow-y-auto">
             <div className="p-4 sm:p-6">
@@ -602,7 +689,7 @@ export default function BackupManagement() {
                         Dikkat! Bu işlem mevcut verileri değiştirecek.
                       </p>
                       <p className="text-xs sm:text-sm text-red-700 dark:text-red-300 break-words">
-                        {selectedBackup.filename || selectedBackup.dirname} backup'ı geri yüklenecek.
+                        {selectedBackupForModal.filename || selectedBackupForModal.dirname} backup'ı geri yüklenecek.
                       </p>
                     </div>
                   </div>
@@ -621,7 +708,7 @@ export default function BackupManagement() {
                   </label>
                 </div>
 
-                {selectedBackup.backup_type === 'full' && (
+                {selectedBackupForModal.backup_type === 'full' && (
                   <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-2.5 sm:p-3">
                     <div className="flex">
                       <AlertCircle className="w-4 h-4 sm:w-5 sm:h-5 text-yellow-600 dark:text-yellow-400 mr-2 flex-shrink-0" />
@@ -637,7 +724,7 @@ export default function BackupManagement() {
                 <button
                   onClick={() => {
                     setShowRestoreModal(false);
-                    setSelectedBackup(null);
+                    setSelectedBackupForModal(null);
                   }}
                   className="flex-1 px-3 sm:px-4 py-2 text-sm border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
                   disabled={creating}

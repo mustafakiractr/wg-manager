@@ -13,6 +13,7 @@ from app.models.session import Session
 from app.models.peer_metadata import PeerMetadata
 from app.models.peer_template import PeerTemplate
 from app.models.sync_status import SyncStatus
+from app.models.email_settings import EmailSettings
 
 __all__ = [
     "User",
@@ -29,5 +30,6 @@ __all__ = [
     "Session",
     "PeerMetadata",
     "PeerTemplate",
-    "SyncStatus"
+    "SyncStatus",
+    "EmailSettings",
 ]

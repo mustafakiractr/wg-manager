@@ -94,9 +94,9 @@ export const updatePeer = async (peerId, peerData) => {
  * @param {boolean} currentDisabled - Mevcut disabled durumu (true=pasif, false=aktif)
  */
 export const togglePeer = async (peerId, interfaceName, currentDisabled) => {
-  // currentDisabled true ise peer şu an pasif (disabled) → aktif et (enable=true)
-  // currentDisabled false ise peer şu an aktif → pasif et (enable=false)
-  const enable = !currentDisabled  // ❌ HATAYDI: currentDisabled → ✅ DOĞRU: !currentDisabled
+  // LOJİK: currentDisabled true ise peer pasif → aktif et (enable=true)
+  //        currentDisabled false ise peer aktif → pasif et (enable=false)
+  const enable = currentDisabled  // Doğru lojik: currentDisabled direkt enable olur
   
   console.log('togglePeer API çağrısı:', {
     peerId,

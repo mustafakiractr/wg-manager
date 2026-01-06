@@ -321,28 +321,75 @@ class BackupService:
                 env = os.environ.copy()
                 env['PGPASSWORD'] = self.pg_password
                 
-                # Önce database'i temizle (drop all tables)
+                # Önce tüm tabloları düşür (daha güvenilir yöntem)
+                drop_sql = """
+                DO $$ 
+                DECLARE 
+                    r RECORD;
+                BEGIN
+                    -- Tüm tabloları sil
+                    FOR r IN (SELECT tablename FROM pg_tables WHERE schemaname = 'public') LOOP
+                        EXECUTE 'DROP TABLE IF EXISTS ' || quote_ident(r.tablename) || ' CASCADE';
+                    END LOOP;
+                    -- Tüm sequence'leri sil
+                    FOR r IN (SELECT sequence_name FROM information_schema.sequences WHERE sequence_schema = 'public') LOOP
+                        EXECUTE 'DROP SEQUENCE IF EXISTS ' || quote_ident(r.sequence_name) || ' CASCADE';
+                    END LOOP;
+                END $$;
+                """
+                
                 drop_cmd = [
                     'psql',
                     '-h', self.pg_host,
                     '-U', self.pg_user,
                     '-d', self.pg_database,
-                    '-c', 'DROP SCHEMA public CASCADE; CREATE SCHEMA public;'
+                    '-c', drop_sql
                 ]
                 
-                logger.info("🗑️ Mevcut tablolar temizleniyor...")
-                subprocess.run(drop_cmd, env=env, capture_output=True, text=True)
+                logger.info("🗑️ Mevcut tablolar ve sequence'ler temizleniyor...")
+                drop_result = subprocess.run(drop_cmd, env=env, capture_output=True, text=True, timeout=120)
                 
-                # Backup'ı geri yükle
+                if drop_result.returncode != 0:
+                    logger.warning(f"⚠️ Tablolar temizlenirken uyarı: {drop_result.stderr}")
+                else:
+                    logger.info("✅ Tablolar başarıyla temizlendi")
+                
+                # PostgreSQL 17+ için \restrict komutunu filtrele
+                # pg_dump yeni versiyonlarda bu komutu ekliyor ve psql'i askıda bırakıyor
+                filtered_backup_path = self.backup_dir / f"_filtered_{backup_name}"
+                with open(backup_path, 'r', encoding='utf-8', errors='replace') as infile:
+                    with open(filtered_backup_path, 'w', encoding='utf-8') as outfile:
+                        for line in infile:
+                            # \restrict satırlarını atla (PostgreSQL 17+ güvenlik özelliği)
+                            if not line.startswith('\\restrict'):
+                                outfile.write(line)
+                logger.info("🔧 PostgreSQL 17+ \\restrict komutu filtrelendi")
+                
+                # Backup'ı geri yükle (ON_ERROR_STOP ve quiet mode ile)
                 restore_cmd = [
                     'psql',
                     '-h', self.pg_host,
                     '-U', self.pg_user,
                     '-d', self.pg_database,
-                    '-f', str(backup_path)
+                    '-v', 'ON_ERROR_STOP=0',  # Hatalarda durma
+                    '-q',  # Quiet mode
+                    '-f', str(filtered_backup_path)
                 ]
                 
-                result = subprocess.run(restore_cmd, env=env, capture_output=True, text=True)
+                # Timeout ile çalıştır (5 dakika)
+                result = subprocess.run(
+                    restore_cmd, 
+                    env=env, 
+                    capture_output=True, 
+                    text=True,
+                    timeout=300  # 5 dakika timeout
+                )
+                
+                # Geçici filtrelenmiş dosyayı sil
+                try:
+                    filtered_backup_path.unlink()
+                except Exception:
+                    pass
                 
                 if result.returncode != 0:
                     raise Exception(f"psql restore hatası: {result.stderr}")
@@ -398,25 +445,73 @@ class BackupService:
                     env = os.environ.copy()
                     env['PGPASSWORD'] = self.pg_password
                     
-                    # Önce database'i temizle
+                    # Önce tüm tabloları düşür (daha güvenilir yöntem)
+                    drop_sql = """
+                    DO $$ 
+                    DECLARE 
+                        r RECORD;
+                    BEGIN
+                        -- Tüm tabloları sil
+                        FOR r IN (SELECT tablename FROM pg_tables WHERE schemaname = 'public') LOOP
+                            EXECUTE 'DROP TABLE IF EXISTS ' || quote_ident(r.tablename) || ' CASCADE';
+                        END LOOP;
+                        -- Tüm sequence'leri sil
+                        FOR r IN (SELECT sequence_name FROM information_schema.sequences WHERE sequence_schema = 'public') LOOP
+                            EXECUTE 'DROP SEQUENCE IF EXISTS ' || quote_ident(r.sequence_name) || ' CASCADE';
+                        END LOOP;
+                    END $$;
+                    """
+                    
                     drop_cmd = [
                         'psql',
                         '-h', self.pg_host,
                         '-U', self.pg_user,
                         '-d', self.pg_database,
-                        '-c', 'DROP SCHEMA public CASCADE; CREATE SCHEMA public;'
+                        '-c', drop_sql
                     ]
-                    subprocess.run(drop_cmd, env=env, capture_output=True, text=True)
                     
-                    # Backup'ı geri yükle
+                    logger.info("🗑️ Mevcut tablolar ve sequence'ler temizleniyor...")
+                    drop_result = subprocess.run(drop_cmd, env=env, capture_output=True, text=True, timeout=120)
+                    
+                    if drop_result.returncode != 0:
+                        logger.warning(f"⚠️ Tablolar temizlenirken uyarı: {drop_result.stderr}")
+                    else:
+                        logger.info("✅ Tablolar başarıyla temizlendi")
+                    
+                    # PostgreSQL 17+ için \restrict komutunu filtrele
+                    # pg_dump yeni versiyonlarda bu komutu ekliyor ve psql'i askıda bırakıyor
+                    filtered_backup_path = backup_path / "_filtered_database.sql"
+                    with open(db_backup_path, 'r', encoding='utf-8', errors='replace') as infile:
+                        with open(filtered_backup_path, 'w', encoding='utf-8') as outfile:
+                            for line in infile:
+                                # \restrict satırlarını atla (PostgreSQL 17+ güvenlik özelliği)
+                                if not line.startswith('\\restrict'):
+                                    outfile.write(line)
+                    logger.info("🔧 PostgreSQL 17+ \\restrict komutu filtrelendi")
+                    
+                    # Backup'ı geri yükle (timeout ve quiet mode ile)
                     restore_cmd = [
                         'psql',
                         '-h', self.pg_host,
                         '-U', self.pg_user,
                         '-d', self.pg_database,
-                        '-f', str(db_backup_path)
+                        '-v', 'ON_ERROR_STOP=0',  # Hatalarda durma
+                        '-q',  # Quiet mode
+                        '-f', str(filtered_backup_path)
                     ]
-                    result = subprocess.run(restore_cmd, env=env, capture_output=True, text=True)
+                    result = subprocess.run(
+                        restore_cmd, 
+                        env=env, 
+                        capture_output=True, 
+                        text=True,
+                        timeout=300  # 5 dakika timeout
+                    )
+                    
+                    # Geçici filtrelenmiş dosyayı sil
+                    try:
+                        filtered_backup_path.unlink()
+                    except Exception:
+                        pass
                     
                     if result.returncode != 0:
                         raise Exception(f"psql restore hatası: {result.stderr}")

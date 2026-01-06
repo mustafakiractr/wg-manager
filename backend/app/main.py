@@ -13,7 +13,7 @@ from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 from prometheus_client import Counter, Gauge, generate_latest, REGISTRY, CONTENT_TYPE_LATEST
 from app.database.database import init_db
-from app.api import auth, wireguard, logs, mikrotik, traffic, users, notifications, backup, two_factor, sessions, avatar, activity_logs, websocket, ip_pool, peer_metadata, peer_template, dashboard, telegram_settings, telegram_logs
+from app.api import auth, wireguard, logs, mikrotik, traffic, users, notifications, backup, two_factor, sessions, avatar, activity_logs, websocket, ip_pool, peer_metadata, peer_template, dashboard, telegram_settings, telegram_logs, email_settings
 from app.utils.logger import setup_logger
 from app.utils.crypto import decrypt_password
 from app.utils.redis_cache import init_redis, get_cache_stats
@@ -305,6 +305,7 @@ app.include_router(peer_template.router, prefix="/api/v1", tags=["Peer Templates
 app.include_router(dashboard.router, prefix="/api/v1", tags=["Dashboard"])
 app.include_router(telegram_settings.router, prefix="/api/v1", tags=["Telegram"])
 app.include_router(telegram_logs.router, prefix="/api/v1", tags=["Telegram Logs"])
+app.include_router(email_settings.router, prefix="/api/v1", tags=["Email Settings"])
 
 
 # Sağlık kontrolü endpoint'i
