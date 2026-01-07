@@ -115,6 +115,15 @@ if grep -q "^DATABASE_URL=.*sqlite" "$ENV_FILE"; then
     sed -i 's|^\(DATABASE_URL=.*sqlite.*\)|# \1  # SQLite (geliştirme için)|' "$ENV_FILE"
 fi
 
+# Frontend .env dosyasını oluştur
+FRONTEND_ENV_FILE="frontend/.env"
+if [ ! -f "$FRONTEND_ENV_FILE" ]; then
+    if [ -f "frontend/.env.example" ]; then
+        cp frontend/.env.example "$FRONTEND_ENV_FILE"
+        echo -e "${GREEN}✅ Frontend .env dosyası oluşturuldu${NC}"
+    fi
+fi
+
 echo ""
 echo -e "${GREEN}╔════════════════════════════════════════════╗${NC}"
 echo -e "${GREEN}║     ✅ Yapılandırma Tamamlandı! ✅        ║${NC}"

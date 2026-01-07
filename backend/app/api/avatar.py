@@ -21,8 +21,9 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
-# Avatar ayarları
-AVATAR_DIR = Path("/root/wg/backend/static/avatars")
+# Avatar ayarları - proje ana dizininde saklanacak (portable)
+BACKEND_DIR = Path(__file__).parent.parent.parent  # /root/wg/backend
+AVATAR_DIR = BACKEND_DIR / "static" / "avatars"
 AVATAR_DIR.mkdir(parents=True, exist_ok=True)
 MAX_FILE_SIZE = 5 * 1024 * 1024  # 5MB
 ALLOWED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".gif", ".webp"}

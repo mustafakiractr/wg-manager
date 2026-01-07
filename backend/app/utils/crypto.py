@@ -5,9 +5,11 @@ MikroTik şifrelerini güvenli şekilde saklamak için
 from cryptography.fernet import Fernet
 from typing import Optional
 import os
+from pathlib import Path
 
-# Encryption key - .env'den alınacak veya yeni oluşturulacak
-ENCRYPTION_KEY_FILE = "/root/wg/backend/.encryption_key"
+# Encryption key - proje ana dizininde saklanacak (portable)
+BACKEND_DIR = Path(__file__).parent.parent.parent  # /root/wg/backend
+ENCRYPTION_KEY_FILE = BACKEND_DIR / ".encryption_key"
 
 def get_or_create_key() -> bytes:
     """Encryption key'i döner veya yeni oluşturur"""

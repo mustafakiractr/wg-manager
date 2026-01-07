@@ -14,9 +14,10 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
-# Klasör tanımlamaları
-FRONTEND_DIR="/root/wg/frontend"
-BUILD_DIR="/root/wg/frontend/dist"
+# Klasör tanımlamaları - script'in bulunduğu dizini baz al (portable)
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+FRONTEND_DIR="$SCRIPT_DIR/frontend"
+BUILD_DIR="$SCRIPT_DIR/frontend/dist"
 DEPLOY_DIR="/var/www/wg-manager"
 
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"

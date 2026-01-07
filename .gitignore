@@ -37,8 +37,12 @@ package-lock.json
 
 # ============ Environment Variables ============
 .env
-.env.*
-*.env
+.env.local
+.env.*.local
+# Allow .env.example files
+!.env.example
+!frontend/.env.example
+!backend/.env.example
 
 # ============ Encryption Keys ============
 .encryption_key
@@ -92,8 +96,12 @@ backend/static/avatars/*
 !backend/static/avatars/.gitkeep
 
 # ============ Tests ============
-test_*.py
-test_*.sh
+# Temporary test files
+*_temp_test.py
+*_temp_test.sh
+# But keep our Docker test script
+!test_install.sh
+!analyze_issues.sh
 
 # ============ Checksums ============
 *.sha256
