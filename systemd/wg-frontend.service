@@ -1,6 +1,6 @@
 [Unit]
-Description=MikroTik WireGuard Manager Frontend (Development Server)
-Documentation=https://github.com/your-repo/wg-manager
+Description=MikroTik WireGuard Manager Frontend
+Documentation=https://github.com/mustafakiractr/wg-manager
 After=network.target wg-backend.service
 
 [Service]
@@ -9,8 +9,10 @@ User=root
 Group=root
 WorkingDirectory=/root/wg/frontend
 
-# Frontend dev server başlat
-ExecStart=/usr/bin/npm run dev
+# Production: Nginx dist/ klasörünü serve eder
+# Bu servis sadece build update için kullanılır
+# Normal durumda çalışmasına gerek yok (nginx yeterli)
+ExecStart=/bin/true
 
 # Otomatik yeniden başlatma
 Restart=always

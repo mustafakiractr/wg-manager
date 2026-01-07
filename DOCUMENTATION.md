@@ -194,6 +194,35 @@ journalctl -u wg-frontend -f
 - Code splitting
 - Asset compression
 
+### Nginx (Production)
+```bash
+# Frontend build
+cd frontend && npm run build
+
+# Nginx production serve
+# /etc/nginx/sites-enabled/wg-manager ile
+# dist/ klasörünü port 80'den serve eder
+
+# SSL/HTTPS eklemek için:
+sudo apt install certbot python3-certbot-nginx
+sudo certbot --nginx -d yourdomain.com
+```
+
+### Production Deployment
+```bash
+# 1. Frontend build
+bash build_frontend.sh
+
+# 2. Backend zaten çalışıyor (wg-backend.service)
+
+# 3. Nginx restart (gerekirse)
+sudo systemctl restart nginx
+
+# Not: wg-frontend.service durdurun (nginx kullanıyorsa)
+sudo systemctl stop wg-frontend
+sudo systemctl disable wg-frontend
+```
+
 ---
 
 ## 📦 Yedekleme & Restore
