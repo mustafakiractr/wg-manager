@@ -148,10 +148,15 @@ class BackupService:
 
             logger.info(f"✅ Database backup oluşturuldu: {backup_name}")
 
+            # Dosya boyutunu MB cinsinden hesapla
+            size_bytes = backup_path.stat().st_size
+            size_mb = round(size_bytes / (1024 * 1024), 2)
+
             return {
                 "success": True,
                 "backup_name": backup_name,
                 "backup_path": str(backup_path),
+                "size_mb": size_mb,
                 "metadata": metadata
             }
 
@@ -230,10 +235,15 @@ class BackupService:
 
             logger.info(f"✅ Full backup oluşturuldu: {backup_name}")
 
+            # Toplam boyutu MB cinsinden hesapla
+            size_bytes = sum(f.stat().st_size for f in backup_dir.rglob('*') if f.is_file())
+            size_mb = round(size_bytes / (1024 * 1024), 2)
+
             return {
                 "success": True,
                 "backup_name": backup_name,
                 "backup_path": str(backup_dir),
+                "size_mb": size_mb,
                 "metadata": metadata
             }
 

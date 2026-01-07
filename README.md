@@ -1,339 +1,97 @@
 # 🔒 WireGuard Manager Panel
 
-MikroTik RouterOS v7+ WireGuard VPN için modern web tabanlı yönetim arayüzü.
+MikroTik RouterOS v7+ WireGuard VPN yönetimi için modern web arayüzü.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/)
 [![Node.js 20+](https://img.shields.io/badge/node-20+-green.svg)](https://nodejs.org/)
 
----
+## 🚀 Hızlı Başlangıç
+
+\`\`\`bash
+# Kurulum (Tek komut - her şeyi otomatik yükler)
+git clone https://github.com/mustafakiractr/wg-manager.git /opt/wg-manager
+cd /opt/wg-manager
+sudo bash quick-start.sh
+\`\`\`
+
+**İlk Giriş:** \`http://sunucu-ip:5173\` - admin/admin123
+
+ **İlk girişten sonra şifreyi değiştirin!**
 
 ## ✨ Özellikler
 
-- 🔐 **WireGuard Yönetimi** - Arayüz ve peer oluşturma, düzenleme, silme
-- 📊 **Panel & Analitik** - Gerçek zamanlı trafik istatistikleri ve izleme
-- 🔔 **Bildirim Sistemi** - Gerçek zamanlı uyarılar ve bildirimler
-- 📝 **Aktivite Günlüğü** - Tüm işlemlerin tam denetim kaydı
-- 🎯 **IP Havuzu Yönetimi** - Şablonlarla otomatik IP tahsisi
-- 📱 **QR Kod Üretimi** - Kolay mobil cihaz yapılandırması
-- 🎨 **Modern Arayüz** - Karanlık mod, duyarlı tasarım, sezgisel arayüz
-- 🔒 **Güvenli** - JWT kimlik doğrulama, rol tabanlı erişim kontrolü, hız sınırlama
-
----
-
-## 🚀 Hızlı Başlangıç
-
-### Ön Gereksinimler
-
-**Sistem Gereksinimleri:**
-- Ubuntu 20.04+ / Debian 11+ / CentOS 8+ (veya benzer Linux)
-- Minimum 1GB RAM (2GB önerilir)
-- 1GB disk alanı
-- API etkin MikroTik RouterOS v7+
-
-**Not:** Python 3.9+, Node.js 20+ ve diğer tüm bağımlılıklar kurulum scripti tarafından **otomatik olarak yüklenecektir**!
-
-### Kurulum
-
-```bash
-# Repository'yi klonlayın
-git clone https://github.com/mustafakiractr/wg-manager.git /opt/wg-manager
-cd /opt/wg-manager
-
-# SEÇENEK 1: Hızlı Başlangıç (Önerilen - Her şeyi otomatik yükler)
-sudo bash quick-start.sh
-
-# SEÇENEK 2: Manuel Kurulum
-sudo bash install.sh  # Python, Node.js, npm ve tüm bağımlılıkları otomatik yükler
-nano backend/.env     # MikroTik bağlantısını yapılandırın
-bash start_all.sh     # Servisleri başlatın
-
-1. **Tarayıcıdan panele giriş yapın:**
-   ```
-   URL: http://localhost:5173
-   Kullanıcı Adı: admin
-   Şifre: admin123
-   ```
-
-2. **MikroTik bağlantı bilgilerini panel üzerinden girin:**
-   - Ayarlar → MikroTik Bağlantı sayfasına gidin
-   - Router IP adresi, port, kullanıcı adı ve şifreyi girin
-   - Bağlantıyı test edin ve kaydedin
-
-3. **İlk girişten sonra varsayılan şifreyi hemen değiştirin!**
-
-**Not:** Artık MikroTik bağlantı ayarlarını `.env` dosyasından değil, **panel üzerinden** yapıyorsunuz. Bu, daha güvenli ve kullanıcı dostudur.
-
----
-
-## 📖 Dokümantasyon
-
-Kapsamlı dokümantasyon için lütfen şu dosyalara bakın:
-
-- **[PROJECT_GUIDE.md](PROJECT_GUIDE.md)** - Kurulum, yapılandırma, API dokümanları ve sorun gidermeyi içeren tam kılavuz
-- **[Backend API Dokümantasyonu](#)** - Çalışırken `/docs` endpoint'inde mevcut
-- **[Arşivlenmiş Dokümantasyon](archive/docs/)** - Geçmiş dokümanlar ve özel kılavuzlar
-
----
-
-## 🏗️ Teknoloji Yığını
-
-**Backend:**
-- FastAPI (Python 3.9+)
-- SQLAlchemy (async ORM)
-- PostgreSQL (production varsayılan) / SQLite (geliştirme)
-- JWT Kimlik Doğrulama
-
-**Frontend:**
-- React 18 + Vite
-- Tailwind CSS
-- Zustand (durum yönetimi)
-- React Router v6
-
-**Altyapı:**
-- MikroTik RouterOS API
-- WebSocket (gerçek zamanlı güncellemeler)
-- Systemd servisleri
-
----
-
-## 📁 Proje Yapısı
-
-```
-wg-manager/
-├── backend/              # FastAPI uygulaması
-│   ├── app/
-│   │   ├── api/         # API endpoint'leri
-│   │   ├── models/      # Veritabanı modelleri
-│   │   ├── services/    # İş mantığı
-│   │   └── main.py      # Uygulama giriş noktası
-│   └── requirements.txt
-│
-├── frontend/            # React uygulaması
-│   ├── src/
-│   │   ├── components/  # React bileşenleri
-│   │   ├── pages/       # Sayfa bileşenleri
-│   │   └── App.jsx
-│   └── package.json
-│
-├── archive/             # Arşivlenmiş dokümantasyon
-├── systemd/             # Servis yapılandırmaları
-├── README.md           # Bu dosya
-└── PROJECT_GUIDE.md    # Tam dokümantasyon
-```
-
----
-
-## 🔧 Geliştirme
-
-### Backend
-
-```bash
-cd backend
-python3 -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
-```
-
-### Frontend
-
-```bash
-cd frontend
-npm install
-npm run dev
-```
-
----
-
-## 🔐 Güvenlik
-
-- JWT tabanlı kimlik doğrulama
-- Rol tabanlı erişim kontrolü (RBAC)
-- Hassas endpoint'lerde hız sınırlama
-- Aktivite kaydı ve denetim izi
-- Bcrypt şifre hashleme
-- CORS koruması
-- HTTPS desteği
-
-Güvenlik en iyi uygulamaları için [PROJECT_GUIDE.md](PROJECT_GUIDE.md#security) dosyasına bakın.
-
----
-
-## 📊 Ekran Görüntüleri
-
-### Panel
-WireGuard arayüzleri, peer'lar ve trafik istatistiklerinin gerçek zamanlı izlenmesi.
-
-### WireGuard Yönetimi
-QR kod üretimi ile kolay arayüz ve peer yönetimi.
-
-### Aktivite Günlükleri
-Tüm sistem işlemlerinin tam denetim kaydı.
-
----
-
-## 🛠️ Production Dağıtımı
-
-### Systemd Servisleri
-
-**Backend Servisi:**
-```bash
-# Backend'i etkinleştir ve başlat
-sudo systemctl enable router-manager-backend
-sudo systemctl start router-manager-backend
-sudo systemctl status router-manager-backend
-```
-
-**Frontend Servisi:**
-```bash
-# Statik dosya sunumu için serve yükle
-npm install -g serve
-
-# Frontend'i etkinleştir ve başlat
-sudo systemctl enable router-manager-frontend
-sudo systemctl start router-manager-frontend
-sudo systemctl status router-manager-frontend
-```
-
-**Uygulamaya erişim:**
-- Frontend: http://sunucunuz:5173
-- Backend API: http://sunucunuz:8000
-- API Dokümanları: http://sunucunuz:8000/docs
-
-Tam dağıtım kılavuzu için [PROJECT_GUIDE.md](PROJECT_GUIDE.md#deployment) dosyasına bakın.
-
-### Frontend Build ve Deploy
-
-**Production için frontend build:**
-
-Frontend'de değişiklik yaptığınızda production'a deploy etmek için:
-
-```bash
-# Otomatik build ve deploy scripti
-bash /root/wg/build_frontend.sh
-```
-
-Bu script:
-- ✅ Frontend'i build eder (`npm run build`)
-- ✅ Dosyaları `/var/www/wg-manager/` klasörüne kopyalar
-- ✅ Dosya izinlerini ayarlar
-- ✅ Nginx'i test edip reload eder
-- ✅ Detaylı build istatistikleri gösterir
-
-**Manuel build:**
-```bash
-cd /root/wg/frontend
-npm run build
-cp -r dist/* /var/www/wg-manager/
-systemctl reload nginx
-```
-
-**Not:** Frontend dosyaları `/var/www/wg-manager/` klasöründe tutulur. `/root/wg/frontend/dist/` klasörü geçicidir.
-
----
-
-## 🐛 Sorun Giderme
-
-### Yaygın Sorunlar
-
-**Backend başlamıyor:**
-```bash
-cd backend
-source venv/bin/activate
-pip install -r requirements.txt
-```
-
-**MikroTik bağlantısı başarısız:**
-```bash
-# MikroTik API servisini kontrol edin
-/ip service print
-/ip service set api disabled=no
-```
-
-**Frontend CORS hataları:**
-```bash
-# backend/.env dosyasında CORS_ORIGINS'i kontrol edin
-CORS_ORIGINS=["http://localhost:5173"]
-```
-
-Daha fazla sorun giderme yardımı için [PROJECT_GUIDE.md](PROJECT_GUIDE.md#troubleshooting) dosyasına bakın.
-
----
-
-## 📝 API Dokümantasyonu
-
-Backend çalışırken interaktif API dokümantasyonu mevcut:
-
-- **Swagger UI:** http://localhost:8000/docs
-- **ReDoc:** http://localhost:8000/redoc
-
-Detaylı API dokümantasyonu için [PROJECT_GUIDE.md](PROJECT_GUIDE.md#api-documentation) dosyasına bakın.
-
----
-
-## 🗑️ Kaldırma (Uninstall)
-
-Sisteminizden WireGuard Manager'ı tamamen kaldırmak için:
-
-```bash
-cd /opt/wg-manager  # veya kurulum dizininiz
-sudo bash uninstall.sh
-```
-
-**Kaldırma scripti şunları yapar:**
-- ✅ Çalışan servisleri durdurur
-- ✅ Systemd service dosyalarını kaldırır
-- ✅ Virtual environment ve node_modules'ları siler
-- 🔒 Log dosyalarını silmeden önce sorar (güvenlik)
-- 🔒 Veritabanını silmeden önce sorar (veri kaybı uyarısı)
-- 🔒 Tüm proje dosyalarını silmeden önce onay ister
-
-**Güvenlik özellikleri:**
-- Her kritik işlem için onay ister
-- Veri kaybı riski olan işlemleri vurgular
-- "EVET" yazarak onaylamanız gerekir
-- İptal etmek için istediğiniz zaman Enter'a basabilirsiniz
-
-**Not:** PostgreSQL kullanıyorsanız, veritabanını manuel olarak kaldırmanız gerekebilir:
-```bash
-sudo -u postgres psql -c "DROP DATABASE wg_manager;"
-sudo -u postgres psql -c "DROP USER wg_user;"
-```
-
----
+- 🔐 WireGuard interface & peer yönetimi
+- 📊 Gerçek zamanlı dashboard & analitik
+- 🔔 Telegram & email bildirimleri
+- 📝 Detaylı aktivite günlüğü
+- 🎯 IP pool otomasyonu
+- 📱 QR kod & config üretimi
+- 🎨 Modern karanlık mod arayüzü
+- 🔒 JWT auth, RBAC, rate limiting
+
+## 📚 Dokümantasyon
+
+**Tam Dokümantasyon:** [DOCUMENTATION.md](DOCUMENTATION.md)
+
+- ⚙️ Yapılandırma & Güvenlik
+- 🛠️ Yönetim komutları
+- 🚀 Performans optimizasyonu
+- 📦 Yedekleme & restore
+- 🔧 Sorun giderme
+- 📱 API endpoints
+- 📘 Proje rehberi: [PROJECT_GUIDE.md](PROJECT_GUIDE.md)
+
+## 🔧 Yönetim
+
+\`\`\`bash
+# Servis yönetimi
+bash start_all.sh          # Başlat
+bash restart_services.sh   # Yeniden başlat
+bash status_services.sh    # Durum
+
+# Admin şifre sıfırlama
+cd backend && source venv/bin/activate
+python reset_admin_password.py
+
+# Log kontrolü
+tail -f backend/logs/backend.log
+journalctl -u wg-backend -f  # Production
+\`\`\`
+
+## 🏗️ Mimari
+
+- **Backend:** FastAPI + SQLAlchemy + PostgreSQL/SQLite + JWT + WebSocket
+- **Frontend:** React 18 + Vite + Tailwind + Zustand
+- **Infrastructure:** Systemd + Nginx + Let's Encrypt
+
+## 📦 Production Deployment
+
+\`\`\`bash
+# Otomatik deployment
+sudo bash deploy.sh
+
+# Systemd servisleri
+sudo systemctl enable wg-backend wg-frontend
+sudo systemctl start wg-backend wg-frontend
+
+# Nginx + SSL kurulumu
+sudo apt install nginx certbot python3-certbot-nginx
+sudo certbot --nginx -d your-domain.com
+\`\`\`
 
 ## 🤝 Katkıda Bulunma
 
-1. Repository'yi fork edin
-2. Özellik dalı oluşturun (`git checkout -b feature/harika-ozellik`)
-3. Değişikliklerinizi commit edin (`git commit -m 'feat: Harika özellik ekle'`)
-4. Dalı push edin (`git push origin feature/harika-ozellik`)
+1. Fork yapın
+2. Feature branch: \`git checkout -b feature/amazing\`
+3. Commit: \`git commit -m 'feat: Add feature'\`
+4. Push: \`git push origin feature/amazing\`
 5. Pull Request açın
-
----
 
 ## 📄 Lisans
 
-Bu proje MIT Lisansı altında lisanslanmıştır - detaylar için [LICENSE](LICENSE) dosyasına bakın.
+MIT License - Detaylar için LICENSE dosyasına bakın.
 
 ---
 
-## 🙏 Teşekkürler
-
-- [MikroTik](https://mikrotik.com/) - RouterOS ve API
-- [WireGuard](https://www.wireguard.com/) - Hızlı, modern VPN protokolü
-- [FastAPI](https://fastapi.tiangolo.com/) - Modern Python web framework
-- [React](https://react.dev/) - UI kütüphanesi
-
----
-
-## 📞 Destek
-
-Sorunlar ve sorular için:
-- 📋 [GitHub Issues](https://github.com/mustafakiractr/wg-manager/issues)
-- 📖 Dokümantasyon: [PROJECT_GUIDE.md](PROJECT_GUIDE.md)
-
----
-
-**FastAPI ve React ile ❤️ ile yapılmıştır**
+**Versiyon:** 2.0 | **Son Güncelleme:** 7 Ocak 2026 | **Geliştirici:** Claude Sonnet 4.5
