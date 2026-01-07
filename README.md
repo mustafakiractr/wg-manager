@@ -8,12 +8,12 @@ MikroTik RouterOS v7+ WireGuard VPN yönetimi için modern web arayüzü.
 
 ## 🚀 Hızlı Başlangıç
 
-\`\`\`bash
 # Kurulum (Tek komut - her şeyi otomatik yükler)
+```bash
 git clone https://github.com/mustafakiractr/wg-manager.git /opt/wg-manager
 cd /opt/wg-manager
 sudo bash quick-start.sh
-\`\`\`
+```
 
 **İlk Giriş:** \`http://sunucu-ip:5173\` - admin/admin123
 
@@ -44,7 +44,7 @@ sudo bash quick-start.sh
 
 ## 🔧 Yönetim
 
-\`\`\`bash
+```bash
 # Servis yönetimi
 bash start_all.sh          # Başlat
 bash restart_services.sh   # Yeniden başlat
@@ -57,7 +57,7 @@ python reset_admin_password.py
 # Log kontrolü
 tail -f backend/logs/backend.log
 journalctl -u wg-backend -f  # Production
-\`\`\`
+```
 
 ## 🏗️ Mimari
 
@@ -67,7 +67,7 @@ journalctl -u wg-backend -f  # Production
 
 ## 📦 Production Deployment
 
-\`\`\`bash
+```bash
 # Otomatik deployment
 sudo bash deploy.sh
 
@@ -78,7 +78,7 @@ sudo systemctl start wg-backend wg-frontend
 # Nginx + SSL kurulumu
 sudo apt install nginx certbot python3-certbot-nginx
 sudo certbot --nginx -d your-domain.com
-\`\`\`
+```
 
 ## 🤝 Katkıda Bulunma
 
@@ -94,4 +94,4 @@ MIT License - Detaylar için LICENSE dosyasına bakın.
 
 ---
 
-**Versiyon:** 2.0 | **Son Güncelleme:** 7 Ocak 2026 | **Geliştirici:** Claude Sonnet 4.5
+**Versiyon:** 2.0 | **Son Güncelleme:** 7 Ocak 2026 | **Geliştirici:** mustafakiractr
