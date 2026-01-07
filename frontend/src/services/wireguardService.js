@@ -166,4 +166,46 @@ export const getPeerLogs = async (peerId, interfaceName, startDate, endDate, lim
   return response.data
 }
 
+/**
+ * Toplu peer işlemleri için yardımcı metodlar
+ */
+
+/**
+ * Birden fazla peer'ı toplu olarak aktif et
+ * @param {Array<string>} peerIds - Peer ID listesi
+ * @param {string} interfaceName - Interface adı
+ */
+export const bulkEnablePeers = async (peerIds, interfaceName) => {
+  const response = await api.post('/wg/peers/bulk/enable', {
+    peer_ids: peerIds,
+    interface: interfaceName
+  })
+  return response.data
+}
+
+/**
+ * Birden fazla peer'ı toplu olarak pasif et
+ * @param {Array<string>} peerIds - Peer ID listesi
+ * @param {string} interfaceName - Interface adı
+ */
+export const bulkDisablePeers = async (peerIds, interfaceName) => {
+  const response = await api.post('/wg/peers/bulk/disable', {
+    peer_ids: peerIds,
+    interface: interfaceName
+  })
+  return response.data
+}
+
+/**
+ * Birden fazla peer'ı toplu olarak sil
+ * @param {Array<string>} peerIds - Peer ID listesi
+ * @param {string} interfaceName - Interface adı
+ */
+export const bulkDeletePeers = async (peerIds, interfaceName) => {
+  const response = await api.post('/wg/peers/bulk/delete', {
+    peer_ids: peerIds,
+    interface: interfaceName
+  })
+  return response.data
+}
 

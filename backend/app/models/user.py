@@ -35,7 +35,10 @@ class User(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
-    # Relationships
+    # Relationships - Kullanıcı silindiğinde ilişkili kayıtlar da silinir
     notifications = relationship("Notification", back_populates="user", cascade="all, delete-orphan")
+    sessions = relationship("Session", back_populates="user", cascade="all, delete-orphan")
+    # Activity logs için cascade - user silindiğinde loglar da silinir
+    # NOT: Activity log model'de relationship tanımlanmalı
 
 

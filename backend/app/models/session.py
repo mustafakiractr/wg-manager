@@ -3,6 +3,7 @@ Session modeli
 Kullanıcı oturumlarını takip eder (multi-device support)
 """
 from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey
+from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from app.database.database import Base
 
@@ -40,3 +41,6 @@ class Session(Base):
     # Revoke bilgisi
     revoked_at = Column(DateTime(timezone=True), nullable=True)
     revoked_reason = Column(String, nullable=True)  # "user_logout", "admin_revoke", "suspicious_activity"
+
+    # Relationship - User'a geri bağlantı
+    user = relationship("User", back_populates="sessions")

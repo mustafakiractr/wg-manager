@@ -14,6 +14,9 @@ import {
   toggleInterface,
   togglePeer,
   generateKeys,
+  bulkEnablePeers,
+  bulkDisablePeers,
+  bulkDeletePeers,
 } from '../services/wireguardService'
 import api from '../services/api'
 import {
@@ -1545,26 +1548,22 @@ function WireGuardInterfaceDetail() {
     if (!confirm(`${selectedPeers.size} peer'ı aktif etmek istediğinize emin misiniz?`)) return
 
     setBulkProcessing(true)
-    let successCount = 0
-    let errorCount = 0
-
-    for (const peerId of selectedPeers) {
-      try {
-        const peer = peers.find(p => p['.id'] === peerId)
-        if (peer && peer.disabled) {
-          await togglePeer(peerId, interfaceName, true) // true = currently disabled
-          successCount++
-        }
-      } catch (error) {
-        console.error(`Peer ${peerId} aktif edilemedi:`, error)
-        errorCount++
-      }
+    try {
+      const peerIds = Array.from(selectedPeers)
+      const result = await bulkEnablePeers(peerIds, interfaceName)
+      
+      const successCount = result.results?.success?.length || 0
+      const errorCount = result.results?.failed?.length || 0
+      
+      setSelectedPeers(new Set())
+      await loadData()
+      alert(`İşlem tamamlandı:\n✓ Başarılı: ${successCount}\n✗ Hatalı: ${errorCount}`)
+    } catch (error) {
+      console.error('Toplu peer aktif etme hatası:', error)
+      alert('Toplu işlem başarısız: ' + (error.response?.data?.detail || error.message))
+    } finally {
+      setBulkProcessing(false)
     }
-
-    setBulkProcessing(false)
-    setSelectedPeers(new Set())
-    await loadData()
-    alert(`İşlem tamamlandı:\n✓ Başarılı: ${successCount}\n✗ Hatalı: ${errorCount}`)
   }
 
   // Toplu işlem: Seçili peer'ları pasif et
@@ -1573,26 +1572,22 @@ function WireGuardInterfaceDetail() {
     if (!confirm(`${selectedPeers.size} peer'ı pasif etmek istediğinize emin misiniz?`)) return
 
     setBulkProcessing(true)
-    let successCount = 0
-    let errorCount = 0
-
-    for (const peerId of selectedPeers) {
-      try {
-        const peer = peers.find(p => p['.id'] === peerId)
-        if (peer && !peer.disabled) {
-          await togglePeer(peerId, interfaceName, false) // false = currently active
-          successCount++
-        }
-      } catch (error) {
-        console.error(`Peer ${peerId} pasif edilemedi:`, error)
-        errorCount++
-      }
+    try {
+      const peerIds = Array.from(selectedPeers)
+      const result = await bulkDisablePeers(peerIds, interfaceName)
+      
+      const successCount = result.results?.success?.length || 0
+      const errorCount = result.results?.failed?.length || 0
+      
+      setSelectedPeers(new Set())
+      await loadData()
+      alert(`İşlem tamamlandı:\n✓ Başarılı: ${successCount}\n✗ Hatalı: ${errorCount}`)
+    } catch (error) {
+      console.error('Toplu peer pasif etme hatası:', error)
+      alert('Toplu işlem başarısız: ' + (error.response?.data?.detail || error.message))
+    } finally {
+      setBulkProcessing(false)
     }
-
-    setBulkProcessing(false)
-    setSelectedPeers(new Set())
-    await loadData()
-    alert(`İşlem tamamlandı:\n✓ Başarılı: ${successCount}\n✗ Hatalı: ${errorCount}`)
   }
 
   // Toplu işlem: Seçili peer'ları sil
@@ -1605,23 +1600,22 @@ function WireGuardInterfaceDetail() {
     let errorCount = 0
 
     for (const peerId of selectedPeers) {
-      try {
-        await deletePeer(peerId, interfaceName)
-        successCount++
-      } catch (error) {
-        console.error(`Peer ${peerId} silinemedi:`, error)
-        errorCount++
-      }
+    try {
+      const peerIds = Array.from(selectedPeers)
+      const result = await bulkDeletePeers(peerIds, interfaceName)
+      
+      const successCount = result.results?.success?.length || 0
+      const errorCount = result.results?.failed?.length || 0
+      
+      setSelectedPeers(new Set())
+      await loadData()
+      alert(`İşlem tamamlandı:\n✓ Başarılı: ${successCount}\n✗ Hatalı: ${errorCount}`)
+    } catch (error) {
+      console.error('Toplu peer silme hatası:', error)
+      alert('Toplu işlem başarısız: ' + (error.response?.data?.detail || error.message))
+    } finally {
+      setBulkProcessing(false)
     }
-
-    setBulkProcessing(false)
-    setSelectedPeers(new Set())
-    await loadData()
-    alert(`İşlem tamamlandı:\n✓ Başarılı: ${successCount}\n✗ Hatalı: ${errorCount}`)
-  }
-
-  // Toplu işlem: Seçili peer'lara grup ata
-  const handleBulkSetGroup = async (groupName, groupColor) => {
     if (selectedPeers.size === 0) return
 
     setBulkProcessing(true)

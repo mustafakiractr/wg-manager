@@ -17,7 +17,7 @@ class ActivityLog(Base):
     id = Column(Integer, primary_key=True, index=True)
 
     # Kullanıcı bilgisi
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=True)  # System actions için null olabilir
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)  # Kullanıcı silindiğinde NULL yap (log'u sakla)
     username = Column(String(100), nullable=True)  # Cache için
 
     # Aksiyon bilgisi
