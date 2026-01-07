@@ -15,7 +15,7 @@ cd /opt/wg-manager
 sudo bash quick-start.sh
 ```
 
-**İlk Giriş:** `http://sunucu-ip:5173` - admin/admin123
+**İlk Giriş:** `http://sunucu-ip:5173 - admin/admin123`
 
  **İlk girişten sonra şifreyi değiştirin!**
 
