@@ -341,4 +341,4 @@ MIT License - Detaylar için LICENSE dosyasını inceleyin.
 ---
 
 **Son Güncelleme:** 7 Ocak 2026  
-**Geliştirici:** Claude Sonnet 4.5
+**Geliştirici:** mustafakiractr
