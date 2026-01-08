@@ -1059,565 +1059,525 @@ function Dashboard() {
     },
   ], [stats])
 
-  return (
-    <div className="space-y-6">
-      {/* Sayfa başlığı */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white">
-            Dashboard
-          </h1>
-          <p className="text-sm sm:text-base text-gray-600 dark:text-gray-400 mt-1">
-            WireGuard aktif peer'ları ve istatistikleri
-          </p>
-        </div>
-        <button
-          onClick={() => setShowWidgetSettings(true)}
-          className="flex items-center justify-center gap-2 px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg transition-colors w-full sm:w-auto"
-          title="Widget Görünürlük Ayarları"
-        >
-          <Settings className="w-5 h-5" />
-          <span>Ayarlar</span>
-        </button>
-      </div>
+  // Widget rendering fonksiyonu - her widget'ı sırayla render eder
+  const renderWidget = useCallback((widgetKey) => {
+    // Widget görünür değilse render etme
+    if (!widgetVisibility[widgetKey]) {
+      return null
+    }
 
-      {/* Genel Bakış Kartları */}
-      {widgetVisibility.stats && dashboardStats && (
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6">
-          {/* IP Pool Kartı */}
-          <div className="card bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20 border-blue-200 dark:border-blue-800">
-            <div className="flex items-center justify-between">
-              <div className="min-w-0 flex-1">
-                <p className="text-xs sm:text-sm text-blue-700 dark:text-blue-300 font-medium truncate">
-                  IP Pool Kullanımı
-                </p>
-                <p className="text-xl sm:text-3xl font-bold text-blue-900 dark:text-blue-100 mt-1 sm:mt-2">
-                  {dashboardStats.ip_pool.usage_percent}%
-                </p>
-                <p className="text-xs text-blue-600 dark:text-blue-400 mt-1 hidden sm:block">
-                  {dashboardStats.ip_pool.allocated_ips} / {dashboardStats.ip_pool.total_ips} IP
-                </p>
-              </div>
-              <div className="p-2 sm:p-3 rounded-lg bg-blue-200 dark:bg-blue-700/50 flex-shrink-0">
-                <Database className="w-5 h-5 sm:w-6 sm:h-6 text-blue-700 dark:text-blue-300" />
-              </div>
-            </div>
-            <div className="mt-3 sm:mt-4">
-              <div className="w-full bg-blue-200 dark:bg-blue-800 rounded-full h-1.5 sm:h-2">
-                <div
-                  className="bg-blue-600 dark:bg-blue-400 h-1.5 sm:h-2 rounded-full transition-all duration-500"
-                  style={{ width: `${dashboardStats.ip_pool.usage_percent}%` }}
-                ></div>
-              </div>
-            </div>
-          </div>
-
-          {/* Peer Templates Kartı */}
-          <div className="card bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-900/20 dark:to-purple-800/20 border-purple-200 dark:border-purple-800">
-            <div className="flex items-center justify-between">
-              <div className="min-w-0 flex-1">
-                <p className="text-xs sm:text-sm text-purple-700 dark:text-purple-300 font-medium truncate">
-                  Peer Şablonları
-                </p>
-                <p className="text-xl sm:text-3xl font-bold text-purple-900 dark:text-purple-100 mt-1 sm:mt-2">
-                  {dashboardStats.templates.total_templates}
-                </p>
-                {dashboardStats.templates.most_used_template && (
-                  <p className="text-xs text-purple-600 dark:text-purple-400 mt-1 truncate hidden sm:block">
-                    En çok: {dashboardStats.templates.most_used_template.name}
-                  </p>
-                )}
-              </div>
-              <div className="p-2 sm:p-3 rounded-lg bg-purple-200 dark:bg-purple-700/50 flex-shrink-0">
-                <FileCode className="w-5 h-5 sm:w-6 sm:h-6 text-purple-700 dark:text-purple-300" />
-              </div>
-            </div>
-          </div>
-
-          {/* Kullanıcılar Kartı */}
-          <div className="card bg-gradient-to-br from-green-50 to-green-100 dark:from-green-900/20 dark:to-green-800/20 border-green-200 dark:border-green-800">
-            <div className="flex items-center justify-between">
-              <div className="min-w-0 flex-1">
-                <p className="text-xs sm:text-sm text-green-700 dark:text-green-300 font-medium truncate">
-                  Aktif Kullanıcılar
-                </p>
-                <p className="text-xl sm:text-3xl font-bold text-green-900 dark:text-green-100 mt-1 sm:mt-2">
-                  {dashboardStats.users.active_users}
-                </p>
-                <p className="text-xs text-green-600 dark:text-green-400 mt-1 hidden sm:block">
-                  Toplam: {dashboardStats.users.total_users}
-                </p>
-              </div>
-              <div className="p-2 sm:p-3 rounded-lg bg-green-200 dark:bg-green-700/50 flex-shrink-0">
-                <Users className="w-5 h-5 sm:w-6 sm:h-6 text-green-700 dark:text-green-300" />
-              </div>
-            </div>
-          </div>
-
-          {/* Son 24 Saat Aktivite Kartı */}
-          <div className="card bg-gradient-to-br from-orange-50 to-orange-100 dark:from-orange-900/20 dark:to-orange-800/20 border-orange-200 dark:border-orange-800">
-            <div className="flex items-center justify-between">
-              <div className="min-w-0 flex-1">
-                <p className="text-xs sm:text-sm text-orange-700 dark:text-orange-300 font-medium truncate">
-                  Son 24 Saat
-                </p>
-                <p className="text-xl sm:text-3xl font-bold text-orange-900 dark:text-orange-100 mt-1 sm:mt-2">
-                  {dashboardStats.activity.last_24h}
-                </p>
-                <p className="text-xs text-orange-600 dark:text-orange-400 mt-1 hidden sm:block">
-                  Toplam Aktivite
-                </p>
-              </div>
-              <div className="p-2 sm:p-3 rounded-lg bg-orange-200 dark:bg-orange-700/50 flex-shrink-0">
-                <Zap className="w-5 h-5 sm:w-6 sm:h-6 text-orange-700 dark:text-orange-300" />
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* İstatistik kartları */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6">
-        {statCards.map((stat, index) => {
-          const Icon = stat.icon
-          return (
-            <div key={index} className="card">
+    switch (widgetKey) {
+      case 'stats':
+        return dashboardStats && (
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6">
+            {/* IP Pool Kartı */}
+            <div className="card bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20 border-blue-200 dark:border-blue-800">
               <div className="flex items-center justify-between">
                 <div className="min-w-0 flex-1">
-                  <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400 truncate">
-                    {stat.title}
+                  <p className="text-xs sm:text-sm text-blue-700 dark:text-blue-300 font-medium truncate">
+                    IP Pool Kullanımı
                   </p>
-                  <p className="text-xl sm:text-3xl font-bold text-gray-900 dark:text-white mt-1 sm:mt-2">
-                    {stat.value}
+                  <p className="text-xl sm:text-3xl font-bold text-blue-900 dark:text-blue-100 mt-1 sm:mt-2">
+                    {dashboardStats.ip_pool.usage_percent}%
+                  </p>
+                  <p className="text-xs text-blue-600 dark:text-blue-400 mt-1 hidden sm:block">
+                    {dashboardStats.ip_pool.allocated_ips} / {dashboardStats.ip_pool.total_ips} IP
                   </p>
                 </div>
-                <div className={`p-2 sm:p-3 rounded-lg ${stat.bgColor} flex-shrink-0`}>
-                  <Icon className={`w-5 h-5 sm:w-6 sm:h-6 ${stat.color}`} />
+                <div className="p-2 sm:p-3 rounded-lg bg-blue-200 dark:bg-blue-700/50 flex-shrink-0">
+                  <Database className="w-5 h-5 sm:w-6 sm:h-6 text-blue-700 dark:text-blue-300" />
                 </div>
               </div>
-            </div>
-          )
-        })}
-      </div>
-
-      {/* Gerçek Zamanlı Veri Kullanımı Grafikleri */}
-      {widgetVisibility.trafficCharts && (
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
-        <div className="card">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
-            <h3 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-white">
-              Gelen Veri
-            </h3>
-            <span className="text-xl sm:text-2xl font-bold text-blue-600 dark:text-blue-400">
-              {formatBytes(stats.totalRx)}
-            </span>
-          </div>
-          <div className="h-48">
-            {trafficHistory.rx.length > 0 ? (
-              <Line
-                data={{
-                  labels: trafficHistory.timestamps,
-                  datasets: [
-                    {
-                      label: 'İndirme (MB)',
-                      data: trafficHistory.rx,
-                      borderColor: 'rgb(59, 130, 246)',
-                      backgroundColor: 'rgba(59, 130, 246, 0.1)',
-                      fill: true,
-                      tension: 0.4,
-                      pointRadius: 3,
-                      pointHoverRadius: 5,
-                    },
-                  ],
-                }}
-                options={{
-                  responsive: true,
-                  maintainAspectRatio: false,
-                  plugins: {
-                    legend: {
-                      display: false,
-                    },
-                    tooltip: {
-                      mode: 'index',
-                      intersect: false,
-                      callbacks: {
-                        label: function (context) {
-                          return `${context.parsed.y.toFixed(2)} MB`
-                        },
-                      },
-                    },
-                  },
-                  scales: {
-                    y: {
-                      beginAtZero: true,
-                      ticks: {
-                        callback: function (value) {
-                          return value.toFixed(1) + ' MB'
-                        },
-                      },
-                    },
-                    x: {
-                      ticks: {
-                        maxRotation: 45,
-                        minRotation: 45,
-                      },
-                    },
-                  },
-                }}
-              />
-            ) : (
-              <div className="h-full bg-gray-100 dark:bg-gray-800 rounded-lg flex items-center justify-center">
-                <p className="text-gray-500 dark:text-gray-400 text-sm">
-                  Veri toplanıyor...
-                </p>
-              </div>
-            )}
-          </div>
-        </div>
-        <div className="card">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
-            <h3 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-white">
-              Gönderilen Veri
-            </h3>
-            <span className="text-xl sm:text-2xl font-bold text-green-600 dark:text-green-400">
-              {formatBytes(stats.totalTx)}
-            </span>
-          </div>
-          <div className="h-48">
-            {trafficHistory.tx.length > 0 ? (
-              <Line
-                data={{
-                  labels: trafficHistory.timestamps,
-                  datasets: [
-                    {
-                      label: 'Yükleme (MB)',
-                      data: trafficHistory.tx,
-                      borderColor: 'rgb(34, 197, 94)',
-                      backgroundColor: 'rgba(34, 197, 94, 0.1)',
-                      fill: true,
-                      tension: 0.4,
-                      pointRadius: 3,
-                      pointHoverRadius: 5,
-                    },
-                  ],
-                }}
-                options={{
-                  responsive: true,
-                  maintainAspectRatio: false,
-                  plugins: {
-                    legend: {
-                      display: false,
-                    },
-                    tooltip: {
-                      mode: 'index',
-                      intersect: false,
-                      callbacks: {
-                        label: function (context) {
-                          return `${context.parsed.y.toFixed(2)} MB`
-                        },
-                      },
-                    },
-                  },
-                  scales: {
-                    y: {
-                      beginAtZero: true,
-                      ticks: {
-                        callback: function (value) {
-                          return value.toFixed(1) + ' MB'
-                        },
-                      },
-                    },
-                    x: {
-                      ticks: {
-                        maxRotation: 45,
-                        minRotation: 45,
-                      },
-                    },
-                  },
-                }}
-              />
-            ) : (
-              <div className="h-full bg-gray-100 dark:bg-gray-800 rounded-lg flex items-center justify-center">
-                <p className="text-gray-500 dark:text-gray-400 text-sm">
-                  Veri toplanıyor...
-                </p>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-      )}
-
-      {/* WAN Traffic Widget */}
-      {widgetVisibility.wanTraffic && (
-        <div className="card">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
-            <h3 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
-              <Network className="w-5 h-5 text-purple-600 dark:text-purple-400" />
-              WAN Trafiği
-            </h3>
-            <span className="text-xl sm:text-2xl font-bold text-purple-600 dark:text-purple-400">
-              {wanTraffic.interfaceName || 'N/A'}
-            </span>
-          </div>
-
-          {/* Anlık Değerler */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-            <div className="flex items-center gap-3 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
-              <Download className="w-8 h-8 text-blue-600 dark:text-blue-400" />
-              <div className="flex-1">
-                <p className="text-sm text-blue-700 dark:text-blue-300">İndirme</p>
-                <p className="text-xl font-bold text-blue-900 dark:text-blue-100">
-                  {formatBytes(wanTraffic.rxBytes)}
-                </p>
-                <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
-                  ⚡ {formatBytes(wanTraffic.rxRate)}/s
-                </p>
-              </div>
-            </div>
-            <div className="flex items-center gap-3 p-3 bg-green-50 dark:bg-green-900/20 rounded-lg">
-              <Upload className="w-8 h-8 text-green-600 dark:text-green-400" />
-              <div className="flex-1">
-                <p className="text-sm text-green-700 dark:text-green-300">Yükleme</p>
-                <p className="text-xl font-bold text-green-900 dark:text-green-100">
-                  {formatBytes(wanTraffic.txBytes)}
-                </p>
-                <p className="text-xs text-green-600 dark:text-green-400 mt-1">
-                  ⚡ {formatBytes(wanTraffic.txRate)}/s
-                </p>
-              </div>
-            </div>
-          </div>
-
-          {/* Tarihsel Grafik */}
-          <div className="h-48">
-            {wanTraffic.history.rx.length > 0 ? (
-              <Line
-                data={{
-                  labels: wanTraffic.history.timestamps,
-                  datasets: [
-                    {
-                      label: 'İndirme Hızı (MB/s)',
-                      data: wanTraffic.history.rx,
-                      borderColor: 'rgb(59, 130, 246)',
-                      backgroundColor: 'rgba(59, 130, 246, 0.1)',
-                      fill: true,
-                      tension: 0.4,
-                      pointRadius: 2,
-                      pointHoverRadius: 4,
-                    },
-                    {
-                      label: 'Yükleme Hızı (MB/s)',
-                      data: wanTraffic.history.tx,
-                      borderColor: 'rgb(34, 197, 94)',
-                      backgroundColor: 'rgba(34, 197, 94, 0.1)',
-                      fill: true,
-                      tension: 0.4,
-                      pointRadius: 2,
-                      pointHoverRadius: 4,
-                    },
-                  ],
-                }}
-                options={{
-                  responsive: true,
-                  maintainAspectRatio: false,
-                  plugins: {
-                    legend: {
-                      display: true,
-                      position: 'top',
-                    },
-                    tooltip: {
-                      mode: 'index',
-                      intersect: false,
-                      callbacks: {
-                        label: function (context) {
-                          return `${context.dataset.label}: ${context.parsed.y.toFixed(2)} MB/s`
-                        },
-                      },
-                    },
-                  },
-                  scales: {
-                    y: {
-                      beginAtZero: true,
-                      ticks: {
-                        callback: function (value) {
-                          return value.toFixed(1) + ' MB/s'
-                        },
-                      },
-                    },
-                    x: {
-                      ticks: {
-                        maxRotation: 45,
-                        minRotation: 45,
-                      },
-                    },
-                  },
-                }}
-              />
-            ) : (
-              <div className="h-full bg-gray-100 dark:bg-gray-800 rounded-lg flex items-center justify-center">
-                <p className="text-gray-500 dark:text-gray-400 text-sm">
-                  Veri toplanıyor...
-                </p>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Online Peer'lar */}
-      {widgetVisibility.activePeers && (
-      <div className="card">
-        <div className="flex items-center justify-between mb-6">
-          <div>
-            <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-              Online Peer'lar
-            </h2>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-              Şu anda bağlı olan cihazlar
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="text-2xl font-bold text-green-600 dark:text-green-400">
-              {loadingPeers ? '...' : filteredPeers.filter(p => p._processed.lastActivity.isOnline).length}
-            </span>
-            <Wifi className="w-6 h-6 text-green-600 dark:text-green-400" />
-          </div>
-        </div>
-
-        {loadingPeers ? (
-          <div className="text-center py-8">
-            <RefreshCw className="w-12 h-12 text-primary-600 dark:text-primary-400 mx-auto mb-3 animate-spin" />
-            <p className="text-gray-500 dark:text-gray-400">Online peer'lar yükleniyor...</p>
-          </div>
-        ) : filteredPeers.filter(p => p._processed.lastActivity.isOnline).length === 0 ? (
-          <div className="text-center py-8">
-            <Wifi className="w-12 h-12 text-gray-300 dark:text-gray-600 mx-auto mb-3" />
-            <p className="text-gray-500 dark:text-gray-400">Şu anda aktif peer yok</p>
-          </div>
-        ) : (
-          <>
-            {/* Mobil Kart Görünümü */}
-            <div className="md:hidden grid grid-cols-1 gap-3">
-              {filteredPeers
-                .filter(p => p._processed.lastActivity.isOnline)
-                .map((peer, index) => (
+              <div className="mt-3 sm:mt-4">
+                <div className="w-full bg-blue-200 dark:bg-blue-800 rounded-full h-1.5 sm:h-2">
                   <div
-                    key={peer.id || peer['.id'] || index}
-                    onClick={() => handleShowPeerDetails(peer)}
-                    className="p-3 bg-gray-50 dark:bg-gray-800 rounded-lg cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-                  >
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="flex items-center gap-2">
-                        <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
-                        <span className="font-medium text-gray-900 dark:text-white text-sm">
-                          {peer._processed.name}
-                        </span>
-                      </div>
-                      <span className="text-xs text-green-600 dark:text-green-400 font-medium">
-                        {peer._processed.lastActivity.text}
-                      </span>
-                    </div>
-                    <div className="text-xs text-gray-500 dark:text-gray-400 mb-2">
-                      {peer._processed.allowedAddress}
-                    </div>
-                    <div className="flex items-center justify-between text-xs">
-                      <div className="flex items-center gap-1">
-                        <Download className="w-3 h-3 text-blue-500" />
-                        <span className="text-gray-700 dark:text-gray-300">{formatBytes(peer._processed.rxBytes)}</span>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <Upload className="w-3 h-3 text-green-500" />
-                        <span className="text-gray-700 dark:text-gray-300">{formatBytes(peer._processed.txBytes)}</span>
-                      </div>
-                    </div>
-                  </div>
-                ))}
+                    className="bg-blue-600 dark:bg-blue-400 h-1.5 sm:h-2 rounded-full transition-all duration-500"
+                    style={{ width: `${dashboardStats.ip_pool.usage_percent}%` }}
+                  ></div>
+                </div>
+              </div>
             </div>
-            
-            {/* Desktop Tablo Görünümü */}
-            <div className="hidden md:block overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b border-gray-200 dark:border-gray-700">
-                    <th className="text-left py-3 px-4 text-sm font-semibold text-gray-700 dark:text-gray-300">
-                      Peer Adı
-                    </th>
-                    <th className="text-left py-3 px-4 text-sm font-semibold text-gray-700 dark:text-gray-300">
-                      IP Adresi
-                    </th>
-                    <th className="text-left py-3 px-4 text-sm font-semibold text-gray-700 dark:text-gray-300 hidden lg:table-cell">
-                      Endpoint
-                    </th>
-                    <th className="text-right py-3 px-4 text-sm font-semibold text-gray-700 dark:text-gray-300">
-                      İndirme
-                    </th>
-                    <th className="text-right py-3 px-4 text-sm font-semibold text-gray-700 dark:text-gray-300">
-                      Yükleme
-                    </th>
-                    <th className="text-center py-3 px-4 text-sm font-semibold text-gray-700 dark:text-gray-300">
-                      Son İletişim
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
+
+            {/* Peer Templates Kartı */}
+            <div className="card bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-900/20 dark:to-purple-800/20 border-purple-200 dark:border-purple-800">
+              <div className="flex items-center justify-between">
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs sm:text-sm text-purple-700 dark:text-purple-300 font-medium truncate">
+                    Peer Şablonları
+                  </p>
+                  <p className="text-xl sm:text-3xl font-bold text-purple-900 dark:text-purple-100 mt-1 sm:mt-2">
+                    {dashboardStats.templates.total_templates}
+                  </p>
+                  {dashboardStats.templates.most_used_template && (
+                    <p className="text-xs text-purple-600 dark:text-purple-400 mt-1 truncate hidden sm:block">
+                      En çok: {dashboardStats.templates.most_used_template.name}
+                    </p>
+                  )}
+                </div>
+                <div className="p-2 sm:p-3 rounded-lg bg-purple-200 dark:bg-purple-700/50 flex-shrink-0">
+                  <FileCode className="w-5 h-5 sm:w-6 sm:h-6 text-purple-700 dark:text-purple-300" />
+                </div>
+              </div>
+            </div>
+
+            {/* Kullanıcılar Kartı */}
+            <div className="card bg-gradient-to-br from-green-50 to-green-100 dark:from-green-900/20 dark:to-green-800/20 border-green-200 dark:border-green-800">
+              <div className="flex items-center justify-between">
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs sm:text-sm text-green-700 dark:text-green-300 font-medium truncate">
+                    Aktif Kullanıcılar
+                  </p>
+                  <p className="text-xl sm:text-3xl font-bold text-green-900 dark:text-green-100 mt-1 sm:mt-2">
+                    {dashboardStats.users.active_users}
+                  </p>
+                  <p className="text-xs text-green-600 dark:text-green-400 mt-1 hidden sm:block">
+                    Toplam: {dashboardStats.users.total_users}
+                  </p>
+                </div>
+                <div className="p-2 sm:p-3 rounded-lg bg-green-200 dark:bg-green-700/50 flex-shrink-0">
+                  <Users className="w-5 h-5 sm:w-6 sm:h-6 text-green-700 dark:text-green-300" />
+                </div>
+              </div>
+            </div>
+
+            {/* Son 24 Saat Aktivite Kartı */}
+            <div className="card bg-gradient-to-br from-orange-50 to-orange-100 dark:from-orange-900/20 dark:to-orange-800/20 border-orange-200 dark:border-orange-800">
+              <div className="flex items-center justify-between">
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs sm:text-sm text-orange-700 dark:text-orange-300 font-medium truncate">
+                    Son 24 Saat
+                  </p>
+                  <p className="text-xl sm:text-3xl font-bold text-orange-900 dark:text-orange-100 mt-1 sm:mt-2">
+                    {dashboardStats.activity.last_24h}
+                  </p>
+                  <p className="text-xs text-orange-600 dark:text-orange-400 mt-1 hidden sm:block">
+                    Toplam Aktivite
+                  </p>
+                </div>
+                <div className="p-2 sm:p-3 rounded-lg bg-orange-200 dark:bg-orange-700/50 flex-shrink-0">
+                  <Zap className="w-5 h-5 sm:w-6 sm:h-6 text-orange-700 dark:text-orange-300" />
+                </div>
+              </div>
+            </div>
+          </div>
+        )
+
+      case 'trafficCharts':
+        return (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
+            <div className="card">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
+                <h3 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-white">
+                  Gelen Veri
+                </h3>
+                <span className="text-xl sm:text-2xl font-bold text-blue-600 dark:text-blue-400">
+                  {formatBytes(stats.totalRx)}
+                </span>
+              </div>
+              <div className="h-48">
+                {trafficHistory.rx.length > 0 ? (
+                  <Line
+                    data={{
+                      labels: trafficHistory.timestamps,
+                      datasets: [
+                        {
+                          label: 'İndirme (MB)',
+                          data: trafficHistory.rx,
+                          borderColor: 'rgb(59, 130, 246)',
+                          backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                          fill: true,
+                          tension: 0.4,
+                          pointRadius: 3,
+                          pointHoverRadius: 5,
+                        },
+                      ],
+                    }}
+                    options={{
+                      responsive: true,
+                      maintainAspectRatio: false,
+                      plugins: {
+                        legend: {
+                          display: false,
+                        },
+                        tooltip: {
+                          mode: 'index',
+                          intersect: false,
+                          callbacks: {
+                            label: function (context) {
+                              return `${context.parsed.y.toFixed(2)} MB`
+                            },
+                          },
+                        },
+                      },
+                      scales: {
+                        y: {
+                          beginAtZero: true,
+                          ticks: {
+                            callback: function (value) {
+                              return value.toFixed(1) + ' MB'
+                            },
+                          },
+                        },
+                        x: {
+                          ticks: {
+                            maxRotation: 45,
+                            minRotation: 45,
+                          },
+                        },
+                      },
+                    }}
+                  />
+                ) : (
+                  <div className="h-full bg-gray-100 dark:bg-gray-800 rounded-lg flex items-center justify-center">
+                    <p className="text-gray-500 dark:text-gray-400 text-sm">
+                      Veri toplanıyor...
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+            <div className="card">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
+                <h3 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-white">
+                  Gönderilen Veri
+                </h3>
+                <span className="text-xl sm:text-2xl font-bold text-green-600 dark:text-green-400">
+                  {formatBytes(stats.totalTx)}
+                </span>
+              </div>
+              <div className="h-48">
+                {trafficHistory.tx.length > 0 ? (
+                  <Line
+                    data={{
+                      labels: trafficHistory.timestamps,
+                      datasets: [
+                        {
+                          label: 'Yükleme (MB)',
+                          data: trafficHistory.tx,
+                          borderColor: 'rgb(34, 197, 94)',
+                          backgroundColor: 'rgba(34, 197, 94, 0.1)',
+                          fill: true,
+                          tension: 0.4,
+                          pointRadius: 3,
+                          pointHoverRadius: 5,
+                        },
+                      ],
+                    }}
+                    options={{
+                      responsive: true,
+                      maintainAspectRatio: false,
+                      plugins: {
+                        legend: {
+                          display: false,
+                        },
+                        tooltip: {
+                          mode: 'index',
+                          intersect: false,
+                          callbacks: {
+                            label: function (context) {
+                              return `${context.parsed.y.toFixed(2)} MB`
+                            },
+                          },
+                        },
+                      },
+                      scales: {
+                        y: {
+                          beginAtZero: true,
+                          ticks: {
+                            callback: function (value) {
+                              return value.toFixed(1) + ' MB'
+                            },
+                          },
+                        },
+                        x: {
+                          ticks: {
+                            maxRotation: 45,
+                            minRotation: 45,
+                          },
+                        },
+                      },
+                    }}
+                  />
+                ) : (
+                  <div className="h-full bg-gray-100 dark:bg-gray-800 rounded-lg flex items-center justify-center">
+                    <p className="text-gray-500 dark:text-gray-400 text-sm">
+                      Veri toplanıyor...
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )
+
+      case 'wanTraffic':
+        return (
+          <div className="card">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
+              <h3 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                <Network className="w-5 h-5 text-purple-600 dark:text-purple-400" />
+                WAN Trafiği
+              </h3>
+              <span className="text-xl sm:text-2xl font-bold text-purple-600 dark:text-purple-400">
+                {wanTraffic.interfaceName || 'N/A'}
+              </span>
+            </div>
+
+            {/* Anlık Değerler */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+              <div className="flex items-center gap-3 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+                <Download className="w-8 h-8 text-blue-600 dark:text-blue-400" />
+                <div className="flex-1">
+                  <p className="text-sm text-blue-700 dark:text-blue-300">İndirme</p>
+                  <p className="text-xl font-bold text-blue-900 dark:text-blue-100">
+                    {formatBytes(wanTraffic.rxBytes)}
+                  </p>
+                  <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
+                    ⚡ {formatBytes(wanTraffic.rxRate)}/s
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3 p-3 bg-green-50 dark:bg-green-900/20 rounded-lg">
+                <Upload className="w-8 h-8 text-green-600 dark:text-green-400" />
+                <div className="flex-1">
+                  <p className="text-sm text-green-700 dark:text-green-300">Yükleme</p>
+                  <p className="text-xl font-bold text-green-900 dark:text-green-100">
+                    {formatBytes(wanTraffic.txBytes)}
+                  </p>
+                  <p className="text-xs text-green-600 dark:text-green-400 mt-1">
+                    ⚡ {formatBytes(wanTraffic.txRate)}/s
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Tarihsel Grafik */}
+            <div className="h-48">
+              {wanTraffic.history.rx.length > 0 ? (
+                <Line
+                  data={{
+                    labels: wanTraffic.history.timestamps,
+                    datasets: [
+                      {
+                        label: 'İndirme Hızı (MB/s)',
+                        data: wanTraffic.history.rx,
+                        borderColor: 'rgb(59, 130, 246)',
+                        backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                        fill: true,
+                        tension: 0.4,
+                        pointRadius: 2,
+                        pointHoverRadius: 4,
+                      },
+                      {
+                        label: 'Yükleme Hızı (MB/s)',
+                        data: wanTraffic.history.tx,
+                        borderColor: 'rgb(34, 197, 94)',
+                        backgroundColor: 'rgba(34, 197, 94, 0.1)',
+                        fill: true,
+                        tension: 0.4,
+                        pointRadius: 2,
+                        pointHoverRadius: 4,
+                      },
+                    ],
+                  }}
+                  options={{
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                      legend: {
+                        display: true,
+                        position: 'top',
+                      },
+                      tooltip: {
+                        mode: 'index',
+                        intersect: false,
+                        callbacks: {
+                          label: function (context) {
+                            return `${context.dataset.label}: ${context.parsed.y.toFixed(2)} MB/s`
+                          },
+                        },
+                      },
+                    },
+                    scales: {
+                      y: {
+                        beginAtZero: true,
+                        ticks: {
+                          callback: function (value) {
+                            return value.toFixed(1) + ' MB/s'
+                          },
+                        },
+                      },
+                      x: {
+                        ticks: {
+                          maxRotation: 45,
+                          minRotation: 45,
+                        },
+                      },
+                    },
+                  }}
+                />
+              ) : (
+                <div className="h-full bg-gray-100 dark:bg-gray-800 rounded-lg flex items-center justify-center">
+                  <p className="text-gray-500 dark:text-gray-400 text-sm">
+                    Veri toplanıyor...
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
+        )
+
+      case 'activePeers':
+        return (
+          <div className="card">
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+                  Online Peer'lar
+                </h2>
+                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                  Şu anda bağlı olan cihazlar
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-2xl font-bold text-green-600 dark:text-green-400">
+                  {loadingPeers ? '...' : filteredPeers.filter(p => p._processed.lastActivity.isOnline).length}
+                </span>
+                <Wifi className="w-6 h-6 text-green-600 dark:text-green-400" />
+              </div>
+            </div>
+
+            {loadingPeers ? (
+              <div className="text-center py-8">
+                <RefreshCw className="w-12 h-12 text-primary-600 dark:text-primary-400 mx-auto mb-3 animate-spin" />
+                <p className="text-gray-500 dark:text-gray-400">Online peer'lar yükleniyor...</p>
+              </div>
+            ) : filteredPeers.filter(p => p._processed.lastActivity.isOnline).length === 0 ? (
+              <div className="text-center py-8">
+                <Wifi className="w-12 h-12 text-gray-300 dark:text-gray-600 mx-auto mb-3" />
+                <p className="text-gray-500 dark:text-gray-400">Şu anda aktif peer yok</p>
+              </div>
+            ) : (
+              <>
+                {/* Mobil Kart Görünümü */}
+                <div className="md:hidden grid grid-cols-1 gap-3">
                   {filteredPeers
                     .filter(p => p._processed.lastActivity.isOnline)
                     .map((peer, index) => (
-                      <tr
+                      <div
                         key={peer.id || peer['.id'] || index}
                         onClick={() => handleShowPeerDetails(peer)}
-                        className="border-b border-gray-100 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors cursor-pointer"
+                        className="p-3 bg-gray-50 dark:bg-gray-800 rounded-lg cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
                       >
-                        <td className="py-3 px-4">
+                        <div className="flex items-center justify-between mb-2">
                           <div className="flex items-center gap-2">
                             <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
-                            <span className="font-medium text-gray-900 dark:text-white">
+                            <span className="font-medium text-gray-900 dark:text-white text-sm">
                               {peer._processed.name}
                             </span>
                           </div>
-                        </td>
-                        <td className="py-3 px-4 text-sm text-gray-600 dark:text-gray-400">
-                          {peer._processed.allowedAddress}
-                        </td>
-                        <td className="py-3 px-4 text-sm text-gray-600 dark:text-gray-400 hidden lg:table-cell">
-                          {peer._processed.fullEndpoint}
-                        </td>
-                        <td className="py-3 px-4 text-right">
-                          <div className="flex items-center justify-end gap-1">
-                            <Download className="w-4 h-4 text-blue-500" />
-                            <span className="text-sm font-medium text-gray-900 dark:text-white">
-                              {formatBytes(peer._processed.rxBytes)}
-                            </span>
-                          </div>
-                        </td>
-                        <td className="py-3 px-4 text-right">
-                          <div className="flex items-center justify-end gap-1">
-                            <Upload className="w-4 h-4 text-green-500" />
-                            <span className="text-sm font-medium text-gray-900 dark:text-white">
-                              {formatBytes(peer._processed.txBytes)}
-                            </span>
-                          </div>
-                        </td>
-                        <td className="py-3 px-4 text-center">
                           <span className="text-xs text-green-600 dark:text-green-400 font-medium">
                             {peer._processed.lastActivity.text}
                           </span>
-                        </td>
-                      </tr>
+                        </div>
+                        <div className="text-xs text-gray-500 dark:text-gray-400 mb-2">
+                          {peer._processed.allowedAddress}
+                        </div>
+                        <div className="flex items-center justify-between text-xs">
+                          <div className="flex items-center gap-1">
+                            <Download className="w-3 h-3 text-blue-500" />
+                            <span className="text-gray-700 dark:text-gray-300">{formatBytes(peer._processed.rxBytes)}</span>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <Upload className="w-3 h-3 text-green-500" />
+                            <span className="text-gray-700 dark:text-gray-300">{formatBytes(peer._processed.txBytes)}</span>
+                          </div>
+                        </div>
+                      </div>
                     ))}
-                </tbody>
-              </table>
-            </div>
-          </>
-        )}
-      </div>
-      )}
+                </div>
 
-      {/* IP Pool Kullanım Detayları ve Son Aktiviteler */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* IP Pool Kullanım Detayları */}
-        {widgetVisibility.ipPoolUsage && ipPoolUsage.length > 0 && (
+                {/* Desktop Tablo Görünümü */}
+                <div className="hidden md:block overflow-x-auto">
+                  <table className="w-full">
+                    <thead>
+                      <tr className="border-b border-gray-200 dark:border-gray-700">
+                        <th className="text-left py-3 px-4 text-sm font-semibold text-gray-700 dark:text-gray-300">
+                          Peer Adı
+                        </th>
+                        <th className="text-left py-3 px-4 text-sm font-semibold text-gray-700 dark:text-gray-300">
+                          IP Adresi
+                        </th>
+                        <th className="text-left py-3 px-4 text-sm font-semibold text-gray-700 dark:text-gray-300 hidden lg:table-cell">
+                          Endpoint
+                        </th>
+                        <th className="text-right py-3 px-4 text-sm font-semibold text-gray-700 dark:text-gray-300">
+                          İndirme
+                        </th>
+                        <th className="text-right py-3 px-4 text-sm font-semibold text-gray-700 dark:text-gray-300">
+                          Yükleme
+                        </th>
+                        <th className="text-center py-3 px-4 text-sm font-semibold text-gray-700 dark:text-gray-300">
+                          Son İletişim
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredPeers
+                        .filter(p => p._processed.lastActivity.isOnline)
+                        .map((peer, index) => (
+                          <tr
+                            key={peer.id || peer['.id'] || index}
+                            onClick={() => handleShowPeerDetails(peer)}
+                            className="border-b border-gray-100 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors cursor-pointer"
+                          >
+                            <td className="py-3 px-4">
+                              <div className="flex items-center gap-2">
+                                <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
+                                <span className="font-medium text-gray-900 dark:text-white">
+                                  {peer._processed.name}
+                                </span>
+                              </div>
+                            </td>
+                            <td className="py-3 px-4 text-sm text-gray-600 dark:text-gray-400">
+                              {peer._processed.allowedAddress}
+                            </td>
+                            <td className="py-3 px-4 text-sm text-gray-600 dark:text-gray-400 hidden lg:table-cell">
+                              {peer._processed.fullEndpoint}
+                            </td>
+                            <td className="py-3 px-4 text-right">
+                              <div className="flex items-center justify-end gap-1">
+                                <Download className="w-4 h-4 text-blue-500" />
+                                <span className="text-sm font-medium text-gray-900 dark:text-white">
+                                  {formatBytes(peer._processed.rxBytes)}
+                                </span>
+                              </div>
+                            </td>
+                            <td className="py-3 px-4 text-right">
+                              <div className="flex items-center justify-end gap-1">
+                                <Upload className="w-4 h-4 text-green-500" />
+                                <span className="text-sm font-medium text-gray-900 dark:text-white">
+                                  {formatBytes(peer._processed.txBytes)}
+                                </span>
+                              </div>
+                            </td>
+                            <td className="py-3 px-4 text-center">
+                              <span className="text-xs text-green-600 dark:text-green-400 font-medium">
+                                {peer._processed.lastActivity.text}
+                              </span>
+                            </td>
+                          </tr>
+                        ))}
+                    </tbody>
+                  </table>
+                </div>
+              </>
+            )}
+          </div>
+        )
+
+      case 'ipPoolUsage':
+        return ipPoolUsage.length > 0 && (
           <div className="card">
             <div className="flex items-center justify-between mb-6">
               <div>
@@ -1667,10 +1627,10 @@ function Dashboard() {
               ))}
             </div>
           </div>
-        )}
+        )
 
-        {/* Son Aktiviteler Timeline */}
-        {widgetVisibility.recentActivities && recentActivities.length > 0 && (
+      case 'recentActivities':
+        return recentActivities.length > 0 && (
           <div className="card">
             <div className="flex items-center justify-between mb-6">
               <div>
@@ -1723,13 +1683,10 @@ function Dashboard() {
               ))}
             </div>
           </div>
-        )}
-      </div>
+        )
 
-      {/* Grup Dağılımı ve Süresi Dolacak Peer'lar */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Peer Grup Dağılımı */}
-        {widgetVisibility.peerGroups && peerGroupData.length > 0 && (
+      case 'peerGroups':
+        return peerGroupData.length > 0 && (
           <div className="card">
             <div className="flex items-center justify-between mb-6">
               <div>
@@ -1748,10 +1705,10 @@ function Dashboard() {
                 const color = colors[idx % colors.length]
                 const total = peerGroupData.reduce((sum, g) => sum + g.count, 0)
                 const percentage = total > 0 ? Math.round((group.count / total) * 100) : 0
-                
+
                 return (
                   <div key={group.group_name} className="flex items-center gap-3">
-                    <div 
+                    <div
                       className="w-3 h-3 rounded-full flex-shrink-0"
                       style={{ backgroundColor: color }}
                     ></div>
@@ -1781,10 +1738,10 @@ function Dashboard() {
               )}
             </div>
           </div>
-        )}
+        )
 
-        {/* Süresi Dolacak Peer'lar */}
-        {widgetVisibility.expiringPeers && expiringPeersData.total > 0 && (
+      case 'expiringPeers':
+        return expiringPeersData.total > 0 && (
           <div className="card">
             <div className="flex items-center justify-between mb-6">
               <div>
@@ -1849,8 +1806,79 @@ function Dashboard() {
               ))}
             </div>
           </div>
-        )}
+        )
+
+      default:
+        return null
+    }
+  }, [
+    widgetVisibility,
+    dashboardStats,
+    stats,
+    trafficHistory,
+    formatBytes,
+    wanTraffic,
+    loadingPeers,
+    filteredPeers,
+    handleShowPeerDetails,
+    ipPoolUsage,
+    recentActivities,
+    peerGroupData,
+    expiringPeersData
+  ])
+
+  return (
+    <div className="space-y-6">
+      {/* Sayfa başlığı */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white">
+            Dashboard
+          </h1>
+          <p className="text-sm sm:text-base text-gray-600 dark:text-gray-400 mt-1">
+            WireGuard aktif peer'ları ve istatistikleri
+          </p>
+        </div>
+        <button
+          onClick={() => setShowWidgetSettings(true)}
+          className="flex items-center justify-center gap-2 px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg transition-colors w-full sm:w-auto"
+          title="Widget Görünürlük Ayarları"
+        >
+          <Settings className="w-5 h-5" />
+          <span>Ayarlar</span>
+        </button>
       </div>
+
+      {/* İstatistik kartları */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6">
+        {statCards.map((stat, index) => {
+          const Icon = stat.icon
+          return (
+            <div key={index} className="card">
+              <div className="flex items-center justify-between">
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400 truncate">
+                    {stat.title}
+                  </p>
+                  <p className="text-xl sm:text-3xl font-bold text-gray-900 dark:text-white mt-1 sm:mt-2">
+                    {stat.value}
+                  </p>
+                </div>
+                <div className={`p-2 sm:p-3 rounded-lg ${stat.bgColor} flex-shrink-0`}>
+                  <Icon className={`w-5 h-5 sm:w-6 sm:h-6 ${stat.color}`} />
+                </div>
+              </div>
+            </div>
+          )
+        })}
+      </div>
+
+      {/* Widget'lar - Sıralanabilir ve Özelleştirilebilir */}
+      {widgetOrder.map((widgetKey) => (
+        <div key={widgetKey}>
+          {renderWidget(widgetKey)}
+        </div>
+      ))}
 
       {/* Tüm Peer Listesi */}
       <div className="card">
