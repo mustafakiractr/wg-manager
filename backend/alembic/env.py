@@ -23,10 +23,16 @@ from app.models.log_entry import LogEntry
 from app.models.settings import MikroTikSettings
 from app.models.notification import Notification
 from app.models.activity_log import ActivityLog
-from app.models.ip_allocation import IPAllocation
+from app.models.ip_pool import IPPool, IPAllocation
 from app.models.peer_metadata import PeerMetadata
 from app.models.peer_template import PeerTemplate
-from app.models.handshake_tracker import HandshakeTracker
+from app.models.peer_handshake import PeerHandshake
+from app.models.session import Session
+from app.models.peer_key import PeerKey
+from app.models.telegram_settings import TelegramSettings
+from app.models.telegram_notification_log import TelegramNotificationLog
+from app.models.sync_status import SyncStatus
+from app.models.email_settings import EmailSettings
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.

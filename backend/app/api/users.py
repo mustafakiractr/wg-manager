@@ -401,11 +401,11 @@ async def delete_user(
         # Kullanıcı kendini silemez
         if current_user.id == user_id:
             raise HTTPException(status_code=400, detail="Kendi hesabınızı silemezsiniz")
-        
+
         # Kullanıcıyı sil
-        db.delete(user)  # session.delete() is synchronous in SQLAlchemy 2.0
+        db.delete(user)
         await db.commit()
-        
+
         logger.info(f"Kullanıcı silindi: {user.username} (ID: {user_id})")
         
         return {

@@ -20,7 +20,7 @@ export default defineConfig({
     // ✅ EKLE: /api isteklerini backend'e yönlendir
     proxy: {
       '/api': {
-        target: 'http://localhost:5000',
+        target: 'http://localhost:8000',  // ✅ Backend'in gerçek portu
         changeOrigin: true,
         ws: true, // WebSocket desteğini etkinleştir
       },

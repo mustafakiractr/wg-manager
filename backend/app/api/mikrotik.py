@@ -16,8 +16,69 @@ from app.config import settings
 from app.utils.crypto import encrypt_password, decrypt_password
 import os
 from pathlib import Path
+import logging
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+
+def parse_mikrotik_rate(rate_str: str) -> int:
+    """
+    MikroTik rate string'ini bytes/sec'e çevirir
+    Örn: "20.1kbps" -> 2512, "77.9kbps" -> 9737, "1.5Mbps" -> 187500
+
+    Args:
+        rate_str: MikroTik rate formatı (örn: "20.1kbps", "1.5Mbps")
+
+    Returns:
+        bytes/sec olarak integer değer
+    """
+    if not rate_str or rate_str == '0' or rate_str == '0bps':
+        return 0
+
+    try:
+        # String'i temizle ve küçük harfe çevir
+        rate_str = str(rate_str).strip().lower()
+
+        # Sayı ve birim kısmını ayır
+        # "20.1kbps" -> sayı: 20.1, birim: kbps
+        import re
+        match = re.match(r'^([\d.]+)\s*([a-z]+)$', rate_str)
+
+        if not match:
+            logger.warning(f"Rate formatı anlaşılamadı: {rate_str}")
+            return 0
+
+        value = float(match.group(1))
+        unit = match.group(2)
+
+        # Bits per second -> bytes per second çevrimi
+        # bps: bits per second
+        # kbps: kilobits per second (1000 bits)
+        # Mbps: megabits per second (1000000 bits)
+        # Gbps: gigabits per second (1000000000 bits)
+
+        multipliers = {
+            'bps': 1,
+            'kbps': 1000,
+            'mbps': 1000000,
+            'gbps': 1000000000,
+        }
+
+        multiplier = multipliers.get(unit, 1)
+        bits_per_sec = value * multiplier
+
+        # Bits'i bytes'a çevir (8 bite böl)
+        bytes_per_sec = int(bits_per_sec / 8)
+
+        logger.debug(f"Rate parse: {rate_str} -> {bytes_per_sec} bytes/sec")
+
+        return bytes_per_sec
+
+    except Exception as e:
+        logger.error(f"Rate parse hatası: {rate_str}, hata: {e}")
+        return 0
 
 
 class ConnectionTestResponse(BaseModel):
@@ -318,4 +379,104 @@ async def update_connection_config(
     except Exception as e:
         await db.rollback()
         raise HTTPException(status_code=500, detail=f"Yapılandırma kaydedilemedi: {str(e)}")
+
+
+@router.get("/wan-traffic")
+async def get_wan_traffic(
+    current_user: User = Depends(get_current_user)
+) -> Dict[str, Any]:
+    """
+    WAN interface'in trafik istatistiklerini getirir
+    
+    Returns:
+        WAN interface RX/TX bytes ve rate bilgileri
+    """
+    try:
+        # MikroTik bağlantısını kontrol et
+        if not await mikrotik_conn.ensure_connected():
+            raise HTTPException(status_code=503, detail="MikroTik router'a bağlanılamadı")
+
+        # Tüm interface'leri al (generic interface, traffic stats dahil)
+        all_interfaces = await mikrotik_conn.execute_command("/interface", "print")
+
+        logger.info(f"MikroTik'ten alınan interface sayısı: {len(all_interfaces)}")
+
+        # Debug: Tüm interface'leri logla
+        for iface in all_interfaces:
+            logger.info(f"  Interface: {iface.get('name')} - type: {iface.get('type')}, comment: {iface.get('comment', 'N/A')}, running: {iface.get('running')}")
+
+        # WAN interface'i bul - SADECE COMMENT'e bakarak
+        wan_interface_name = None
+
+        # Comment'te "WAN" yazan interface'i bul (case-insensitive)
+        for iface in all_interfaces:
+            comment = iface.get('comment', '').lower()
+            if 'wan' in comment:
+                wan_interface_name = iface.get('name')
+                logger.info(f"✅ WAN interface bulundu (comment ile): {wan_interface_name}, comment: {iface.get('comment')}")
+                break
+
+        if not wan_interface_name:
+            logger.warning("WAN interface bulunamadı, hiç ethernet interface yok")
+            return {
+                "success": False,
+                "message": "WAN interface bulunamadı",
+                "data": {
+                    "interface_name": None,
+                    "rx_bytes": 0,
+                    "tx_bytes": 0,
+                    "rx_rate": 0,
+                    "tx_rate": 0
+                }
+            }
+
+        logger.info(f"WAN interface seçildi: {wan_interface_name}")
+
+        # Seçilen WAN interface'in detaylarını bul
+        wan_interface = next((iface for iface in all_interfaces if iface.get('name') == wan_interface_name), None)
+
+        if not wan_interface:
+            logger.error(f"WAN interface detayları bulunamadı: {wan_interface_name}")
+            return {
+                "success": False,
+                "message": "WAN interface detayları alınamadı",
+                "data": {
+                    "interface_name": wan_interface_name,
+                    "rx_bytes": 0,
+                    "tx_bytes": 0,
+                    "rx_rate": 0,
+                    "tx_rate": 0
+                }
+            }
+
+        logger.info(f"WAN interface detayları: {wan_interface}")
+
+        # Trafik bilgilerini parse et (interface print içinde rx-byte, tx-byte var)
+        rx_bytes = int(wan_interface.get('rx-byte', 0) or 0)
+        tx_bytes = int(wan_interface.get('tx-byte', 0) or 0)
+
+        # NOT: Rate hesaplaması frontend'de yapılacak (bytes farkı / zaman farkı)
+        # MikroTik API'de monitor-traffic her versiyonda desteklenmiyor
+
+        result = {
+            "success": True,
+            "data": {
+                "interface_name": wan_interface_name,
+                "rx_bytes": rx_bytes,
+                "tx_bytes": tx_bytes,
+                "total_bytes": rx_bytes + tx_bytes,
+                "running": wan_interface.get('running', 'false') == 'true'
+            }
+        }
+
+        logger.info(f"WAN Traffic sonuç: interface={wan_interface_name}, rx={rx_bytes}, tx={tx_bytes}")
+
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"WAN trafik bilgisi alınamadı: {e}")
+        import traceback
+        logger.error(traceback.format_exc())
+        raise HTTPException(status_code=500, detail=f"WAN trafik bilgisi alınamadı: {str(e)}")
 

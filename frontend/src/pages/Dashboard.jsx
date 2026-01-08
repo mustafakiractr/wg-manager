@@ -2,7 +2,7 @@
  * Dashboard sayfası
  * Aktif peer'ları listeler ve gerçek zamanlı istatistikleri gösterir
  */
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import { getInterfaces, getPeers, getPeerLogs } from '../services/wireguardService'
 import { getDashboardStats, getIPPoolUsage, getRecentActivities, getPeerGroupDistribution, getExpiringPeers } from '../services/dashboardService'
@@ -12,6 +12,7 @@ import {
   getPeerMonthlyTraffic,
   getPeerYearlyTraffic,
 } from '../services/trafficService'
+import wanTrafficService from '../services/wanTrafficService'
 import {
   DndContext,
   closestCenter,
@@ -213,6 +214,7 @@ function Dashboard() {
     return saved ? JSON.parse(saved) : {
       stats: true,
       trafficCharts: true,
+      wanTraffic: true, // WAN Traffic Widget - YENİ
       activePeers: true,
       ipPoolUsage: true,
       recentActivities: true,
@@ -222,7 +224,7 @@ function Dashboard() {
   })
 
   // Widget sırası - localStorage'dan yükle
-  const defaultWidgetOrder = ['stats', 'trafficCharts', 'peerGroups', 'expiringPeers', 'ipPoolUsage', 'recentActivities', 'activePeers']
+  const defaultWidgetOrder = ['stats', 'trafficCharts', 'wanTraffic', 'peerGroups', 'expiringPeers', 'ipPoolUsage', 'recentActivities', 'activePeers']
   const [widgetOrder, setWidgetOrder] = useState(() => {
     const saved = localStorage.getItem('dashboardWidgetOrder')
     return saved ? JSON.parse(saved) : defaultWidgetOrder
@@ -273,6 +275,23 @@ function Dashboard() {
     tx: [], // Son 20 TX değeri
     timestamps: [], // Zaman damgaları
   })
+  const [wanTraffic, setWanTraffic] = useState({
+    interfaceName: null,
+    rxBytes: 0,
+    txBytes: 0,
+    rxRate: 0,
+    txRate: 0,
+    totalBytes: 0,
+    running: false,
+    history: {
+      rx: [],
+      tx: [],
+      timestamps: []
+    }
+  })
+
+  // WAN traffic rate hesaplaması için önceki değerleri tut
+  const prevWANTraffic = useRef({ rxBytes: 0, txBytes: 0, timestamp: Date.now() })
 
   // loadData fonksiyonunu useCallback ile tanımla (useEffect'lerden önce)
   const loadData = useCallback(async (showLoading = false) => {
@@ -426,11 +445,84 @@ function Dashboard() {
     }
   }, [])
 
+  // WAN Traffic verilerini yükle
+  const loadWANTrafficData = useCallback(async () => {
+    try {
+      const res = await wanTrafficService.getWANTraffic()
+      if (res.success && res.data) {
+        const data = res.data
+        const currentTime = Date.now()
+
+        // Rate hesapla (bytes farkı / zaman farkı)
+        const prev = prevWANTraffic.current
+        const timeDiffSec = (currentTime - prev.timestamp) / 1000
+
+        let rxRate = 0
+        let txRate = 0
+
+        if (timeDiffSec > 0 && prev.rxBytes > 0) {
+          // Bytes farkını al ve saniyede byte hesapla
+          const rxDiff = data.rx_bytes - prev.rxBytes
+          const txDiff = data.tx_bytes - prev.txBytes
+
+          rxRate = rxDiff / timeDiffSec  // bytes/sec
+          txRate = txDiff / timeDiffSec  // bytes/sec
+
+          // Negatif değerleri sıfırla (counter reset olmuş olabilir)
+          if (rxRate < 0) rxRate = 0
+          if (txRate < 0) txRate = 0
+        }
+
+        // Şimdiki değerleri kaydet (bir sonraki hesaplama için)
+        prevWANTraffic.current = {
+          rxBytes: data.rx_bytes,
+          txBytes: data.tx_bytes,
+          timestamp: currentTime
+        }
+
+        // Geçmiş veriye ekle (grafik için)
+        setWanTraffic((prev) => {
+          const now = new Date()
+          const timeStr = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`
+
+          // Rate değerlerini bytes/sec'den MB/sec'e çevir (grafik için)
+          const rxRateMB = rxRate / (1024 * 1024)
+          const txRateMB = txRate / (1024 * 1024)
+
+          const newRxHistory = [...prev.history.rx, rxRateMB]
+          const newTxHistory = [...prev.history.tx, txRateMB]
+          const newTimestamps = [...prev.history.timestamps, timeStr]
+
+          // Son 20 veriyi tut
+          const maxDataPoints = 20
+
+          return {
+            interfaceName: data.interface_name,
+            rxBytes: data.rx_bytes || 0,
+            txBytes: data.tx_bytes || 0,
+            rxRate: rxRate,  // bytes/sec
+            txRate: txRate,  // bytes/sec
+            totalBytes: data.total_bytes || 0,
+            running: data.running || false,
+            history: {
+              rx: newRxHistory.slice(-maxDataPoints),
+              tx: newTxHistory.slice(-maxDataPoints),
+              timestamps: newTimestamps.slice(-maxDataPoints)
+            }
+          }
+        })
+      }
+    } catch (error) {
+      console.error('WAN trafik verileri yüklenemedi:', error)
+    }
+  }, [])
+
   // İlk yükleme - sessizce yükle
   useEffect(() => {
     loadData(false) // İlk yüklemede de sessizce yükle
     loadDashboardData() // Dashboard istatistiklerini yükle
-  }, [loadData, loadDashboardData])
+    loadWANTrafficData() // WAN traffic verilerini yükle
+  }, [loadData, loadDashboardData, loadWANTrafficData])
 
   // Yenileme sıklığı değiştiğinde interval'i güncelle - performans için minimum 10 saniye
   useEffect(() => {
@@ -439,9 +531,10 @@ function Dashboard() {
     const minRefreshRate = Math.max(refreshRate, 10)
     const interval = setInterval(() => {
       loadData(false) // Arka planda sessizce yükle
+      loadWANTrafficData() // WAN traffic'i de yenile
     }, minRefreshRate * 1000)
     return () => clearInterval(interval)
-  }, [refreshRate, loadData])
+  }, [refreshRate, loadData, loadWANTrafficData])
 
   // Widget görünürlük ayarlarını localStorage'a kaydet
   useEffect(() => {
@@ -1253,6 +1346,117 @@ function Dashboard() {
           </div>
         </div>
       </div>
+      )}
+
+      {/* WAN Traffic Widget */}
+      {widgetVisibility.wanTraffic && (
+        <div className="card">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
+            <h3 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+              <Network className="w-5 h-5 text-purple-600 dark:text-purple-400" />
+              WAN Trafiği
+            </h3>
+            <span className="text-xl sm:text-2xl font-bold text-purple-600 dark:text-purple-400">
+              {wanTraffic.interfaceName || 'N/A'}
+            </span>
+          </div>
+
+          {/* Anlık Değerler */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+            <div className="flex items-center gap-3 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+              <Download className="w-8 h-8 text-blue-600 dark:text-blue-400" />
+              <div>
+                <p className="text-sm text-blue-700 dark:text-blue-300">İndirme</p>
+                <p className="text-xl font-bold text-blue-900 dark:text-blue-100">
+                  {formatBytes(wanTraffic.rxBytes)}
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-3 p-3 bg-green-50 dark:bg-green-900/20 rounded-lg">
+              <Upload className="w-8 h-8 text-green-600 dark:text-green-400" />
+              <div>
+                <p className="text-sm text-green-700 dark:text-green-300">Yükleme</p>
+                <p className="text-xl font-bold text-green-900 dark:text-green-100">
+                  {formatBytes(wanTraffic.txBytes)}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Tarihsel Grafik */}
+          <div className="h-48">
+            {wanTraffic.history.rx.length > 0 ? (
+              <Line
+                data={{
+                  labels: wanTraffic.history.timestamps,
+                  datasets: [
+                    {
+                      label: 'İndirme Hızı (MB/s)',
+                      data: wanTraffic.history.rx,
+                      borderColor: 'rgb(59, 130, 246)',
+                      backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                      fill: true,
+                      tension: 0.4,
+                      pointRadius: 2,
+                      pointHoverRadius: 4,
+                    },
+                    {
+                      label: 'Yükleme Hızı (MB/s)',
+                      data: wanTraffic.history.tx,
+                      borderColor: 'rgb(34, 197, 94)',
+                      backgroundColor: 'rgba(34, 197, 94, 0.1)',
+                      fill: true,
+                      tension: 0.4,
+                      pointRadius: 2,
+                      pointHoverRadius: 4,
+                    },
+                  ],
+                }}
+                options={{
+                  responsive: true,
+                  maintainAspectRatio: false,
+                  plugins: {
+                    legend: {
+                      display: true,
+                      position: 'top',
+                    },
+                    tooltip: {
+                      mode: 'index',
+                      intersect: false,
+                      callbacks: {
+                        label: function (context) {
+                          return `${context.dataset.label}: ${context.parsed.y.toFixed(2)} MB/s`
+                        },
+                      },
+                    },
+                  },
+                  scales: {
+                    y: {
+                      beginAtZero: true,
+                      ticks: {
+                        callback: function (value) {
+                          return value.toFixed(1) + ' MB/s'
+                        },
+                      },
+                    },
+                    x: {
+                      ticks: {
+                        maxRotation: 45,
+                        minRotation: 45,
+                      },
+                    },
+                  },
+                }}
+              />
+            ) : (
+              <div className="h-full bg-gray-100 dark:bg-gray-800 rounded-lg flex items-center justify-center">
+                <p className="text-gray-500 dark:text-gray-400 text-sm">
+                  Veri toplanıyor...
+                </p>
+              </div>
+            )}
+          </div>
+        </div>
       )}
 
       {/* Online Peer'lar */}
@@ -2491,6 +2695,7 @@ function Dashboard() {
                     const widgetInfo = {
                       stats: { label: 'İstatistik Kartları', icon: BarChart3 },
                       trafficCharts: { label: 'Trafik Grafikleri', icon: TrendingUp },
+                      wanTraffic: { label: 'WAN Traffic', icon: Network },
                       activePeers: { label: 'Online Peer\'lar', icon: Wifi },
                       ipPoolUsage: { label: 'IP Pool Kullanımı', icon: Database },
                       recentActivities: { label: 'Son Aktiviteler', icon: Clock },

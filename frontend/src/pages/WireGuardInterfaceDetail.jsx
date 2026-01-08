@@ -3541,8 +3541,10 @@ function WireGuardInterfaceDetail() {
                     }
                     return null
                   })()}
-                </div>
+                </div> 
+              </div>
 
+              <div>
                 <label className="block text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 sm:mb-2">
                   Private Key *
                 </label>
