@@ -3597,7 +3597,7 @@ function WireGuardInterfaceDetail() {
       )}
     </div>
   )
-}
+}}
 
 export default WireGuardInterfaceDetail
 
