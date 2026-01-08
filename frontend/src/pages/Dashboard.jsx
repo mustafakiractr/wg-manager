@@ -1365,19 +1365,25 @@ function Dashboard() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
             <div className="flex items-center gap-3 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
               <Download className="w-8 h-8 text-blue-600 dark:text-blue-400" />
-              <div>
+              <div className="flex-1">
                 <p className="text-sm text-blue-700 dark:text-blue-300">İndirme</p>
                 <p className="text-xl font-bold text-blue-900 dark:text-blue-100">
                   {formatBytes(wanTraffic.rxBytes)}
+                </p>
+                <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
+                  ⚡ {formatBytes(wanTraffic.rxRate)}/s
                 </p>
               </div>
             </div>
             <div className="flex items-center gap-3 p-3 bg-green-50 dark:bg-green-900/20 rounded-lg">
               <Upload className="w-8 h-8 text-green-600 dark:text-green-400" />
-              <div>
+              <div className="flex-1">
                 <p className="text-sm text-green-700 dark:text-green-300">Yükleme</p>
                 <p className="text-xl font-bold text-green-900 dark:text-green-100">
                   {formatBytes(wanTraffic.txBytes)}
+                </p>
+                <p className="text-xs text-green-600 dark:text-green-400 mt-1">
+                  ⚡ {formatBytes(wanTraffic.txRate)}/s
                 </p>
               </div>
             </div>
