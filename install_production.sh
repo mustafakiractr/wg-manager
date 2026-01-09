@@ -600,16 +600,17 @@ fi
 print_step "Admin şifresi güncelleniyor..."
 
 python3 << PYTHON_EOF
-import asyncio
 import sys
 sys.path.insert(0, '.')
 
-from passlib.context import CryptContext
+import bcrypt
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-hashed_password = pwd_context.hash("$ADMIN_PASSWORD")
+# bcrypt ile doğrudan hash oluştur (passlib uyumsuzluğunu bypass)
+password = "$ADMIN_PASSWORD".encode('utf-8')
+salt = bcrypt.gensalt(rounds=12)
+hashed_password = bcrypt.hashpw(password, salt).decode('utf-8')
 
 # Sync engine for simple update
 engine = create_engine("postgresql://wg_user:$DB_PASSWORD@localhost/wg_manager")
