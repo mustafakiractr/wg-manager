@@ -313,8 +313,16 @@ print_step "Python kontrolü ve kurulumu..."
 
 if check_command python3; then
     PYTHON_VERSION=$(python3 --version | cut -d' ' -f2)
+    PYTHON_MAJOR_MINOR=$(echo $PYTHON_VERSION | cut -d'.' -f1,2)
     if version_ge "$PYTHON_VERSION" "$PYTHON_MIN_VERSION"; then
         print_success "Python $PYTHON_VERSION mevcut"
+        # Mevcut Python için venv paketini yükle
+        if [ "$OS_ID" = "ubuntu" ] || [ "$OS_ID" = "debian" ]; then
+            print_step "Python $PYTHON_MAJOR_MINOR venv paketi yükleniyor..."
+            apt-get install -y -qq python3-venv python3-pip python3-dev python${PYTHON_MAJOR_MINOR}-venv 2>/dev/null || \
+            apt-get install -y -qq python3-venv python3-pip python3-dev 2>/dev/null || true
+            print_success "Python venv paketi yüklendi"
+        fi
     else
         print_warning "Python $PYTHON_VERSION çok eski, güncelleniyor..."
         if [ "$OS_ID" = "ubuntu" ] || [ "$OS_ID" = "debian" ]; then
@@ -330,6 +338,11 @@ else
     print_step "Python yükleniyor..."
     if [ "$OS_ID" = "ubuntu" ] || [ "$OS_ID" = "debian" ]; then
         apt-get install -y -qq software-properties-common python3 python3-venv python3-dev python3-pip
+        # Yüklenen Python sürümü için venv paketi
+        PYTHON_MAJOR_MINOR=$(python3 --version 2>/dev/null | grep -oP '\d+\.\d+' | head -1)
+        if [ -n "$PYTHON_MAJOR_MINOR" ]; then
+            apt-get install -y -qq python${PYTHON_MAJOR_MINOR}-venv 2>/dev/null || true
+        fi
     elif [ "$OS_ID" = "centos" ] || [ "$OS_ID" = "rhel" ]; then
         yum install -y -q python39 python39-devel python39-pip
     fi
