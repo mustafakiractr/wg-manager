@@ -33,14 +33,14 @@ FRONTEND_DIR="$INSTALL_DIR/frontend"
 PYTHON_MIN_VERSION="3.9"
 NODE_MIN_VERSION="20"
 
-# Kullanıcı girişleri için değişkenler
-DB_PASSWORD=""
-ADMIN_PASSWORD=""
-MIKROTIK_HOST=""
-MIKROTIK_USER=""
+# Otomatik oluşturulan değerler
+DB_PASSWORD=$(openssl rand -base64 24 | tr -dc 'a-zA-Z0-9' | head -c 24)
+ADMIN_PASSWORD="admin123"
+MIKROTIK_HOST="192.168.88.1"
+MIKROTIK_USER="admin"
 MIKROTIK_PASSWORD=""
 DOMAIN_NAME=""
-SECRET_KEY=""
+SECRET_KEY=$(openssl rand -hex 64)
 
 #############################################
 # Fonksiyonlar
@@ -171,16 +171,16 @@ fi
 
 print_banner
 
-echo -e "${WHITE}Bu script aşağıdaki işlemleri otomatik olarak yapacak:${NC}"
+echo -e "${WHITE}Bu script aşağıdaki işlemleri TAM OTOMATİK olarak yapacak:${NC}"
 echo ""
-echo -e "  ${GREEN}✓${NC} Sistem paketlerini güncelleme"
-echo -e "  ${GREEN}✓${NC} Python 3.9+ kurulumu"
-echo -e "  ${GREEN}✓${NC} Node.js 20+ kurulumu"
-echo -e "  ${GREEN}✓${NC} PostgreSQL kurulumu ve yapılandırması"
-echo -e "  ${GREEN}✓${NC} Backend bağımlılıkları"
-echo -e "  ${GREEN}✓${NC} Frontend bağımlılıkları ve production build"
-echo -e "  ${GREEN}✓${NC} Nginx reverse proxy yapılandırması"
-echo -e "  ${GREEN}✓${NC} Systemd servisleri ve güvenlik"
+echo -e "  ${GREEN}✓${NC} Sistem paketleri (Python 3.9+, Node.js 20+)"
+echo -e "  ${GREEN}✓${NC} PostgreSQL veritabanı (şifre otomatik)"
+echo -e "  ${GREEN}✓${NC} Backend ve Frontend kurulumu"
+echo -e "  ${GREEN}✓${NC} Nginx reverse proxy"
+echo -e "  ${GREEN}✓${NC} Systemd servisleri"
+echo ""
+echo -e "${YELLOW}İlk Giriş: admin / admin123${NC}"
+echo -e "${YELLOW}MikroTik: Panel üzerinden yapılandırılacak${NC}"
 echo ""
 
 echo -e "${YELLOW}Kurulum dizini: ${CYAN}$INSTALL_DIR${NC}"
@@ -194,72 +194,23 @@ if [[ ! $REPLY =~ ^[Yy]$ ]] && [[ ! -z $REPLY ]]; then
 fi
 
 #############################################
-# ADIM 1: İnteraktif Yapılandırma
+# ADIM 1: Otomatik Yapılandırma
 #############################################
 
 echo ""
 echo -e "${BLUE}═══════════════════════════════════════════════════════════════${NC}"
-echo -e "${WHITE}       ADIM 1/8: Yapılandırma Bilgileri${NC}"
+echo -e "${WHITE}       ADIM 1/7: Otomatik Yapılandırma${NC}"
 echo -e "${BLUE}═══════════════════════════════════════════════════════════════${NC}"
 echo ""
 
-echo -e "${CYAN}Lütfen aşağıdaki bilgileri girin. Bu bilgiler güvenli bir şekilde${NC}"
-echo -e "${CYAN}yapılandırılacak ve kurulum sırasında kullanılacaktır.${NC}"
-echo ""
-
-# PostgreSQL şifresi
-echo -e "${WHITE}━━━ PostgreSQL Veritabanı ━━━${NC}"
-print_info "Bu şifre veritabanı bağlantısı için kullanılacak"
-read_password "PostgreSQL şifresi (min 8 karakter): " DB_PASSWORD true 8
-print_success "PostgreSQL şifresi ayarlandı"
-echo ""
-
-# Admin şifresi
-echo -e "${WHITE}━━━ Admin Hesabı ━━━${NC}"
-print_info "Web paneline giriş için kullanılacak admin şifresi"
-read_password "Admin şifresi (min 8 karakter): " ADMIN_PASSWORD true 8
-print_success "Admin şifresi ayarlandı"
-echo ""
-
-# MikroTik bilgileri (opsiyonel)
-echo -e "${WHITE}━━━ MikroTik Bağlantısı (Opsiyonel) ━━━${NC}"
-print_info "Sonradan web panelinden de yapılandırabilirsiniz"
-read -p "$(echo -e ${YELLOW}MikroTik bilgilerini şimdi girmek ister misiniz? [y/N]: ${NC})" -n 1 -r
-echo
-
-if [[ $REPLY =~ ^[Yy]$ ]]; then
-    read_optional "MikroTik IP adresi" MIKROTIK_HOST "192.168.88.1"
-    read_optional "MikroTik kullanıcı adı" MIKROTIK_USER "admin"
-    echo -ne "${YELLOW}MikroTik şifresi: ${NC}"
-    read -s MIKROTIK_PASSWORD
-    echo
-    print_success "MikroTik bilgileri ayarlandı"
-else
-    MIKROTIK_HOST="192.168.88.1"
-    MIKROTIK_USER="admin"
-    MIKROTIK_PASSWORD=""
-    print_info "MikroTik bilgileri sonradan yapılandırılacak"
-fi
-echo ""
-
-# Domain bilgisi (opsiyonel)
-echo -e "${WHITE}━━━ Domain Yapılandırması (Opsiyonel) ━━━${NC}"
-print_info "HTTPS ve CORS için domain adı"
-read_optional "Domain adı (örn: wg.example.com)" DOMAIN_NAME ""
-if [ -n "$DOMAIN_NAME" ]; then
-    print_success "Domain ayarlandı: $DOMAIN_NAME"
-else
-    print_info "Domain sonradan yapılandırılabilir"
-fi
-echo ""
-
-# SECRET_KEY otomatik oluştur
-print_step "Güvenli SECRET_KEY oluşturuluyor..."
-SECRET_KEY=$(python3 -c "import secrets; print(secrets.token_hex(64))" 2>/dev/null || openssl rand -hex 64)
-print_success "SECRET_KEY oluşturuldu"
+print_step "Güvenli şifreler ve anahtarlar oluşturuluyor..."
+print_success "PostgreSQL şifresi: otomatik oluşturuldu"
+print_success "SECRET_KEY: otomatik oluşturuldu"
+print_success "Admin hesabı: admin / admin123"
+print_info "MikroTik bağlantısı: Panel üzerinden yapılandırılacak"
 
 echo ""
-echo -e "${GREEN}✅ Yapılandırma bilgileri toplandı!${NC}"
+echo -e "${GREEN}✅ Yapılandırma tamamlandı!${NC}"
 echo ""
 
 #############################################
@@ -267,7 +218,7 @@ echo ""
 #############################################
 
 echo -e "${BLUE}═══════════════════════════════════════════════════════════════${NC}"
-echo -e "${WHITE}       ADIM 2/8: Sistem Güncelleme${NC}"
+echo -e "${WHITE}       ADIM 2/7: Sistem Güncelleme${NC}"
 echo -e "${BLUE}═══════════════════════════════════════════════════════════════${NC}"
 echo ""
 
@@ -304,7 +255,7 @@ fi
 
 echo ""
 echo -e "${BLUE}═══════════════════════════════════════════════════════════════${NC}"
-echo -e "${WHITE}       ADIM 3/8: Gerekli Paketler${NC}"
+echo -e "${WHITE}       ADIM 3/7: Gerekli Paketler${NC}"
 echo -e "${BLUE}═══════════════════════════════════════════════════════════════${NC}"
 echo ""
 
@@ -413,7 +364,7 @@ print_success "Sistem paketleri yüklendi"
 
 echo ""
 echo -e "${BLUE}═══════════════════════════════════════════════════════════════${NC}"
-echo -e "${WHITE}       ADIM 4/8: PostgreSQL Veritabanı${NC}"
+echo -e "${WHITE}       ADIM 4/7: PostgreSQL Veritabanı${NC}"
 echo -e "${BLUE}═══════════════════════════════════════════════════════════════${NC}"
 echo ""
 
@@ -489,7 +440,7 @@ fi
 
 echo ""
 echo -e "${BLUE}═══════════════════════════════════════════════════════════════${NC}"
-echo -e "${WHITE}       ADIM 5/8: Backend Kurulumu${NC}"
+echo -e "${WHITE}       ADIM 5/7: Backend Kurulumu${NC}"
 echo -e "${BLUE}═══════════════════════════════════════════════════════════════${NC}"
 echo ""
 
@@ -656,7 +607,7 @@ cd "$INSTALL_DIR"
 
 echo ""
 echo -e "${BLUE}═══════════════════════════════════════════════════════════════${NC}"
-echo -e "${WHITE}       ADIM 6/8: Frontend Kurulumu${NC}"
+echo -e "${WHITE}       ADIM 6/7: Frontend Kurulumu${NC}"
 echo -e "${BLUE}═══════════════════════════════════════════════════════════════${NC}"
 echo ""
 
@@ -699,7 +650,7 @@ cd "$INSTALL_DIR"
 
 echo ""
 echo -e "${BLUE}═══════════════════════════════════════════════════════════════${NC}"
-echo -e "${WHITE}       ADIM 7/8: Nginx Reverse Proxy${NC}"
+echo -e "${WHITE}       ADIM 7/7: Nginx Reverse Proxy${NC}"
 echo -e "${BLUE}═══════════════════════════════════════════════════════════════${NC}"
 echo ""
 
@@ -939,16 +890,7 @@ else
     systemctl status nginx --no-pager
 fi
 
-#############################################
-# ADIM 8: Systemd Servisleri
-#############################################
-
-echo ""
-echo -e "${BLUE}═══════════════════════════════════════════════════════════════${NC}"
-echo -e "${WHITE}       ADIM 8/8: Backend Servis Yapılandırması${NC}"
-echo -e "${BLUE}═══════════════════════════════════════════════════════════════${NC}"
-echo ""
-
+# Systemd Servisleri (Nginx adımının devamı)
 print_step "Systemd servisleri oluşturuluyor..."
 
 # Backend service
@@ -1044,57 +986,46 @@ cat << "EOF"
 EOF
 echo -e "${NC}"
 
+SERVER_IP=$(hostname -I | awk '{print $1}' || echo "localhost")
+
 echo -e "${WHITE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo ""
 echo -e "${CYAN}🌐 Erişim Bilgileri:${NC}"
 echo ""
-if [ -n "$DOMAIN_NAME" ]; then
-    echo -e "   Web Panel:    ${GREEN}http://$DOMAIN_NAME${NC}"
-    echo -e "   API Docs:     ${GREEN}http://$DOMAIN_NAME/docs${NC}"
-else
-    echo -e "   Web Panel:    ${GREEN}http://$SERVER_IP${NC}"
-    echo -e "   API Docs:     ${GREEN}http://$SERVER_IP/docs${NC}"
-fi
+echo -e "   Web Panel:    ${GREEN}http://$SERVER_IP${NC}"
+echo -e "   API Docs:     ${GREEN}http://$SERVER_IP/docs${NC}"
 echo ""
 echo -e "${WHITE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo ""
 echo -e "${CYAN}🔐 Giriş Bilgileri:${NC}"
 echo ""
 echo -e "   Kullanıcı:    ${MAGENTA}admin${NC}"
-echo -e "   Şifre:        ${MAGENTA}[Kurulumda belirlediğiniz şifre]${NC}"
+echo -e "   Şifre:        ${MAGENTA}admin123${NC}"
+echo ""
+echo -e "${RED}⚠️  İlk girişten sonra şifrenizi değiştirin!${NC}"
 echo ""
 echo -e "${WHITE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo ""
 echo -e "${CYAN}🛠️  Servis Yönetimi:${NC}"
 echo ""
-echo -e "   Durum:        ${YELLOW}systemctl status wg-backend nginx postgresql${NC}"
+echo -e "   Durum:        ${YELLOW}systemctl status wg-backend nginx${NC}"
 echo -e "   Yeniden:      ${YELLOW}systemctl restart wg-backend nginx${NC}"
 echo -e "   Loglar:       ${YELLOW}journalctl -u wg-backend -f${NC}"
-echo -e "   Nginx Log:    ${YELLOW}tail -f /var/log/nginx/error.log${NC}"
 echo ""
 echo -e "${WHITE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo ""
-echo -e "${CYAN}📦 Veritabanı Bilgileri:${NC}"
+echo -e "${YELLOW}📌 Sonraki Adımlar:${NC}"
 echo ""
-echo -e "   Host:         localhost"
-echo -e "   Database:     wg_manager"
-echo -e "   Kullanıcı:    wg_user"
-echo -e "   Şifre:        [Kurulumda belirlediğiniz şifre]"
+echo -e "   1. ${CYAN}http://$SERVER_IP${NC} adresine gidin"
+echo -e "   2. ${CYAN}admin / admin123${NC} ile giriş yapın"
+echo -e "   3. ${CYAN}Settings > MikroTik${NC} sayfasından router bağlantısını yapın"
+echo -e "   4. WireGuard yönetimine başlayın!"
 echo ""
 echo -e "${WHITE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo ""
-
-if [ -z "$MIKROTIK_PASSWORD" ]; then
-    echo -e "${YELLOW}⚠️  MikroTik bağlantısı yapılandırılmadı.${NC}"
-    echo -e "${YELLOW}   Web panelinden Settings > MikroTik sayfasından yapılandırın.${NC}"
-    echo ""
-fi
-
-if [ -n "$DOMAIN_NAME" ]; then
-    echo -e "${CYAN}💡 HTTPS için Let's Encrypt sertifikası almak için:${NC}"
-    echo -e "   ${YELLOW}sudo certbot --nginx -d $DOMAIN_NAME${NC}"
-    echo ""
-fi
+echo -e "${CYAN}💡 HTTPS için (opsiyonel):${NC}"
+echo -e "   ${YELLOW}sudo certbot --nginx -d your-domain.com${NC}"
+echo ""
 
 echo -e "${GREEN}🎉 Kurulum başarıyla tamamlandı!${NC}"
 echo ""
