@@ -377,8 +377,16 @@ print_success "npm $(npm --version) mevcut"
 print_step "Gerekli sistem paketleri yükleniyor..."
 
 if [ "$OS_ID" = "ubuntu" ] || [ "$OS_ID" = "debian" ]; then
-    PACKAGES="build-essential libssl-dev libffi-dev python3-dev curl wget git libpq-dev nginx certbot python3-certbot-nginx"
-    apt-get install -y -qq $PACKAGES
+    # Python sürümünü tespit et ve doğru venv paketini yükle
+    PYTHON_VER=$(python3 --version 2>/dev/null | grep -oP '\d+\.\d+' | head -1)
+    PACKAGES="build-essential libssl-dev libffi-dev python3-dev python3-venv python3-pip curl wget git libpq-dev nginx certbot python3-certbot-nginx"
+
+    # Python sürümüne özel venv paketi (3.11, 3.12, 3.13 vs.)
+    if [ -n "$PYTHON_VER" ]; then
+        PACKAGES="$PACKAGES python${PYTHON_VER}-venv"
+    fi
+
+    apt-get install -y -qq $PACKAGES 2>/dev/null || apt-get install -y -qq build-essential libssl-dev libffi-dev python3-dev python3-venv python3-pip curl wget git libpq-dev nginx
 elif [ "$OS_ID" = "centos" ] || [ "$OS_ID" = "rhel" ]; then
     yum groupinstall -y -q "Development Tools"
     yum install -y -q openssl-devel libffi-devel python3-devel curl wget git postgresql-devel nginx certbot python3-certbot-nginx
@@ -863,15 +871,37 @@ EOF
 
 print_success "Nginx site yapılandırması oluşturuldu"
 
-# Default site'ı devre dışı bırak
+# Nginx yapılandırma dizin yapısını kontrol et
 print_step "Nginx siteleri yapılandırılıyor..."
-rm -f /etc/nginx/sites-enabled/default 2>/dev/null || true
 
-# sites-enabled dizini yoksa oluştur
-mkdir -p /etc/nginx/sites-enabled
+# sites-available/sites-enabled yapısı var mı kontrol et
+if [ -d "/etc/nginx/sites-available" ]; then
+    # Debian/Ubuntu tarzı yapılandırma
+    rm -f /etc/nginx/sites-enabled/default 2>/dev/null || true
+    mkdir -p /etc/nginx/sites-enabled
+    ln -sf /etc/nginx/sites-available/wg-manager /etc/nginx/sites-enabled/wg-manager
+    print_success "Site symlink oluşturuldu"
+else
+    # CentOS/RHEL tarzı - conf.d kullan
+    print_step "conf.d yapısı kullanılıyor..."
+    mv /etc/nginx/sites-available/wg-manager /etc/nginx/conf.d/wg-manager.conf 2>/dev/null || true
 
-# Symlink oluştur
-ln -sf /etc/nginx/sites-available/wg-manager /etc/nginx/sites-enabled/wg-manager
+    # Default config'i yedekle ve devre dışı bırak
+    if [ -f "/etc/nginx/conf.d/default.conf" ]; then
+        mv /etc/nginx/conf.d/default.conf /etc/nginx/conf.d/default.conf.disabled 2>/dev/null || true
+    fi
+fi
+
+# nginx.conf'da sites-enabled include var mı kontrol et
+if ! grep -q "sites-enabled" /etc/nginx/nginx.conf 2>/dev/null; then
+    # sites-enabled include yoksa, http bloğuna ekle
+    if [ -d "/etc/nginx/sites-enabled" ]; then
+        if ! grep -q "include /etc/nginx/sites-enabled" /etc/nginx/nginx.conf; then
+            # http bloğunun sonuna include ekle
+            sed -i '/http {/a\    include /etc/nginx/sites-enabled/*;' /etc/nginx/nginx.conf 2>/dev/null || true
+        fi
+    fi
+fi
 
 # Nginx config test
 print_step "Nginx yapılandırması test ediliyor..."
