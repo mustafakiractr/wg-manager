@@ -179,8 +179,8 @@ echo -e "  ${GREEN}✓${NC} Node.js 20+ kurulumu"
 echo -e "  ${GREEN}✓${NC} PostgreSQL kurulumu ve yapılandırması"
 echo -e "  ${GREEN}✓${NC} Backend bağımlılıkları"
 echo -e "  ${GREEN}✓${NC} Frontend bağımlılıkları ve production build"
-echo -e "  ${GREEN}✓${NC} Systemd servisleri"
-echo -e "  ${GREEN}✓${NC} Güvenlik yapılandırması"
+echo -e "  ${GREEN}✓${NC} Nginx reverse proxy yapılandırması"
+echo -e "  ${GREEN}✓${NC} Systemd servisleri ve güvenlik"
 echo ""
 
 echo -e "${YELLOW}Kurulum dizini: ${CYAN}$INSTALL_DIR${NC}"
@@ -199,7 +199,7 @@ fi
 
 echo ""
 echo -e "${BLUE}═══════════════════════════════════════════════════════════════${NC}"
-echo -e "${WHITE}       ADIM 1/7: Yapılandırma Bilgileri${NC}"
+echo -e "${WHITE}       ADIM 1/8: Yapılandırma Bilgileri${NC}"
 echo -e "${BLUE}═══════════════════════════════════════════════════════════════${NC}"
 echo ""
 
@@ -267,7 +267,7 @@ echo ""
 #############################################
 
 echo -e "${BLUE}═══════════════════════════════════════════════════════════════${NC}"
-echo -e "${WHITE}       ADIM 2/7: Sistem Güncelleme${NC}"
+echo -e "${WHITE}       ADIM 2/8: Sistem Güncelleme${NC}"
 echo -e "${BLUE}═══════════════════════════════════════════════════════════════${NC}"
 echo ""
 
@@ -304,7 +304,7 @@ fi
 
 echo ""
 echo -e "${BLUE}═══════════════════════════════════════════════════════════════${NC}"
-echo -e "${WHITE}       ADIM 3/7: Gerekli Paketler${NC}"
+echo -e "${WHITE}       ADIM 3/8: Gerekli Paketler${NC}"
 echo -e "${BLUE}═══════════════════════════════════════════════════════════════${NC}"
 echo ""
 
@@ -392,7 +392,7 @@ print_success "Sistem paketleri yüklendi"
 
 echo ""
 echo -e "${BLUE}═══════════════════════════════════════════════════════════════${NC}"
-echo -e "${WHITE}       ADIM 4/7: PostgreSQL Veritabanı${NC}"
+echo -e "${WHITE}       ADIM 4/8: PostgreSQL Veritabanı${NC}"
 echo -e "${BLUE}═══════════════════════════════════════════════════════════════${NC}"
 echo ""
 
@@ -468,7 +468,7 @@ fi
 
 echo ""
 echo -e "${BLUE}═══════════════════════════════════════════════════════════════${NC}"
-echo -e "${WHITE}       ADIM 5/7: Backend Kurulumu${NC}"
+echo -e "${WHITE}       ADIM 5/8: Backend Kurulumu${NC}"
 echo -e "${BLUE}═══════════════════════════════════════════════════════════════${NC}"
 echo ""
 
@@ -634,7 +634,7 @@ cd "$INSTALL_DIR"
 
 echo ""
 echo -e "${BLUE}═══════════════════════════════════════════════════════════════${NC}"
-echo -e "${WHITE}       ADIM 6/7: Frontend Kurulumu${NC}"
+echo -e "${WHITE}       ADIM 6/8: Frontend Kurulumu${NC}"
 echo -e "${BLUE}═══════════════════════════════════════════════════════════════${NC}"
 echo ""
 
@@ -645,11 +645,17 @@ fi
 
 cd "$FRONTEND_DIR"
 
-# .env dosyası
+# .env dosyası - nginx kullanacağımız için /api prefix ile
 print_step "Frontend .env dosyası oluşturuluyor..."
-cat > .env << EOF
-VITE_API_BASE_URL=http://$SERVER_IP:8001
+if [ -n "$DOMAIN_NAME" ]; then
+    cat > .env << EOF
+VITE_API_BASE_URL=https://$DOMAIN_NAME
 EOF
+else
+    cat > .env << EOF
+VITE_API_BASE_URL=http://$SERVER_IP
+EOF
+fi
 print_success "Frontend .env oluşturuldu"
 
 # Node modülleri
@@ -666,12 +672,236 @@ print_success "Frontend build tamamlandı"
 cd "$INSTALL_DIR"
 
 #############################################
-# ADIM 7: Systemd Servisleri
+# ADIM 7: Nginx Yapılandırması
 #############################################
 
 echo ""
 echo -e "${BLUE}═══════════════════════════════════════════════════════════════${NC}"
-echo -e "${WHITE}       ADIM 7/7: Servis Yapılandırması${NC}"
+echo -e "${WHITE}       ADIM 7/8: Nginx Reverse Proxy${NC}"
+echo -e "${BLUE}═══════════════════════════════════════════════════════════════${NC}"
+echo ""
+
+print_step "Nginx yapılandırılıyor..."
+
+# Nginx kurulu mu kontrol et
+if ! check_command nginx; then
+    print_step "Nginx yükleniyor..."
+    if [ "$OS_ID" = "ubuntu" ] || [ "$OS_ID" = "debian" ]; then
+        apt-get install -y -qq nginx
+    elif [ "$OS_ID" = "centos" ] || [ "$OS_ID" = "rhel" ]; then
+        yum install -y -q nginx
+    fi
+    print_success "Nginx yüklendi"
+fi
+
+# Nginx config dosyasını oluştur
+print_step "Nginx site yapılandırması oluşturuluyor..."
+
+# Domain varsa server_name'i ayarla
+if [ -n "$DOMAIN_NAME" ]; then
+    NGINX_SERVER_NAME="$DOMAIN_NAME"
+else
+    NGINX_SERVER_NAME="_"
+fi
+
+cat > /etc/nginx/sites-available/wg-manager << EOF
+# WireGuard Manager - Production Nginx Configuration
+# Auto-generated by install_production.sh
+
+# Rate limiting zones
+limit_req_zone \$binary_remote_addr zone=api_limit:10m rate=10r/s;
+limit_req_zone \$binary_remote_addr zone=login_limit:10m rate=5r/m;
+
+# Backend upstream
+upstream wg_backend {
+    server 127.0.0.1:8001;
+    keepalive 32;
+}
+
+server {
+    listen 80;
+    server_name $NGINX_SERVER_NAME;
+
+    # Cloudflare gerçek IP'yi al
+    set_real_ip_from 103.21.244.0/22;
+    set_real_ip_from 103.22.200.0/22;
+    set_real_ip_from 103.31.4.0/22;
+    set_real_ip_from 104.16.0.0/13;
+    set_real_ip_from 104.24.0.0/14;
+    set_real_ip_from 108.162.192.0/18;
+    set_real_ip_from 131.0.72.0/22;
+    set_real_ip_from 141.101.64.0/18;
+    set_real_ip_from 162.158.0.0/15;
+    set_real_ip_from 172.64.0.0/13;
+    set_real_ip_from 173.245.48.0/20;
+    set_real_ip_from 188.114.96.0/20;
+    set_real_ip_from 190.93.240.0/20;
+    set_real_ip_from 197.234.240.0/22;
+    set_real_ip_from 198.41.128.0/17;
+    real_ip_header CF-Connecting-IP;
+
+    # Security headers
+    add_header X-Frame-Options "SAMEORIGIN" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header X-XSS-Protection "1; mode=block" always;
+    add_header Referrer-Policy "no-referrer-when-downgrade" always;
+
+    # Client body size limit
+    client_max_body_size 10M;
+
+    # Gzip compression
+    gzip on;
+    gzip_vary on;
+    gzip_min_length 1024;
+    gzip_proxied any;
+    gzip_types text/plain text/css text/xml text/javascript application/javascript application/json application/xml;
+
+    # Frontend static files (React build)
+    root $FRONTEND_DIR/dist;
+    index index.html;
+
+    location / {
+        try_files \$uri \$uri/ /index.html;
+
+        # Cache static assets
+        location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$ {
+            expires 1y;
+            add_header Cache-Control "public, immutable";
+        }
+    }
+
+    # Backend API
+    location /api/ {
+        limit_req zone=api_limit burst=20 nodelay;
+
+        proxy_pass http://wg_backend;
+        proxy_http_version 1.1;
+
+        # Headers
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+
+        # Timeouts
+        proxy_connect_timeout 60s;
+        proxy_send_timeout 60s;
+        proxy_read_timeout 60s;
+
+        # Keepalive
+        proxy_set_header Connection "";
+    }
+
+    # Login rate limiting
+    location /api/v1/auth/login {
+        limit_req zone=login_limit burst=3 nodelay;
+
+        proxy_pass http://wg_backend;
+        proxy_http_version 1.1;
+
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+    }
+
+    # WebSocket için özel yapılandırma
+    location /api/v1/ws {
+        proxy_pass http://wg_backend;
+        proxy_http_version 1.1;
+
+        # WebSocket headers
+        proxy_set_header Upgrade \$http_upgrade;
+        proxy_set_header Connection "upgrade";
+
+        # Standard headers
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+
+        # Timeouts for WebSocket
+        proxy_connect_timeout 7d;
+        proxy_send_timeout 7d;
+        proxy_read_timeout 7d;
+    }
+
+    # API docs
+    location /docs {
+        proxy_pass http://wg_backend;
+        proxy_http_version 1.1;
+
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+    }
+
+    # OpenAPI JSON
+    location /openapi.json {
+        proxy_pass http://wg_backend;
+        proxy_http_version 1.1;
+
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+    }
+
+    # ReDoc
+    location /redoc {
+        proxy_pass http://wg_backend;
+        proxy_http_version 1.1;
+
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+    }
+}
+EOF
+
+print_success "Nginx site yapılandırması oluşturuldu"
+
+# Default site'ı devre dışı bırak
+print_step "Nginx siteleri yapılandırılıyor..."
+rm -f /etc/nginx/sites-enabled/default 2>/dev/null || true
+
+# sites-enabled dizini yoksa oluştur
+mkdir -p /etc/nginx/sites-enabled
+
+# Symlink oluştur
+ln -sf /etc/nginx/sites-available/wg-manager /etc/nginx/sites-enabled/wg-manager
+
+# Nginx config test
+print_step "Nginx yapılandırması test ediliyor..."
+if nginx -t 2>/dev/null; then
+    print_success "Nginx yapılandırması geçerli"
+else
+    print_error "Nginx yapılandırma hatası!"
+    nginx -t
+    exit 1
+fi
+
+# Nginx'i başlat/yeniden başlat
+print_step "Nginx servisi başlatılıyor..."
+systemctl enable nginx 2>/dev/null || true
+systemctl restart nginx
+
+if systemctl is-active --quiet nginx; then
+    print_success "Nginx servisi çalışıyor"
+else
+    print_error "Nginx başlatılamadı!"
+    systemctl status nginx --no-pager
+fi
+
+#############################################
+# ADIM 8: Systemd Servisleri
+#############################################
+
+echo ""
+echo -e "${BLUE}═══════════════════════════════════════════════════════════════${NC}"
+echo -e "${WHITE}       ADIM 8/8: Backend Servis Yapılandırması${NC}"
 echo -e "${BLUE}═══════════════════════════════════════════════════════════════${NC}"
 echo ""
 
@@ -710,52 +940,34 @@ EOF
 
 print_success "wg-backend.service oluşturuldu"
 
-# Frontend service (serve ile static dosya sunumu)
-# Önce serve paketini global olarak kur
-npm install -g serve --silent 2>/dev/null || true
+# NOT: Frontend nginx tarafından sunuluyor, ayrı servis gerekmiyor
 
-cat > /etc/systemd/system/wg-frontend.service << EOF
-[Unit]
-Description=WireGuard Manager Frontend
-Documentation=https://github.com/mustafakiractr/wg-manager
-After=network.target wg-backend.service
-
-[Service]
-Type=simple
-User=root
-Group=root
-WorkingDirectory=$FRONTEND_DIR
-ExecStart=/usr/bin/serve -s dist -l 5173
-Restart=always
-RestartSec=10
-StandardOutput=append:$INSTALL_DIR/frontend.log
-StandardError=append:$INSTALL_DIR/frontend_error.log
-
-[Install]
-WantedBy=multi-user.target
-EOF
-
-print_success "wg-frontend.service oluşturuldu"
+# Eski frontend servisini temizle (varsa)
+systemctl stop wg-frontend 2>/dev/null || true
+systemctl disable wg-frontend 2>/dev/null || true
+rm -f /etc/systemd/system/wg-frontend.service 2>/dev/null || true
 
 # Systemd reload ve servisleri başlat
-print_step "Servisler başlatılıyor..."
+print_step "Backend servisi başlatılıyor..."
 systemctl daemon-reload
-systemctl enable wg-backend wg-frontend
+systemctl enable wg-backend
 systemctl restart wg-backend
 sleep 3
-systemctl restart wg-frontend
-sleep 2
 
 # Servis durumlarını kontrol et
 BACKEND_STATUS=$(systemctl is-active wg-backend)
-FRONTEND_STATUS=$(systemctl is-active wg-frontend)
+NGINX_STATUS=$(systemctl is-active nginx)
 
-if [ "$BACKEND_STATUS" = "active" ] && [ "$FRONTEND_STATUS" = "active" ]; then
+if [ "$BACKEND_STATUS" = "active" ] && [ "$NGINX_STATUS" = "active" ]; then
     print_success "Tüm servisler başarıyla başlatıldı!"
+    echo ""
+    echo -e "  ${GREEN}●${NC} wg-backend: aktif"
+    echo -e "  ${GREEN}●${NC} nginx: aktif"
+    echo -e "  ${GREEN}●${NC} postgresql: aktif"
 else
     print_warning "Servis durumları:"
     echo "  Backend: $BACKEND_STATUS"
-    echo "  Frontend: $FRONTEND_STATUS"
+    echo "  Nginx: $NGINX_STATUS"
 fi
 
 #############################################
@@ -767,9 +979,9 @@ print_step "Firewall kontrol ediliyor..."
 if check_command ufw; then
     if ufw status | grep -q "Status: active"; then
         print_step "UFW firewall kuralları ekleniyor..."
-        ufw allow 5173/tcp comment 'WireGuard Manager Frontend' 2>/dev/null || true
-        ufw allow 8001/tcp comment 'WireGuard Manager Backend' 2>/dev/null || true
-        print_success "Firewall kuralları eklendi"
+        ufw allow 80/tcp comment 'HTTP - WireGuard Manager' 2>/dev/null || true
+        ufw allow 443/tcp comment 'HTTPS - WireGuard Manager' 2>/dev/null || true
+        print_success "Firewall kuralları eklendi (80, 443)"
     fi
 fi
 
@@ -792,9 +1004,13 @@ echo -e "${WHITE}━━━━━━━━━━━━━━━━━━━━━
 echo ""
 echo -e "${CYAN}🌐 Erişim Bilgileri:${NC}"
 echo ""
-echo -e "   Web Panel:    ${GREEN}http://$SERVER_IP:5173${NC}"
-echo -e "   Backend API:  ${GREEN}http://$SERVER_IP:8001${NC}"
-echo -e "   API Docs:     ${GREEN}http://$SERVER_IP:8001/docs${NC}"
+if [ -n "$DOMAIN_NAME" ]; then
+    echo -e "   Web Panel:    ${GREEN}http://$DOMAIN_NAME${NC}"
+    echo -e "   API Docs:     ${GREEN}http://$DOMAIN_NAME/docs${NC}"
+else
+    echo -e "   Web Panel:    ${GREEN}http://$SERVER_IP${NC}"
+    echo -e "   API Docs:     ${GREEN}http://$SERVER_IP/docs${NC}"
+fi
 echo ""
 echo -e "${WHITE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo ""
@@ -807,9 +1023,10 @@ echo -e "${WHITE}━━━━━━━━━━━━━━━━━━━━━
 echo ""
 echo -e "${CYAN}🛠️  Servis Yönetimi:${NC}"
 echo ""
-echo -e "   Durum:        ${YELLOW}systemctl status wg-backend wg-frontend${NC}"
-echo -e "   Yeniden:      ${YELLOW}systemctl restart wg-backend wg-frontend${NC}"
+echo -e "   Durum:        ${YELLOW}systemctl status wg-backend nginx postgresql${NC}"
+echo -e "   Yeniden:      ${YELLOW}systemctl restart wg-backend nginx${NC}"
 echo -e "   Loglar:       ${YELLOW}journalctl -u wg-backend -f${NC}"
+echo -e "   Nginx Log:    ${YELLOW}tail -f /var/log/nginx/error.log${NC}"
 echo ""
 echo -e "${WHITE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo ""
