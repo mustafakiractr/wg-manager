@@ -227,9 +227,10 @@ class TelegramNotificationService:
             if details:
                 message += f"\n📋 Detaylar:\n{details}"
 
-            # Timestamp ekle
-            from datetime import datetime
-            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            # Timestamp ekle (Türkiye saat dilimi - UTC+3)
+            from datetime import datetime, timezone, timedelta
+            turkey_tz = timezone(timedelta(hours=3))
+            timestamp = datetime.now(turkey_tz).strftime("%Y-%m-%d %H:%M:%S")
             message += f"\n\n🕐 {timestamp}"
 
             return await TelegramNotificationService.send_message(

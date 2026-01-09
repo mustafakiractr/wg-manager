@@ -156,6 +156,7 @@ function Layout() {
     { path: '/activity', icon: Power, label: 'Aktivite Geçmişi' },
     { path: '/backup', icon: Archive, label: 'Backup Yönetimi' },
     { path: '/settings', icon: SettingsIcon, label: 'Ayarlar' },
+    { path: '/system', icon: Shield, label: 'Sistem Bilgisi' },
   ]
 
   // Aktif menü öğesini kontrol et

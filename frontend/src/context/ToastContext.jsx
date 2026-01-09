@@ -33,6 +33,7 @@ export const ToastProvider = ({ children }) => {
     error: (message, duration) => addToast(message, 'error', duration),
     warning: (message, duration) => addToast(message, 'warning', duration),
     info: (message, duration) => addToast(message, 'info', duration),
+    showToast: (message, type = 'info', duration) => addToast(message, type, duration),
   }
 
   return (
