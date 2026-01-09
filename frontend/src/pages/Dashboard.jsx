@@ -13,6 +13,7 @@ import {
   getPeerYearlyTraffic,
 } from '../services/trafficService'
 import wanTrafficService from '../services/wanTrafficService'
+import wanTrafficWebSocket from '../services/wanTrafficWebSocket'
 import {
   DndContext,
   closestCenter,
@@ -277,21 +278,23 @@ function Dashboard() {
   })
   const [wanTraffic, setWanTraffic] = useState({
     interfaceName: null,
-    rxBytes: 0,
-    txBytes: 0,
-    rxRate: 0,
-    txRate: 0,
-    totalBytes: 0,
+    rxRate: 0,          // bytes/sec
+    txRate: 0,          // bytes/sec
+    rxRateBps: 0,       // bits/sec
+    txRateBps: 0,       // bits/sec
     running: false,
-    history: {
-      rx: [],
-      tx: [],
-      timestamps: []
-    }
+    wsConnected: false,
+    wsError: null
   })
 
-  // WAN traffic rate hesaplaması için önceki değerleri tut
-  const prevWANTraffic = useRef({ rxBytes: 0, txBytes: 0, timestamp: Date.now() })
+  // WireGuard Traffic State (real-time)
+  const [wgTraffic, setWgTraffic] = useState({
+    totalRxRate: 0,     // bytes/sec
+    totalTxRate: 0,     // bytes/sec
+    totalRxRateBps: 0,  // bits/sec
+    totalTxRateBps: 0,  // bits/sec
+    interfaces: []
+  })
 
   // loadData fonksiyonunu useCallback ile tanımla (useEffect'lerden önce)
   const loadData = useCallback(async (showLoading = false) => {
@@ -445,72 +448,81 @@ function Dashboard() {
     }
   }, [])
 
-  // WAN Traffic verilerini yükle
+  // Traffic WebSocket bağlantısı (WAN + WireGuard)
+  useEffect(() => {
+    // Her iki widget de kapalıysa bağlanma
+    if (!widgetVisibility.wanTraffic && !widgetVisibility.trafficCharts) {
+      wanTrafficWebSocket.disconnect()
+      return
+    }
+
+    // Traffic data listener (WAN + WireGuard)
+    const unsubscribeData = wanTrafficWebSocket.addListener((data) => {
+      // WAN Traffic güncelle
+      if (data.wan) {
+        setWanTraffic((prev) => ({
+          ...prev,
+          interfaceName: data.wan.interface_name,
+          rxRate: data.wan.rx_rate || 0,
+          txRate: data.wan.tx_rate || 0,
+          rxRateBps: data.wan.rx_rate_bps || 0,
+          txRateBps: data.wan.tx_rate_bps || 0,
+          running: data.wan.running || false,
+          wsError: null
+        }))
+      }
+
+      // WireGuard Traffic güncelle
+      if (data.wireguard) {
+        setWgTraffic({
+          totalRxRate: data.wireguard.total_rx_rate || 0,
+          totalTxRate: data.wireguard.total_tx_rate || 0,
+          totalRxRateBps: data.wireguard.total_rx_rate_bps || 0,
+          totalTxRateBps: data.wireguard.total_tx_rate_bps || 0,
+          interfaces: data.wireguard.interfaces || []
+        })
+      }
+    })
+
+    // Error listener
+    const unsubscribeError = wanTrafficWebSocket.addErrorListener((error) => {
+      setWanTraffic((prev) => ({ ...prev, wsError: error }))
+    })
+
+    // State listener
+    const unsubscribeState = wanTrafficWebSocket.addStateListener((state) => {
+      setWanTraffic((prev) => ({ ...prev, wsConnected: state === 'connected' }))
+    })
+
+    // Connect
+    wanTrafficWebSocket.connect()
+
+    // Cleanup
+    return () => {
+      unsubscribeData()
+      unsubscribeError()
+      unsubscribeState()
+      wanTrafficWebSocket.disconnect()
+    }
+  }, [widgetVisibility.wanTraffic, widgetVisibility.trafficCharts])
+
+  // WAN Traffic fallback - WebSocket bağlanamazsa HTTP polling (opsiyonel)
   const loadWANTrafficData = useCallback(async () => {
+    // WebSocket bağlıysa HTTP polling yapma
+    if (wanTrafficWebSocket.isConnected()) return
+
     try {
       const res = await wanTrafficService.getWANTraffic()
       if (res.success && res.data) {
         const data = res.data
-        const currentTime = Date.now()
-
-        // Rate hesapla (bytes farkı / zaman farkı)
-        const prev = prevWANTraffic.current
-        const timeDiffSec = (currentTime - prev.timestamp) / 1000
-
-        let rxRate = 0
-        let txRate = 0
-
-        if (timeDiffSec > 0 && prev.rxBytes > 0) {
-          // Bytes farkını al ve saniyede byte hesapla
-          const rxDiff = data.rx_bytes - prev.rxBytes
-          const txDiff = data.tx_bytes - prev.txBytes
-
-          rxRate = rxDiff / timeDiffSec  // bytes/sec
-          txRate = txDiff / timeDiffSec  // bytes/sec
-
-          // Negatif değerleri sıfırla (counter reset olmuş olabilir)
-          if (rxRate < 0) rxRate = 0
-          if (txRate < 0) txRate = 0
-        }
-
-        // Şimdiki değerleri kaydet (bir sonraki hesaplama için)
-        prevWANTraffic.current = {
-          rxBytes: data.rx_bytes,
-          txBytes: data.tx_bytes,
-          timestamp: currentTime
-        }
-
-        // Geçmiş veriye ekle (grafik için)
-        setWanTraffic((prev) => {
-          const now = new Date()
-          const timeStr = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`
-
-          // Rate değerlerini bytes/sec'den MB/sec'e çevir (grafik için)
-          const rxRateMB = rxRate / (1024 * 1024)
-          const txRateMB = txRate / (1024 * 1024)
-
-          const newRxHistory = [...prev.history.rx, rxRateMB]
-          const newTxHistory = [...prev.history.tx, txRateMB]
-          const newTimestamps = [...prev.history.timestamps, timeStr]
-
-          // Son 20 veriyi tut
-          const maxDataPoints = 20
-
-          return {
-            interfaceName: data.interface_name,
-            rxBytes: data.rx_bytes || 0,
-            txBytes: data.tx_bytes || 0,
-            rxRate: rxRate,  // bytes/sec
-            txRate: txRate,  // bytes/sec
-            totalBytes: data.total_bytes || 0,
-            running: data.running || false,
-            history: {
-              rx: newRxHistory.slice(-maxDataPoints),
-              tx: newTxHistory.slice(-maxDataPoints),
-              timestamps: newTimestamps.slice(-maxDataPoints)
-            }
-          }
-        })
+        setWanTraffic((prev) => ({
+          ...prev,
+          interfaceName: data.interface_name,
+          rxBytes: data.rx_bytes || 0,
+          txBytes: data.tx_bytes || 0,
+          totalBytes: data.total_bytes || 0,
+          running: data.running || false
+        }))
       }
     } catch (error) {
       console.error('WAN trafik verileri yüklenemedi:', error)
@@ -1164,149 +1176,91 @@ function Dashboard() {
 
       case 'trafficCharts':
         return (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
-            <div className="card">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
-                <h3 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-white">
-                  Gelen Veri
-                </h3>
-                <span className="text-xl sm:text-2xl font-bold text-blue-600 dark:text-blue-400">
-                  {formatBytes(stats.totalRx)}
+          <div className="card">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
+              <h3 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                <TrendingUp className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
+                WireGuard Trafiği
+                {/* Real-time indicator */}
+                {wanTraffic.wsConnected ? (
+                  <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
+                    <span className="w-2 h-2 mr-1 bg-green-500 rounded-full animate-pulse"></span>
+                    LIVE
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200">
+                    <span className="w-2 h-2 mr-1 bg-yellow-500 rounded-full animate-pulse"></span>
+                    Bağlanıyor...
+                  </span>
+                )}
+              </h3>
+              <div className="text-right">
+                <span className="text-sm text-gray-500 dark:text-gray-400">Toplam: </span>
+                <span className="text-lg font-bold text-indigo-600 dark:text-indigo-400">
+                  {formatBytes(stats.totalRx + stats.totalTx)}
                 </span>
               </div>
-              <div className="h-48">
-                {trafficHistory.rx.length > 0 ? (
-                  <Line
-                    data={{
-                      labels: trafficHistory.timestamps,
-                      datasets: [
-                        {
-                          label: 'İndirme (MB)',
-                          data: trafficHistory.rx,
-                          borderColor: 'rgb(59, 130, 246)',
-                          backgroundColor: 'rgba(59, 130, 246, 0.1)',
-                          fill: true,
-                          tension: 0.4,
-                          pointRadius: 3,
-                          pointHoverRadius: 5,
-                        },
-                      ],
-                    }}
-                    options={{
-                      responsive: true,
-                      maintainAspectRatio: false,
-                      plugins: {
-                        legend: {
-                          display: false,
-                        },
-                        tooltip: {
-                          mode: 'index',
-                          intersect: false,
-                          callbacks: {
-                            label: function (context) {
-                              return `${context.parsed.y.toFixed(2)} MB`
-                            },
-                          },
-                        },
-                      },
-                      scales: {
-                        y: {
-                          beginAtZero: true,
-                          ticks: {
-                            callback: function (value) {
-                              return value.toFixed(1) + ' MB'
-                            },
-                          },
-                        },
-                        x: {
-                          ticks: {
-                            maxRotation: 45,
-                            minRotation: 45,
-                          },
-                        },
-                      },
-                    }}
-                  />
-                ) : (
-                  <div className="h-full bg-gray-100 dark:bg-gray-800 rounded-lg flex items-center justify-center">
-                    <p className="text-gray-500 dark:text-gray-400 text-sm">
-                      Veri toplanıyor...
-                    </p>
-                  </div>
-                )}
+            </div>
+
+            {/* Anlık Rate Değerleri */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+              <div className="flex items-center gap-3 p-4 bg-gradient-to-r from-blue-50 to-blue-100 dark:from-blue-900/30 dark:to-blue-800/20 rounded-xl border border-blue-200 dark:border-blue-800">
+                <Download className="w-10 h-10 text-blue-600 dark:text-blue-400" />
+                <div className="flex-1">
+                  <p className="text-sm text-blue-700 dark:text-blue-300 font-medium">Gelen Veri Hızı</p>
+                  <p className="text-2xl font-bold text-blue-900 dark:text-blue-100">
+                    {formatBytes(wgTraffic.totalRxRate)}/s
+                  </p>
+                  <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
+                    {(wgTraffic.totalRxRateBps / 1000000).toFixed(2)} Mbps
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3 p-4 bg-gradient-to-r from-green-50 to-green-100 dark:from-green-900/30 dark:to-green-800/20 rounded-xl border border-green-200 dark:border-green-800">
+                <Upload className="w-10 h-10 text-green-600 dark:text-green-400" />
+                <div className="flex-1">
+                  <p className="text-sm text-green-700 dark:text-green-300 font-medium">Giden Veri Hızı</p>
+                  <p className="text-2xl font-bold text-green-900 dark:text-green-100">
+                    {formatBytes(wgTraffic.totalTxRate)}/s
+                  </p>
+                  <p className="text-xs text-green-600 dark:text-green-400 mt-1">
+                    {(wgTraffic.totalTxRateBps / 1000000).toFixed(2)} Mbps
+                  </p>
+                </div>
               </div>
             </div>
-            <div className="card">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
-                <h3 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-white">
-                  Gönderilen Veri
-                </h3>
-                <span className="text-xl sm:text-2xl font-bold text-green-600 dark:text-green-400">
-                  {formatBytes(stats.totalTx)}
+
+            {/* Toplam Bant Genişliği */}
+            <div className="p-3 bg-indigo-50 dark:bg-indigo-900/20 rounded-xl border border-indigo-200 dark:border-indigo-800">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-medium text-indigo-700 dark:text-indigo-300">Toplam Bant Genişliği</span>
+                <span className="text-xl font-bold text-indigo-900 dark:text-indigo-100">
+                  {((wgTraffic.totalRxRateBps + wgTraffic.totalTxRateBps) / 1000000).toFixed(2)} Mbps
                 </span>
               </div>
-              <div className="h-48">
-                {trafficHistory.tx.length > 0 ? (
-                  <Line
-                    data={{
-                      labels: trafficHistory.timestamps,
-                      datasets: [
-                        {
-                          label: 'Yükleme (MB)',
-                          data: trafficHistory.tx,
-                          borderColor: 'rgb(34, 197, 94)',
-                          backgroundColor: 'rgba(34, 197, 94, 0.1)',
-                          fill: true,
-                          tension: 0.4,
-                          pointRadius: 3,
-                          pointHoverRadius: 5,
-                        },
-                      ],
-                    }}
-                    options={{
-                      responsive: true,
-                      maintainAspectRatio: false,
-                      plugins: {
-                        legend: {
-                          display: false,
-                        },
-                        tooltip: {
-                          mode: 'index',
-                          intersect: false,
-                          callbacks: {
-                            label: function (context) {
-                              return `${context.parsed.y.toFixed(2)} MB`
-                            },
-                          },
-                        },
-                      },
-                      scales: {
-                        y: {
-                          beginAtZero: true,
-                          ticks: {
-                            callback: function (value) {
-                              return value.toFixed(1) + ' MB'
-                            },
-                          },
-                        },
-                        x: {
-                          ticks: {
-                            maxRotation: 45,
-                            minRotation: 45,
-                          },
-                        },
-                      },
-                    }}
-                  />
-                ) : (
-                  <div className="h-full bg-gray-100 dark:bg-gray-800 rounded-lg flex items-center justify-center">
-                    <p className="text-gray-500 dark:text-gray-400 text-sm">
-                      Veri toplanıyor...
-                    </p>
-                  </div>
-                )}
-              </div>
             </div>
+
+            {/* Interface Detayları (birden fazla WG interface varsa) */}
+            {wgTraffic.interfaces.length > 1 && (
+              <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+                <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-2">Interface Detayları</p>
+                <div className="space-y-2">
+                  {wgTraffic.interfaces.map((iface) => (
+                    <div key={iface.name} className="flex items-center justify-between text-sm">
+                      <span className="text-gray-700 dark:text-gray-300">{iface.name}</span>
+                      <div className="flex gap-4">
+                        <span className="text-blue-600 dark:text-blue-400">
+                          ↓ {(iface.rx_rate_bps / 1000000).toFixed(2)} Mbps
+                        </span>
+                        <span className="text-green-600 dark:text-green-400">
+                          ↑ {(iface.tx_rate_bps / 1000000).toFixed(2)} Mbps
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         )
 
@@ -1317,112 +1271,65 @@ function Dashboard() {
               <h3 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
                 <Network className="w-5 h-5 text-purple-600 dark:text-purple-400" />
                 WAN Trafiği
+                {/* Real-time indicator */}
+                {wanTraffic.wsConnected ? (
+                  <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
+                    <span className="w-2 h-2 mr-1 bg-green-500 rounded-full animate-pulse"></span>
+                    LIVE
+                  </span>
+                ) : wanTraffic.wsError ? (
+                  <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200" title={wanTraffic.wsError}>
+                    <span className="w-2 h-2 mr-1 bg-red-500 rounded-full"></span>
+                    HATA
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200">
+                    <span className="w-2 h-2 mr-1 bg-yellow-500 rounded-full animate-pulse"></span>
+                    Bağlanıyor...
+                  </span>
+                )}
               </h3>
               <span className="text-xl sm:text-2xl font-bold text-purple-600 dark:text-purple-400">
                 {wanTraffic.interfaceName || 'N/A'}
               </span>
             </div>
 
-            {/* Anlık Değerler */}
+            {/* Anlık Rate Değerleri */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-              <div className="flex items-center gap-3 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
-                <Download className="w-8 h-8 text-blue-600 dark:text-blue-400" />
+              <div className="flex items-center gap-3 p-4 bg-gradient-to-r from-blue-50 to-blue-100 dark:from-blue-900/30 dark:to-blue-800/20 rounded-xl border border-blue-200 dark:border-blue-800">
+                <Download className="w-10 h-10 text-blue-600 dark:text-blue-400" />
                 <div className="flex-1">
-                  <p className="text-sm text-blue-700 dark:text-blue-300">İndirme</p>
-                  <p className="text-xl font-bold text-blue-900 dark:text-blue-100">
-                    {formatBytes(wanTraffic.rxBytes)}
+                  <p className="text-sm text-blue-700 dark:text-blue-300 font-medium">İndirme Hızı</p>
+                  <p className="text-2xl font-bold text-blue-900 dark:text-blue-100">
+                    {formatBytes(wanTraffic.rxRate)}/s
                   </p>
                   <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
-                    ⚡ {formatBytes(wanTraffic.rxRate)}/s
+                    {((wanTraffic.rxRateBps || 0) / 1000000).toFixed(2)} Mbps
                   </p>
                 </div>
               </div>
-              <div className="flex items-center gap-3 p-3 bg-green-50 dark:bg-green-900/20 rounded-lg">
-                <Upload className="w-8 h-8 text-green-600 dark:text-green-400" />
+              <div className="flex items-center gap-3 p-4 bg-gradient-to-r from-green-50 to-green-100 dark:from-green-900/30 dark:to-green-800/20 rounded-xl border border-green-200 dark:border-green-800">
+                <Upload className="w-10 h-10 text-green-600 dark:text-green-400" />
                 <div className="flex-1">
-                  <p className="text-sm text-green-700 dark:text-green-300">Yükleme</p>
-                  <p className="text-xl font-bold text-green-900 dark:text-green-100">
-                    {formatBytes(wanTraffic.txBytes)}
+                  <p className="text-sm text-green-700 dark:text-green-300 font-medium">Yükleme Hızı</p>
+                  <p className="text-2xl font-bold text-green-900 dark:text-green-100">
+                    {formatBytes(wanTraffic.txRate)}/s
                   </p>
                   <p className="text-xs text-green-600 dark:text-green-400 mt-1">
-                    ⚡ {formatBytes(wanTraffic.txRate)}/s
+                    {((wanTraffic.txRateBps || 0) / 1000000).toFixed(2)} Mbps
                   </p>
                 </div>
               </div>
             </div>
 
-            {/* Tarihsel Grafik */}
-            <div className="h-48">
-              {wanTraffic.history.rx.length > 0 ? (
-                <Line
-                  data={{
-                    labels: wanTraffic.history.timestamps,
-                    datasets: [
-                      {
-                        label: 'İndirme Hızı (MB/s)',
-                        data: wanTraffic.history.rx,
-                        borderColor: 'rgb(59, 130, 246)',
-                        backgroundColor: 'rgba(59, 130, 246, 0.1)',
-                        fill: true,
-                        tension: 0.4,
-                        pointRadius: 2,
-                        pointHoverRadius: 4,
-                      },
-                      {
-                        label: 'Yükleme Hızı (MB/s)',
-                        data: wanTraffic.history.tx,
-                        borderColor: 'rgb(34, 197, 94)',
-                        backgroundColor: 'rgba(34, 197, 94, 0.1)',
-                        fill: true,
-                        tension: 0.4,
-                        pointRadius: 2,
-                        pointHoverRadius: 4,
-                      },
-                    ],
-                  }}
-                  options={{
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: {
-                      legend: {
-                        display: true,
-                        position: 'top',
-                      },
-                      tooltip: {
-                        mode: 'index',
-                        intersect: false,
-                        callbacks: {
-                          label: function (context) {
-                            return `${context.dataset.label}: ${context.parsed.y.toFixed(2)} MB/s`
-                          },
-                        },
-                      },
-                    },
-                    scales: {
-                      y: {
-                        beginAtZero: true,
-                        ticks: {
-                          callback: function (value) {
-                            return value.toFixed(1) + ' MB/s'
-                          },
-                        },
-                      },
-                      x: {
-                        ticks: {
-                          maxRotation: 45,
-                          minRotation: 45,
-                        },
-                      },
-                    },
-                  }}
-                />
-              ) : (
-                <div className="h-full bg-gray-100 dark:bg-gray-800 rounded-lg flex items-center justify-center">
-                  <p className="text-gray-500 dark:text-gray-400 text-sm">
-                    Veri toplanıyor...
-                  </p>
-                </div>
-              )}
+            {/* Toplam Hız */}
+            <div className="mt-4 p-3 bg-purple-50 dark:bg-purple-900/20 rounded-xl border border-purple-200 dark:border-purple-800">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-medium text-purple-700 dark:text-purple-300">Toplam Bant Genişliği</span>
+                <span className="text-xl font-bold text-purple-900 dark:text-purple-100">
+                  {((wanTraffic.rxRateBps + wanTraffic.txRateBps) / 1000000).toFixed(2)} Mbps
+                </span>
+              </div>
             </div>
           </div>
         )
