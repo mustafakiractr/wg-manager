@@ -8,16 +8,27 @@ MikroTik RouterOS v7+ WireGuard VPN yönetimi için modern web arayüzü.
 
 ## 🚀 Hızlı Başlangıç
 
-# Kurulum (Tek komut - her şeyi otomatik yükler)
+### Production Kurulumu (Önerilen)
+```bash
+git clone https://github.com/mustafakiractr/wg-manager.git /opt/wg-manager
+cd /opt/wg-manager
+sudo bash install_production.sh
+```
+
+**Kurulum sırasında sorulacak:**
+- PostgreSQL veritabanı şifresi
+- Admin panel şifresi
+- MikroTik bağlantı bilgileri (opsiyonel)
+- Domain adı (opsiyonel)
+
+### Hızlı Kurulum (Development)
 ```bash
 git clone https://github.com/mustafakiractr/wg-manager.git /opt/wg-manager
 cd /opt/wg-manager
 sudo bash quick-start.sh
 ```
 
-**İlk Giriş:** `http://sunucu-ip:5173 - admin/admin123`
-
- **İlk girişten sonra şifreyi değiştirin!**
+**İlk Giriş:** `http://sunucu-ip:5173`
 
 ## ✨ Özellikler
 
