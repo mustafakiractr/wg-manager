@@ -304,15 +304,15 @@ function Dashboard() {
         setIsRefreshing(true) // Manuel yenileme için
       }
       
-      const interfacesRes = await getInterfaces()
-      const interfacesData = interfacesRes.data || []
+      // getInterfaces() direkt array döndürüyor (.data değil)
+      const interfacesData = await getInterfaces()
 
       // Tüm interface'lerden peer'ları paralel olarak topla (performans için)
       const peerPromises = interfacesData.map(async (iface) => {
         try {
           const interfaceName = iface.name || iface['.id']
-          const peersRes = await getPeers(interfaceName)
-          const peers = peersRes.data || []
+          // getPeers() direkt array döndürüyor (.data değil)
+          const peers = await getPeers(interfaceName)
           
           // Peer'ları normalize et
           const normalizedPeers = peers.map((p) => {
@@ -534,7 +534,8 @@ function Dashboard() {
     loadData(false) // İlk yüklemede de sessizce yükle
     loadDashboardData() // Dashboard istatistiklerini yükle
     loadWANTrafficData() // WAN traffic verilerini yükle
-  }, [loadData, loadDashboardData, loadWANTrafficData])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   // Yenileme sıklığı değiştiğinde interval'i güncelle - performans için minimum 10 saniye
   useEffect(() => {
@@ -546,7 +547,8 @@ function Dashboard() {
       loadWANTrafficData() // WAN traffic'i de yenile
     }, minRefreshRate * 1000)
     return () => clearInterval(interval)
-  }, [refreshRate, loadData, loadWANTrafficData])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [refreshRate])
 
   // Widget görünürlük ayarlarını localStorage'a kaydet
   useEffect(() => {
