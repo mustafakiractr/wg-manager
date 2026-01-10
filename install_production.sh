@@ -330,12 +330,48 @@ if [ "$NEED_NODE_INSTALL" = "true" ]; then
     print_success "Node.js $(node --version) yüklendi"
 fi
 
-# npm kontrolü
+# npm kontrolü ve düzeltme
 if ! check_command npm; then
-    print_error "npm bulunamadı! Node.js kurulumunda sorun var."
-    exit 1
+    print_warning "npm bulunamadı! Düzeltme deneniyor..."
+
+    # Hash tablosunu temizle (bash bazen eski path'leri cache'ler)
+    hash -r 2>/dev/null || true
+
+    # Tekrar kontrol
+    if ! check_command npm; then
+        print_step "Node.js ve npm yeniden yükleniyor..."
+        if [ "$OS_ID" = "ubuntu" ] || [ "$OS_ID" = "debian" ]; then
+            apt-get remove -y -qq nodejs npm 2>/dev/null || true
+            apt-get autoremove -y -qq 2>/dev/null || true
+            rm -rf /usr/lib/node_modules 2>/dev/null || true
+            rm -rf /usr/local/lib/node_modules 2>/dev/null || true
+
+            # NodeSource repo'dan temiz kurulum
+            curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
+            apt-get install -y nodejs
+
+            # Hash tablosunu yenile
+            hash -r 2>/dev/null || true
+        elif [ "$OS_ID" = "centos" ] || [ "$OS_ID" = "rhel" ]; then
+            yum remove -y nodejs npm 2>/dev/null || true
+            curl -fsSL https://rpm.nodesource.com/setup_20.x | bash -
+            yum install -y nodejs
+            hash -r 2>/dev/null || true
+        fi
+
+        # Son kontrol
+        if ! check_command npm; then
+            print_error "npm hala yüklenemedi!"
+            echo ""
+            echo "Manuel kurulum için:"
+            echo "  curl -fsSL https://deb.nodesource.com/setup_20.x | sudo bash -"
+            echo "  sudo apt install -y nodejs"
+            echo ""
+            exit 1
+        fi
+    fi
 fi
-print_success "npm $(npm --version) mevcut"
+print_success "Node.js $(node --version) ve npm $(npm --version) mevcut"
 
 # Gerekli sistem paketleri
 print_step "Gerekli sistem paketleri yükleniyor..."
