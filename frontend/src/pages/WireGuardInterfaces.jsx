@@ -162,16 +162,16 @@ function WireGuardInterfaces() {
       setLoading(true)
       // Interface'leri yükle
       const interfacesRes = await getInterfaces()
-      const interfacesData = interfacesRes.data || []
+      const interfacesData = interfacesRes || []
       setInterfaces(interfacesData)
-      
+
       // Tüm interface'lerden peer'ları topla
       const peersList = []
       for (const iface of interfacesData) {
         try {
           const interfaceName = iface.name || iface['.id']
           const peersRes = await getPeers(interfaceName)
-          const peers = (peersRes.data || []).map(peer => {
+          const peers = (peersRes || []).map(peer => {
             // Peer ID'yi kontrol et ve varsayılan değer ekle
             // MikroTik API'den gelen peer verilerinde hem 'id' hem '.id' olabilir
             // Önce 'id' kontrolü yap (MikroTik API genelde 'id' kullanır)
