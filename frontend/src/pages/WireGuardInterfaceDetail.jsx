@@ -130,7 +130,7 @@ function WireGuardInterfaceDetail() {
   // Peer data normalize fonksiyonu - Memoize edildi (performans)
   const normalizePeerData = useCallback((peer) => {
     const peerId = peer['.id'] || peer.id || peer['*1'] || `peer-${Date.now()}-${Math.random()}`
-    
+
     let disabled = peer.disabled
     if (disabled === undefined || disabled === null) {
       disabled = false
@@ -139,11 +139,15 @@ function WireGuardInterfaceDetail() {
     } else {
       disabled = Boolean(disabled)
     }
-    
+
+    // saved_in_db kontrolü - undefined ise false kabul et
+    const savedInDb = peer.saved_in_db === true
+
     return {
       ...peer,
       '.id': peerId,
-      disabled: disabled
+      disabled: disabled,
+      saved_in_db: savedInDb
     }
   }, [])
 
