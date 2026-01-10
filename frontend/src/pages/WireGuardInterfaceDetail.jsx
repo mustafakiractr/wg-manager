@@ -2242,11 +2242,11 @@ function WireGuardInterfaceDetail() {
                       )}
                       {!peer.saved_in_db && (
                         <button
-                          onClick={() => openImportModal(peer)}
+                          onClick={() => handleOpenImportModal(peer)}
                           className="p-1.5 rounded text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20"
-                          title="Import Et"
+                          title="DB'ye Kaydet"
                         >
-                          <Download className="w-4 h-4" />
+                          <Save className="w-4 h-4" />
                         </button>
                       )}
                       <button
