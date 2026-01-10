@@ -2428,7 +2428,7 @@ function WireGuardInterfaceDetail() {
                             </button>
 
                         {/* DB'de kayıtlı değilse Import butonu göster */}
-                        {peer.saved_in_db === false && (
+                        {peer.saved_in_db !== true && (
                           <button
                             onClick={() => handleOpenImportModal(peer)}
                             className="p-2 hover:bg-primary-100 dark:hover:bg-primary-900/30 rounded text-primary-600 dark:text-primary-400"
@@ -2441,20 +2441,20 @@ function WireGuardInterfaceDetail() {
                         <button
                           onClick={() => handleShowQR(peer['.id'])}
                           className={`p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded text-blue-600 dark:text-blue-400 ${
-                            peer.saved_in_db === false ? 'opacity-50 cursor-not-allowed' : ''
+                            peer.saved_in_db !== true ? 'opacity-50 cursor-not-allowed' : ''
                           }`}
-                          title={peer.saved_in_db === false ? 'QR Kod (Önce kaydet)' : 'QR Kod'}
-                          disabled={peer.saved_in_db === false}
+                          title={peer.saved_in_db !== true ? 'QR Kod (Önce kaydet)' : 'QR Kod'}
+                          disabled={peer.saved_in_db !== true}
                         >
                           <QrCode className="w-4 h-4" />
                         </button>
                             <button
                               onClick={() => handleShowConfig(peer['.id'])}
                               className={`p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded text-green-600 dark:text-green-400 ${
-                                peer.saved_in_db === false ? 'opacity-50 cursor-not-allowed' : ''
+                                peer.saved_in_db !== true ? 'opacity-50 cursor-not-allowed' : ''
                               }`}
-                              title={peer.saved_in_db === false ? 'Config Dosyası (Önce kaydet)' : 'Config Dosyası'}
-                              disabled={peer.saved_in_db === false}
+                              title={peer.saved_in_db !== true ? 'Config Dosyası (Önce kaydet)' : 'Config Dosyası'}
+                              disabled={peer.saved_in_db !== true}
                             >
                               <FileText className="w-4 h-4" />
                             </button>
