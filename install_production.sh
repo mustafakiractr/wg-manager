@@ -581,8 +581,8 @@ try:
     else:
         session.execute(
             text("""
-                INSERT INTO users (username, email, hashed_password, is_active, role, created_at)
-                VALUES ('admin', 'admin@localhost', :pwd, true, 'admin', NOW())
+                INSERT INTO users (username, email, hashed_password, is_active, is_admin, created_at)
+                VALUES ('admin', 'admin@localhost', :pwd, true, true, NOW())
             """),
             {"pwd": hashed_password}
         )
