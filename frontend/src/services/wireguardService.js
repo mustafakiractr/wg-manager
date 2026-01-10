@@ -6,19 +6,23 @@ import api from './api'
 
 /**
  * Tüm WireGuard interface'lerini getirir
+ * @returns {Array} Interface listesi
  */
 export const getInterfaces = async () => {
   const response = await api.get('/wg/interfaces')
-  return response.data
+  // Backend {success: true, data: [...]} formatında döndürüyor
+  return response.data?.data || []
 }
 
 /**
  * Belirli bir interface'in detaylarını getirir
  * @param {string} name - Interface adı
+ * @returns {Object} Interface bilgileri
  */
 export const getInterface = async (name) => {
   const response = await api.get(`/wg/interface/${name}`)
-  return response.data
+  // Backend {success: true, data: {...}} formatında döndürüyor
+  return response.data?.data || null
 }
 
 /**
@@ -62,10 +66,12 @@ export const deleteInterface = async (name) => {
 /**
  * Belirli bir interface'e ait peer'ları getirir
  * @param {string} interfaceName - Interface adı
+ * @returns {Array} Peer listesi
  */
 export const getPeers = async (interfaceName) => {
   const response = await api.get(`/wg/peers/${interfaceName}`)
-  return response.data
+  // Backend {success: true, data: [...]} formatında döndürüyor
+  return response.data?.data || []
 }
 
 /**
