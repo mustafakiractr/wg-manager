@@ -6,12 +6,12 @@ import api from './api'
 
 /**
  * Tüm WireGuard interface'lerini getirir
- * @returns {Array} Interface listesi
+ * @returns {Object} {success: boolean, data: Array} formatında response
  */
 export const getInterfaces = async () => {
   const response = await api.get('/wg/interfaces')
   // Backend {success: true, data: [...]} formatında döndürüyor
-  return response.data?.data || []
+  return response.data
 }
 
 /**
