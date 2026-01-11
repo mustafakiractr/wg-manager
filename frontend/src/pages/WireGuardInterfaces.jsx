@@ -162,7 +162,7 @@ function WireGuardInterfaces() {
       setLoading(true)
       // Interface'leri yükle
       const interfacesRes = await getInterfaces()
-      const interfacesData = interfacesRes || []
+      const interfacesData = interfacesRes?.data || []
       setInterfaces(interfacesData)
 
       // Tüm interface'lerden peer'ları topla

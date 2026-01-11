@@ -304,8 +304,9 @@ function Dashboard() {
         setIsRefreshing(true) // Manuel yenileme için
       }
       
-      // getInterfaces() direkt array döndürüyor (.data değil)
-      const interfacesData = await getInterfaces()
+      // getInterfaces() {success, data} formatında döndürüyor
+      const interfacesResponse = await getInterfaces()
+      const interfacesData = interfacesResponse?.data || []
 
       // Tüm interface'lerden peer'ları paralel olarak topla (performans için)
       const peerPromises = interfacesData.map(async (iface) => {
